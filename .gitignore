@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Test coverage
+coverage/
+
+# Tauri (Phase 3+)
+src-tauri/target/
+
+# Claude Code local settings
+.claude/settings.local.json
+.claude/memory/
+
+# Logs
+*.log
+npm-debug.log*

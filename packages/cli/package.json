@@ -1,0 +1,19 @@
+{
+  "name": "@docs-to-md/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "docs-to-md CLI 인터페이스",
+  "type": "module",
+  "bin": {
+    "docs-to-md": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm",
+    "dev": "tsup src/index.ts --format esm --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@docs-to-md/core": "workspace:*"
+  },
+  "files": ["dist"]
+}
