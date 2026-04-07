@@ -17,5 +17,17 @@
     "dev": "tsup src/index.ts --format esm --dts --watch",
     "typecheck": "tsc --noEmit"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/turndown": "^5.0.6"
+  },
+  "dependencies": {
+    "@opendocsg/pdf2md": "^0.2.6",
+    "@ssabrojs/hwpxjs": "^0.2.0",
+    "mammoth": "^1.12.0",
+    "turndown": "^7.2.4",
+    "turndown-plugin-gfm": "^1.0.2"
+  }
 }

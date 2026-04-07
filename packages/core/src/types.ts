@@ -21,6 +21,21 @@ export interface ConvertOptions {
   imagesDirName?: string;
 }
 
+/** 파서가 반환하는 중간 결과 */
+export interface ParseResult {
+  /** HTML 문자열 (HTML 기반 파서) 또는 null */
+  html: string | null;
+  /** 직접 생성된 Markdown (PDF 등 HTML 거치지 않는 경우) */
+  markdown: string | null;
+  /** 추출된 이미지 */
+  images: Array<ImageAsset>;
+}
+
+/** 포맷별 파서 인터페이스 */
+export interface Parser {
+  parse(inputPath: string): Promise<ParseResult>;
+}
+
 /** 변환 결과 */
 export interface ConvertResult {
   /** 변환된 Markdown 문자열 */
