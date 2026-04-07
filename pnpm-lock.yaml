@@ -38,9 +38,12 @@ importers:
       '@opendocsg/pdf2md':
         specifier: ^0.2.6
         version: 0.2.6
-      '@ssabrojs/hwpxjs':
-        specifier: ^0.2.0
-        version: 0.2.0
+      fast-xml-parser:
+        specifier: ^5.5.10
+        version: 5.5.10
+      fflate:
+        specifier: ^0.8.2
+        version: 0.8.2
       mammoth:
         specifier: ^1.12.0
         version: 1.12.0
@@ -544,11 +547,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@ssabrojs/hwpxjs@0.2.0':
-    resolution: {integrity: sha512-7zSo5nhlqTyOontDYWP8H1zZ9T7njPHyILeQ5Dy63iYxuBYfUTmCTOl1aANbGDEzrD0fKclpIoSSwGfFekCZlQ==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -711,6 +709,9 @@ packages:
     peerDependenciesMeta:
       picomatch:
         optional: true
+
+  fflate@0.8.2:
+    resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
 
   fix-dts-default-cjs-exports@1.0.1:
     resolution: {integrity: sha512-pVIECanWFC61Hzl2+oOCtoJ3F17kglZC/6N94eRWycFgBH35hHx0Li604ZIzhseh97mf2p0cv7vVrOZGoqhlEg==}
@@ -1491,11 +1492,6 @@ snapshots:
   '@rollup/rollup-win32-x64-msvc@4.60.1':
     optional: true
 
-  '@ssabrojs/hwpxjs@0.2.0':
-    dependencies:
-      fast-xml-parser: 5.5.10
-      jszip: 3.10.1
-
   '@standard-schema/spec@1.1.0': {}
 
   '@tybys/wasm-util@0.10.1':
@@ -1662,6 +1658,8 @@ snapshots:
   fdir@6.5.0(picomatch@4.0.4):
     optionalDependencies:
       picomatch: 4.0.4
+
+  fflate@0.8.2: {}
 
   fix-dts-default-cjs-exports@1.0.1:
     dependencies:
