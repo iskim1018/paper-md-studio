@@ -31,9 +31,15 @@ export interface ParseResult {
   images: Array<ImageAsset>;
 }
 
+/** 파서에 전달되는 옵션 */
+export interface ParseOptions {
+  /** 이미지 저장 디렉토리명 (MD 내 상대경로 생성용) */
+  imagesDirName: string;
+}
+
 /** 포맷별 파서 인터페이스 */
 export interface Parser {
-  parse(inputPath: string): Promise<ParseResult>;
+  parse(inputPath: string, options: ParseOptions): Promise<ParseResult>;
 }
 
 /** 변환 결과 */

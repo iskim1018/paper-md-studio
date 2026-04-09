@@ -1,4 +1,4 @@
-import { extname } from "node:path";
+import { basename, extname } from "node:path";
 import { htmlToMarkdown } from "./html-to-md.js";
 import { normalizePath } from "./normalize.js";
 import { DocxParser } from "./parsers/docx-parser.js";
@@ -34,13 +34,19 @@ function detectFormat(filePath: string): DocumentFormat {
   return format;
 }
 
+function defaultImagesDirName(inputPath: string): string {
+  return `${basename(inputPath).replace(/\.[^.]+$/, "")}_images`;
+}
+
 export async function convert(options: ConvertOptions): Promise<ConvertResult> {
   const start = performance.now();
   const inputPath = normalizePath(options.inputPath);
   const format = detectFormat(inputPath);
+  const imagesDirName =
+    options.imagesDirName ?? defaultImagesDirName(inputPath);
 
   const parser = PARSER_MAP[format]();
-  const parseResult = await parser.parse(inputPath);
+  const parseResult = await parser.parse(inputPath, { imagesDirName });
 
   let markdown: string;
   if (parseResult.markdown) {

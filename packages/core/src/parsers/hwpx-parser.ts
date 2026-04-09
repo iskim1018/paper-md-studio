@@ -1,7 +1,18 @@
 import { readFile } from "node:fs/promises";
 import { XMLParser } from "fast-xml-parser";
 import { strFromU8, unzipSync } from "fflate";
-import type { ParseResult, Parser } from "../types.js";
+import {
+  createImageAsset,
+  imageToHtml,
+  makeImageName,
+  mimeFromExt,
+} from "../image-utils.js";
+import type {
+  ImageAsset,
+  ParseOptions,
+  ParseResult,
+  Parser,
+} from "../types.js";
 
 interface HwpxStyle {
   id: string;
@@ -103,6 +114,92 @@ function parseBoldSet(headerDoc: Record<string, unknown>): Set<string> {
     }
   }
   return boldIds;
+}
+
+// --- Image extraction ---
+
+const IMAGE_EXTENSIONS = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".bmp",
+  ".tiff",
+  ".tif",
+  ".svg",
+  ".webp",
+]);
+
+function isImageFile(path: string): boolean {
+  const ext = path.toLowerCase().replace(/^.*(\.[^.]+)$/, "$1");
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
+function extractImagesFromZip(
+  files: Record<string, Uint8Array>,
+): Map<string, { data: Uint8Array; originalPath: string }> {
+  const imageMap = new Map<
+    string,
+    { data: Uint8Array; originalPath: string }
+  >();
+  for (const [path, data] of Object.entries(files)) {
+    if (isImageFile(path) && data.length > 0) {
+      // BinData/image01.png → image01.png (파일명만 키로 사용)
+      const fileName = path.split("/").pop() ?? path;
+      imageMap.set(fileName, { data, originalPath: path });
+    }
+  }
+  return imageMap;
+}
+
+interface ImageCollector {
+  images: Array<ImageAsset>;
+  imagesDirName: string;
+  zipImages: Map<string, { data: Uint8Array; originalPath: string }>;
+  usedImages: Set<string>;
+}
+
+function collectImageFromRun(
+  run: Record<string, unknown>,
+  collector: ImageCollector,
+): string | null {
+  // HWPX에서 이미지 참조: <img> 또는 <pic> 요소의 binaryItemIDRef 속성
+  const img = run.img as Record<string, unknown> | undefined;
+  const pic = run.pic as Record<string, unknown> | undefined;
+  const target = img ?? pic;
+  if (!target) return null;
+
+  let binRef = String(target["@_binaryItemIDRef"] ?? "");
+
+  // pic 내부에 img가 중첩된 경우
+  if (!binRef && pic) {
+    const innerImg = pic.img as Record<string, unknown> | undefined;
+    if (innerImg) {
+      binRef = String(innerImg["@_binaryItemIDRef"] ?? "");
+    }
+  }
+
+  if (!binRef) return null;
+
+  // binRef로 ZIP 내 이미지 찾기 (파일명 매칭)
+  const matchKey = [...collector.zipImages.keys()].find((k) => {
+    const nameWithoutExt = k.replace(/\.[^.]+$/, "");
+    return k === binRef || nameWithoutExt === binRef;
+  });
+
+  if (!matchKey || collector.usedImages.has(matchKey)) return null;
+
+  const entry = collector.zipImages.get(matchKey);
+  if (!entry) return null;
+
+  collector.usedImages.add(matchKey);
+  const idx = collector.images.length + 1;
+  const ext = matchKey.toLowerCase().replace(/^.*(\.[^.]+)$/, "$1");
+  const imageName = makeImageName(idx, ext);
+  const mimeType = mimeFromExt(matchKey);
+
+  collector.images.push(createImageAsset(imageName, entry.data, mimeType));
+  return imageToHtml(collector.imagesDirName, imageName, matchKey);
 }
 
 // --- Text extraction ---
@@ -259,6 +356,7 @@ function parseSectionToHtml(
   sectionXml: string,
   styles: Map<string, HwpxStyle>,
   boldSet: Set<string>,
+  collector: ImageCollector,
 ): string {
   const doc = xmlParser.parse(sectionXml);
   const sec = doc.sec as Record<string, unknown> | undefined;
@@ -274,6 +372,15 @@ function parseSectionToHtml(
     const runs = ensureArray(para.run as Array<Record<string, unknown>>);
 
     inList = collectTablesFromRuns(runs, htmlParts, inList, boldSet);
+
+    // 이미지 추출
+    for (const run of runs) {
+      const imgHtml = collectImageFromRun(run, collector);
+      if (imgHtml) {
+        inList = closeListIfNeeded(htmlParts, inList);
+        htmlParts.push(`<p>${imgHtml}</p>\n`);
+      }
+    }
 
     const text = extractTextFromRuns(runs, boldSet);
     if (!text.trim()) {
@@ -357,7 +464,7 @@ function getSectionPaths(files: Record<string, Uint8Array>): Array<string> {
 // --- Parser ---
 
 export class HwpxParser implements Parser {
-  async parse(inputPath: string): Promise<ParseResult> {
+  async parse(inputPath: string, options: ParseOptions): Promise<ParseResult> {
     const buffer = await readFile(inputPath);
     const files = unzipSync(new Uint8Array(buffer));
 
@@ -378,6 +485,15 @@ export class HwpxParser implements Parser {
       boldSet = parseBoldSet(headerDoc);
     }
 
+    // 이미지 수집 준비
+    const zipImages = extractImagesFromZip(files);
+    const collector: ImageCollector = {
+      images: [],
+      imagesDirName: options.imagesDirName,
+      zipImages,
+      usedImages: new Set(),
+    };
+
     // Parse all sections
     const sectionPaths = getSectionPaths(files);
     const htmlParts: Array<string> = [];
@@ -386,7 +502,9 @@ export class HwpxParser implements Parser {
       const sectionFile = files[path];
       if (!sectionFile) continue;
       const sectionXml = strFromU8(sectionFile);
-      htmlParts.push(parseSectionToHtml(sectionXml, styles, boldSet));
+      htmlParts.push(
+        parseSectionToHtml(sectionXml, styles, boldSet, collector),
+      );
     }
 
     const html = htmlParts.join("\n");
@@ -394,7 +512,7 @@ export class HwpxParser implements Parser {
     return {
       html: html || null,
       markdown: null,
-      images: [],
+      images: collector.images,
     };
   }
 }
