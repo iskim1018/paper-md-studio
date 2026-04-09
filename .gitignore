@@ -25,6 +25,14 @@ coverage/
 # Tauri
 **/src-tauri/target/
 **/src-tauri/binaries/
+**/src-tauri/gen/
+
+# Playwright
+playwright-report/
+test-results/
+
+# TypeScript build info
+*.tsbuildinfo
 
 # Claude Code local settings
 .claude/settings.local.json

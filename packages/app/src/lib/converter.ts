@@ -1,4 +1,3 @@
-import { Command } from "@tauri-apps/plugin-shell";
 import type { ConvertResult, DocumentFormat } from "../store/file-store";
 
 interface CliOutput {
@@ -13,6 +12,8 @@ interface CliOutput {
  * CLI는 --json 플래그로 JSON 결과를 stdout에 출력합니다.
  */
 export async function convertFile(inputPath: string): Promise<ConvertResult> {
+  const { Command } = await import("@tauri-apps/plugin-shell");
+
   const command = Command.sidecar("binaries/docs-to-md-cli", [
     inputPath,
     "--json",

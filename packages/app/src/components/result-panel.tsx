@@ -16,7 +16,10 @@ export function ResultPanel() {
 
   if (!selectedFile || selectedFile.status !== "done" || !selectedFile.result) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--color-muted)]">
+      <div
+        className="flex h-full flex-col items-center justify-center gap-2 text-[var(--color-muted)]"
+        data-testid="result-empty"
+      >
         <FileCode2 size={32} />
         <p className="text-sm">변환 결과가 여기에 표시됩니다</p>
       </div>
@@ -24,7 +27,7 @@ export function ResultPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" data-testid="result-panel">
       <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
         <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
           Markdown
@@ -39,7 +42,10 @@ export function ResultPanel() {
         </button>
       </div>
       <div className="flex-1 overflow-y-auto">
-        <pre className="p-4 text-sm whitespace-pre-wrap break-words font-mono leading-relaxed">
+        <pre
+          className="p-4 text-sm whitespace-pre-wrap break-words font-mono leading-relaxed"
+          data-testid="markdown-output"
+        >
           {selectedFile.result.markdown}
         </pre>
       </div>

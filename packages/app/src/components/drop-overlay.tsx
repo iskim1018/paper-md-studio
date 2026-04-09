@@ -1,32 +1,37 @@
-import type { DragDropEvent } from "@tauri-apps/api/webview";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useEffect, useState } from "react";
 import { isSupportedFile, useFileStore } from "../store/file-store";
 
-function handleDragEvent(
-  event: { payload: DragDropEvent },
-  setIsDragging: (v: boolean) => void,
-  addFiles: (paths: ReadonlyArray<string>) => void,
-) {
-  const { type } = event.payload;
+function isTauriEnvironment(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
 
-  if (type === "over" || type === "enter") {
-    setIsDragging(true);
-    return;
-  }
+interface DragHandlers {
+  setIsDragging: (v: boolean) => void;
+  addFiles: (paths: ReadonlyArray<string>) => void;
+}
 
-  if (type === "leave") {
-    setIsDragging(false);
-    return;
-  }
+function createDragHandler({ setIsDragging, addFiles }: DragHandlers) {
+  return (event: { payload: { type: string; paths?: Array<string> } }) => {
+    const { type } = event.payload;
 
-  if (type === "drop") {
-    setIsDragging(false);
-    const paths = event.payload.paths.filter(isSupportedFile);
-    if (paths.length > 0) {
-      addFiles(paths);
+    if (type === "over" || type === "enter") {
+      setIsDragging(true);
+      return;
     }
-  }
+
+    if (type === "leave") {
+      setIsDragging(false);
+      return;
+    }
+
+    if (type === "drop" && event.payload.paths) {
+      setIsDragging(false);
+      const paths = event.payload.paths.filter(isSupportedFile);
+      if (paths.length > 0) {
+        addFiles(paths);
+      }
+    }
+  };
 }
 
 export function DropOverlay() {
@@ -34,13 +39,16 @@ export function DropOverlay() {
   const addFiles = useFileStore((s) => s.addFiles);
 
   useEffect(() => {
-    const webview = getCurrentWebview();
+    if (!isTauriEnvironment()) return;
+
     let unlisten: (() => void) | undefined;
 
     const setup = async () => {
-      unlisten = await webview.onDragDropEvent((event) => {
-        handleDragEvent(event, setIsDragging, addFiles);
-      });
+      const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+      const webview = getCurrentWebview();
+      const handler = createDragHandler({ setIsDragging, addFiles });
+
+      unlisten = await webview.onDragDropEvent(handler);
     };
 
     setup();

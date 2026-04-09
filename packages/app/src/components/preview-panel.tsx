@@ -7,7 +7,10 @@ export function PreviewPanel() {
 
   if (!selectedFile) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-[var(--color-muted)]">
+      <div
+        className="flex h-full flex-col items-center justify-center gap-2 text-[var(--color-muted)]"
+        data-testid="preview-empty"
+      >
         <FileSearch size={32} />
         <p className="text-sm">파일을 선택하세요</p>
       </div>
@@ -15,7 +18,7 @@ export function PreviewPanel() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col" data-testid="preview-panel">
       <div className="flex items-center border-b border-[var(--color-border)] px-3 py-2">
         <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
           원본 정보

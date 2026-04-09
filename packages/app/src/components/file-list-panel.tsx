@@ -26,6 +26,8 @@ function FileRow({ file }: { readonly file: FileItem }) {
   return (
     <button
       type="button"
+      data-testid={`file-row-${file.id}`}
+      data-status={file.status}
       className={`flex w-full items-center gap-2 px-3 py-2 cursor-pointer border-b border-[var(--color-border)] transition-colors text-left ${
         isSelected
           ? "bg-[var(--color-accent)]/10"
@@ -114,6 +116,7 @@ export function FileListPanel() {
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       aria-label="파일 목록"
+      data-testid="file-list-panel"
     >
       <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
         <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
@@ -124,6 +127,7 @@ export function FileListPanel() {
             <button
               type="button"
               onClick={handleConvertAll}
+              data-testid="convert-all-btn"
               className="text-xs px-2 py-1 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
             >
               변환
@@ -133,6 +137,7 @@ export function FileListPanel() {
             <button
               type="button"
               onClick={clearFiles}
+              data-testid="clear-files-btn"
               className="text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-error)] transition-colors"
             >
               초기화
@@ -143,7 +148,10 @@ export function FileListPanel() {
 
       <div className="flex-1 overflow-y-auto">
         {files.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2 p-4 text-[var(--color-muted)]">
+          <div
+            className="flex h-full flex-col items-center justify-center gap-2 p-4 text-[var(--color-muted)]"
+            data-testid="empty-state"
+          >
             <FileText size={32} />
             <p className="text-sm text-center">
               파일을 여기에 드래그하거나

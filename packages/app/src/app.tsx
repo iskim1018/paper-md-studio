@@ -6,9 +6,12 @@ import { ResultPanel } from "./components/result-panel";
 
 export function App() {
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col" data-testid="app-root">
       <DropOverlay />
-      <header className="flex h-12 shrink-0 items-center border-b border-[var(--color-border)] px-4">
+      <header
+        className="flex h-12 shrink-0 items-center border-b border-[var(--color-border)] px-4"
+        data-testid="app-header"
+      >
         <h1 className="text-sm font-semibold">docs-to-md</h1>
       </header>
       <PanelGroup direction="horizontal" className="flex-1">
