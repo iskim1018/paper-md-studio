@@ -22,8 +22,9 @@ Thumbs.db
 # Test coverage
 coverage/
 
-# Tauri (Phase 3+)
-src-tauri/target/
+# Tauri
+**/src-tauri/target/
+**/src-tauri/binaries/
 
 # Claude Code local settings
 .claude/settings.local.json

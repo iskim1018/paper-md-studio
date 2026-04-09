@@ -3,6 +3,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import type { ConvertResult } from "@docs-to-md/core";
 import { convert, normalizePath } from "@docs-to-md/core";
 
 const { values, positionals } = parseArgs({
@@ -10,6 +11,7 @@ const { values, positionals } = parseArgs({
   options: {
     output: { type: "string", short: "o" },
     "images-dir": { type: "string" },
+    json: { type: "boolean" },
     help: { type: "boolean", short: "h" },
     version: { type: "boolean", short: "v" },
   },
@@ -25,6 +27,7 @@ docs-to-md - 문서를 Markdown으로 변환
 옵션:
   -o, --output <경로>       출력 디렉토리 (기본: 입력 파일과 같은 위치)
   --images-dir <이름>       이미지 디렉토리명 (기본: {문서명}_images)
+  --json                    JSON 형식으로 결과 출력
   -h, --help                도움말 표시
   -v, --version             버전 표시
 
@@ -38,6 +41,35 @@ docs-to-md - 문서를 Markdown으로 변환
   docs-to-md report.pdf -o ./output
   docs-to-md presentation.docx --images-dir assets
 `);
+}
+
+function printJsonResult(result: ConvertResult): void {
+  const jsonOutput = {
+    markdown: result.markdown,
+    format: result.format,
+    elapsed: result.elapsed,
+    imageCount: result.images.length,
+  };
+  console.log(JSON.stringify(jsonOutput));
+}
+
+async function saveImages(
+  result: ConvertResult,
+  outDir: string,
+  resolvedInput: string,
+): Promise<void> {
+  if (result.images.length === 0) return;
+
+  const imgDirName =
+    values["images-dir"] ??
+    `${basename(resolvedInput).replace(/\.[^.]+$/, "")}_images`;
+  const imgDir = join(outDir, imgDirName);
+  await mkdir(imgDir, { recursive: true });
+
+  for (const img of result.images) {
+    await writeFile(join(imgDir, img.name), img.data);
+  }
+  console.log(`  이미지 ${result.images.length}개 추출 → ${imgDirName}/`);
 }
 
 async function main(): Promise<void> {
@@ -62,9 +94,12 @@ async function main(): Promise<void> {
   const outputDir = values.output
     ? normalizePath(resolve(values.output))
     : undefined;
+  const isJson = values.json === true;
 
   try {
-    console.log(`변환 중: ${basename(resolvedInput)}`);
+    if (!isJson) {
+      console.log(`변환 중: ${basename(resolvedInput)}`);
+    }
 
     const result = await convert({
       inputPath: resolvedInput,
@@ -72,30 +107,27 @@ async function main(): Promise<void> {
       imagesDirName: values["images-dir"],
     });
 
+    if (isJson) {
+      printJsonResult(result);
+      return;
+    }
+
     const outDir = outputDir ?? resolve(resolvedInput, "..");
     const mdFileName = basename(resolvedInput).replace(/\.[^.]+$/, ".md");
     const mdPath = join(outDir, mdFileName);
 
     await mkdir(outDir, { recursive: true });
     await writeFile(mdPath, result.markdown, "utf-8");
-
-    if (result.images.length > 0) {
-      const imgDirName =
-        values["images-dir"] ??
-        `${basename(resolvedInput).replace(/\.[^.]+$/, "")}_images`;
-      const imgDir = join(outDir, imgDirName);
-      await mkdir(imgDir, { recursive: true });
-
-      for (const img of result.images) {
-        await writeFile(join(imgDir, img.name), img.data);
-      }
-      console.log(`  이미지 ${result.images.length}개 추출 → ${imgDirName}/`);
-    }
+    await saveImages(result, outDir, resolvedInput);
 
     console.log(`  완료: ${mdPath} (${Math.round(result.elapsed)}ms)`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`오류: ${message}`);
+    if (isJson) {
+      console.error(message);
+    } else {
+      console.error(`오류: ${message}`);
+    }
     process.exit(1);
   }
 }
