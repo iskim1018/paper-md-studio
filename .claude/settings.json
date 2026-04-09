@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "WebSearch",
       "Bash(pnpm:*)",
       "Bash(npx:*)",
       "Bash(node:*)",

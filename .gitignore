@@ -28,6 +28,7 @@ src-tauri/target/
 # Claude Code local settings
 .claude/settings.local.json
 .claude/memory/
+.claude/rules/
 
 # Logs
 *.log
