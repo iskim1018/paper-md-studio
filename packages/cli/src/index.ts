@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { ConvertResult } from "@docs-to-md/core";
-import { convert, normalizePath } from "@docs-to-md/core";
+import { convert, convertToHtml, normalizePath } from "@docs-to-md/core";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -12,6 +12,7 @@ const { values, positionals } = parseArgs({
     output: { type: "string", short: "o" },
     "images-dir": { type: "string" },
     json: { type: "boolean" },
+    html: { type: "boolean" },
     help: { type: "boolean", short: "h" },
     version: { type: "boolean", short: "v" },
   },
@@ -28,6 +29,7 @@ docs-to-md - 문서를 Markdown으로 변환
   -o, --output <경로>       출력 디렉토리 (기본: 입력 파일과 같은 위치)
   --images-dir <이름>       이미지 디렉토리명 (기본: {문서명}_images)
   --json                    JSON 형식으로 결과 출력
+  --html                    HTML 형식으로 결과 출력 (뷰어용)
   -h, --help                도움말 표시
   -v, --version             버전 표시
 
@@ -95,8 +97,15 @@ async function main(): Promise<void> {
     ? normalizePath(resolve(values.output))
     : undefined;
   const isJson = values.json === true;
+  const isHtml = values.html === true;
 
   try {
+    if (isHtml) {
+      const htmlResult = await convertToHtml({ inputPath: resolvedInput });
+      console.log(htmlResult.html);
+      return;
+    }
+
     if (!isJson) {
       console.log(`변환 중: ${basename(resolvedInput)}`);
     }

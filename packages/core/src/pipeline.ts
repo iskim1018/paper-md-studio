@@ -38,6 +38,27 @@ function defaultImagesDirName(inputPath: string): string {
   return `${basename(inputPath).replace(/\.[^.]+$/, "")}_images`;
 }
 
+/** HTML 중간 결과를 반환 (뷰어용) */
+export interface HtmlResult {
+  readonly html: string;
+  readonly format: DocumentFormat;
+}
+
+export async function convertToHtml(
+  options: ConvertOptions,
+): Promise<HtmlResult> {
+  const inputPath = normalizePath(options.inputPath);
+  const format = detectFormat(inputPath);
+  const imagesDirName =
+    options.imagesDirName ?? defaultImagesDirName(inputPath);
+
+  const parser = PARSER_MAP[format]();
+  const parseResult = await parser.parse(inputPath, { imagesDirName });
+
+  const html = parseResult.html ?? parseResult.markdown ?? "";
+  return { html, format };
+}
+
 export async function convert(options: ConvertOptions): Promise<ConvertResult> {
   const start = performance.now();
   const inputPath = normalizePath(options.inputPath);

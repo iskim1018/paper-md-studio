@@ -1,9 +1,14 @@
-import { FileSearch } from "lucide-react";
+import { ChevronDown, ChevronRight, FileSearch } from "lucide-react";
+import { useState } from "react";
 import { useFileStore } from "../store/file-store";
+import { DocxViewer } from "./viewers/docx-viewer";
+import { HwpxViewer } from "./viewers/hwpx-viewer";
+import { PdfViewer } from "./viewers/pdf-viewer";
 
 export function PreviewPanel() {
   const { files, selectedFileId } = useFileStore();
   const selectedFile = files.find((f) => f.id === selectedFileId);
+  const [showMeta, setShowMeta] = useState(false);
 
   if (!selectedFile) {
     return (
@@ -19,53 +24,99 @@ export function PreviewPanel() {
 
   return (
     <div className="flex h-full flex-col" data-testid="preview-panel">
-      <div className="flex items-center border-b border-[var(--color-border)] px-3 py-2">
+      <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
         <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
-          원본 정보
+          원본 미리보기
+        </span>
+        <span
+          className="text-xs text-[var(--color-muted)] truncate max-w-[60%]"
+          title={selectedFile.name}
+        >
+          {selectedFile.name}
         </span>
       </div>
-      <div className="flex-1 overflow-y-auto p-4">
-        <dl className="space-y-3 text-sm">
-          <div>
-            <dt className="text-xs text-[var(--color-muted)]">파일명</dt>
-            <dd className="font-medium break-all">{selectedFile.name}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-[var(--color-muted)]">경로</dt>
-            <dd className="text-xs break-all text-[var(--color-muted)]">
-              {selectedFile.path}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-[var(--color-muted)]">형식</dt>
-            <dd className="font-medium uppercase">{selectedFile.format}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-[var(--color-muted)]">상태</dt>
-            <dd className="font-medium">{selectedFile.status}</dd>
-          </div>
-          {selectedFile.status === "done" && selectedFile.result && (
-            <>
-              <div>
-                <dt className="text-xs text-[var(--color-muted)]">변환 시간</dt>
-                <dd>{selectedFile.result.elapsed.toFixed(0)}ms</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-[var(--color-muted)]">이미지 수</dt>
-                <dd>{selectedFile.result.imageCount}개</dd>
-              </div>
-            </>
-          )}
-          {selectedFile.status === "error" && selectedFile.error && (
-            <div>
-              <dt className="text-xs text-[var(--color-muted)]">오류</dt>
-              <dd className="text-[var(--color-error)]">
-                {selectedFile.error}
-              </dd>
-            </div>
-          )}
-        </dl>
+
+      <div className="flex-1 overflow-hidden">
+        <FileViewer format={selectedFile.format} filePath={selectedFile.path} />
       </div>
+
+      <div className="border-t border-[var(--color-border)]">
+        <button
+          type="button"
+          onClick={() => setShowMeta((prev) => !prev)}
+          className="flex w-full items-center gap-1 px-3 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+          data-testid="meta-toggle"
+        >
+          {showMeta ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          파일 정보
+        </button>
+        {showMeta && (
+          <div className="border-t border-[var(--color-border)] px-3 py-2">
+            <dl className="space-y-1.5 text-xs">
+              <MetaRow label="경로" value={selectedFile.path} mono />
+              <MetaRow label="형식" value={selectedFile.format.toUpperCase()} />
+              <MetaRow label="상태" value={selectedFile.status} />
+              {selectedFile.status === "done" && selectedFile.result && (
+                <>
+                  <MetaRow
+                    label="변환 시간"
+                    value={`${selectedFile.result.elapsed.toFixed(0)}ms`}
+                  />
+                  <MetaRow
+                    label="이미지 수"
+                    value={`${selectedFile.result.imageCount}개`}
+                  />
+                </>
+              )}
+              {selectedFile.status === "error" && selectedFile.error && (
+                <MetaRow label="오류" value={selectedFile.error} error />
+              )}
+            </dl>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+interface FileViewerProps {
+  readonly format: string;
+  readonly filePath: string;
+}
+
+function FileViewer({ format, filePath }: FileViewerProps) {
+  switch (format) {
+    case "pdf":
+      return <PdfViewer filePath={filePath} />;
+    case "docx":
+      return <DocxViewer filePath={filePath} />;
+    case "hwpx":
+      return <HwpxViewer filePath={filePath} />;
+    default:
+      return (
+        <div className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]">
+          지원하지 않는 형식입니다
+        </div>
+      );
+  }
+}
+
+interface MetaRowProps {
+  readonly label: string;
+  readonly value: string;
+  readonly mono?: boolean;
+  readonly error?: boolean;
+}
+
+function MetaRow({ label, value, mono, error }: MetaRowProps) {
+  return (
+    <div className="flex gap-2">
+      <dt className="shrink-0 text-[var(--color-muted)] w-16">{label}</dt>
+      <dd
+        className={`break-all ${mono ? "font-mono" : ""} ${error ? "text-[var(--color-error)]" : ""}`}
+      >
+        {value}
+      </dd>
     </div>
   );
 }

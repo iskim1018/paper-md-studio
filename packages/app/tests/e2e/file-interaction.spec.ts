@@ -70,15 +70,34 @@ test.describe("파일 상호작용", () => {
     await expect(page.locator('[data-testid="clear-files-btn"]')).toBeVisible();
   });
 
-  test("파일을 선택하면 미리보기 패널에 정보가 표시된다", async ({ page }) => {
+  test("파일을 선택하면 미리보기 패널에 파일명과 뷰어가 표시된다", async ({
+    page,
+  }) => {
     await addFilesViaStore(page, ["/tmp/test/보고서.docx"]);
 
     // 첫 파일은 자동 선택됨
     const preview = page.locator('[data-testid="preview-panel"]');
     await expect(preview).toBeVisible();
+    await expect(preview).toContainText("원본 미리보기");
     await expect(preview).toContainText("보고서.docx");
-    await expect(preview).toContainText("docx");
+  });
+
+  test("파일 정보 토글로 메타데이터를 표시/숨김한다", async ({ page }) => {
+    await addFilesViaStore(page, ["/tmp/test/보고서.docx"]);
+
+    const toggle = page.locator('[data-testid="meta-toggle"]');
+    await expect(toggle).toBeVisible();
+
+    // 토글 클릭 → 메타데이터 표시
+    await toggle.click();
+    const preview = page.locator('[data-testid="preview-panel"]');
+    await expect(preview).toContainText("DOCX");
     await expect(preview).toContainText("pending");
+
+    // 다시 클릭 → 숨김
+    await toggle.click();
+    // 메타데이터 영역이 사라졌으므로 pending 텍스트가 없어야 함
+    await expect(preview.locator("text=pending")).toHaveCount(0);
   });
 
   test("초기화 버튼으로 모든 파일을 제거한다", async ({ page }) => {

@@ -7,7 +7,8 @@ export {
   mimeFromExt,
 } from "./image-utils.js";
 export { normalizePath, normalizeToNFC } from "./normalize.js";
-export { convert } from "./pipeline.js";
+export type { HtmlResult } from "./pipeline.js";
+export { convert, convertToHtml } from "./pipeline.js";
 export type {
   ConvertOptions,
   ConvertResult,
