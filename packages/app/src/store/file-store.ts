@@ -78,18 +78,29 @@ export const useFileStore = create<FileStore>((set) => ({
     const validPaths = paths.filter(isSupportedFile);
     if (validPaths.length === 0) return;
 
-    const newFiles: ReadonlyArray<FileItem> = validPaths.map((path) => ({
-      id: generateId(),
-      path,
-      name: getFileName(path),
-      format: detectFormat(path),
-      status: "pending" as const,
-    }));
+    set((state) => {
+      const existingPaths = new Set(state.files.map((f) => f.path));
+      const uniquePaths = validPaths.filter((p) => {
+        if (existingPaths.has(p)) return false;
+        existingPaths.add(p);
+        return true;
+      });
 
-    set((state) => ({
-      files: [...state.files, ...newFiles],
-      selectedFileId: state.selectedFileId ?? newFiles[0]?.id ?? null,
-    }));
+      if (uniquePaths.length === 0) return state;
+
+      const newFiles: ReadonlyArray<FileItem> = uniquePaths.map((path) => ({
+        id: generateId(),
+        path,
+        name: getFileName(path),
+        format: detectFormat(path),
+        status: "pending" as const,
+      }));
+
+      return {
+        files: [...state.files, ...newFiles],
+        selectedFileId: state.selectedFileId ?? newFiles[0]?.id ?? null,
+      };
+    });
   },
 
   selectFile: (id) => set({ selectedFileId: id }),

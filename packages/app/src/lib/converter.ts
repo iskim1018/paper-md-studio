@@ -23,11 +23,20 @@ export async function convertFile(inputPath: string): Promise<ConvertResult> {
 
   if (output.code !== 0) {
     const errorMessage =
-      output.stderr.trim() || "변환 중 알 수 없는 오류가 발생했습니다.";
+      output.stderr.trim() ||
+      output.stdout.trim() ||
+      "변환 중 알 수 없는 오류가 발생했습니다.";
     throw new Error(errorMessage);
   }
 
-  const result: CliOutput = JSON.parse(output.stdout);
+  let result: CliOutput;
+  try {
+    result = JSON.parse(output.stdout);
+  } catch {
+    throw new Error(
+      `CLI 출력 파싱 실패: ${output.stdout.slice(0, 200) || "(빈 출력)"}`,
+    );
+  }
 
   return {
     markdown: result.markdown,

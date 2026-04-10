@@ -69,7 +69,7 @@ async function saveImages(
   for (const img of result.images) {
     await writeFile(join(imgDir, img.name), img.data);
   }
-  console.log(`  이미지 ${result.images.length}개 추출 → ${imgDirName}/`);
+  console.error(`  이미지 ${result.images.length}개 추출 → ${imgDirName}/`);
 }
 
 async function main(): Promise<void> {
@@ -107,11 +107,6 @@ async function main(): Promise<void> {
       imagesDirName: values["images-dir"],
     });
 
-    if (isJson) {
-      printJsonResult(result);
-      return;
-    }
-
     const outDir = outputDir ?? resolve(resolvedInput, "..");
     const mdFileName = basename(resolvedInput).replace(/\.[^.]+$/, ".md");
     const mdPath = join(outDir, mdFileName);
@@ -119,6 +114,11 @@ async function main(): Promise<void> {
     await mkdir(outDir, { recursive: true });
     await writeFile(mdPath, result.markdown, "utf-8");
     await saveImages(result, outDir, resolvedInput);
+
+    if (isJson) {
+      printJsonResult(result);
+      return;
+    }
 
     console.log(`  완료: ${mdPath} (${Math.round(result.elapsed)}ms)`);
   } catch (error) {

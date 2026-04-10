@@ -40,14 +40,7 @@
   },
   "plugins": {
     "shell": {
-      "sidecar": true,
-      "scope": [
-        {
-          "name": "binaries/docs-to-md-cli",
-          "sidecar": true,
-          "args": true
-        }
-      ]
+      "open": true
     }
   }
 }

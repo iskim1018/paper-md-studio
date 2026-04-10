@@ -95,6 +95,23 @@ describe("useFileStore", () => {
       expect(useFileStore.getState().selectedFileId).toBe(firstId);
     });
 
+    it("이미 등록된 경로는 중복 추가하지 않는다", () => {
+      useFileStore.getState().addFiles(["/path/to/doc.hwpx"]);
+      useFileStore.getState().addFiles(["/path/to/doc.hwpx"]);
+
+      const { files } = useFileStore.getState();
+      expect(files).toHaveLength(1);
+    });
+
+    it("같은 배열 내 중복 경로도 하나만 추가한다", () => {
+      useFileStore
+        .getState()
+        .addFiles(["/path/to/doc.hwpx", "/path/to/doc.hwpx"]);
+
+      const { files } = useFileStore.getState();
+      expect(files).toHaveLength(1);
+    });
+
     it("고유한 ID를 부여한다", () => {
       useFileStore.getState().addFiles(["/path/to/a.hwpx", "/path/to/b.hwpx"]);
 

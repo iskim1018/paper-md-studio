@@ -4,6 +4,9 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  test: {
+    exclude: ["**/tests/e2e/**", "**/node_modules/**"],
+  },
   clearScreen: false,
   server: {
     port: 1420,

@@ -86,22 +86,27 @@ export function FileListPanel() {
     }
   }, [files, updateFile]);
 
+  // Tauri 환경에서는 네이티브 drag-drop 이벤트(DropOverlay)를 사용하므로
+  // React DOM drop 핸들러를 비활성화하여 중복 등록을 방지합니다.
+  const isTauri =
+    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+      if (isTauri) return;
+
       const paths: Array<string> = [];
       for (const item of Array.from(e.dataTransfer.files)) {
         if (isSupportedFile(item.name)) {
           paths.push(item.name);
         }
       }
-      // Tauri에서는 실제 파일 경로를 사용합니다
-      // 웹 DnD에서는 제한적이므로 Tauri의 drag-drop 이벤트를 추후 사용
       if (paths.length > 0) {
         addFiles(paths);
       }
     },
-    [addFiles],
+    [addFiles, isTauri],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
