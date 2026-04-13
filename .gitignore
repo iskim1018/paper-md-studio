@@ -27,6 +27,10 @@ coverage/
 **/src-tauri/binaries/
 **/src-tauri/gen/
 
+# Maven (tools/hwp-to-hwpx)
+tools/**/target/
+tools/**/dependency-reduced-pom.xml
+
 # Playwright
 playwright-report/
 test-results/

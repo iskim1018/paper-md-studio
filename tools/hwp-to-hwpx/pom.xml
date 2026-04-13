@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.docs-to-md</groupId>
+  <artifactId>hwp-to-hwpx</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>hwp-to-hwpx</name>
+  <description>
+    docs-to-md CLI wrapper around neolord0/hwp2hwpx for converting
+    HWP 5.0 binary files to HWPX (OWPML) format.
+  </description>
+
+  <properties>
+    <maven.compiler.source>11</maven.compiler.source>
+    <maven.compiler.target>11</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- neolord0/hwp2hwpx has no release tags; pin to commit SHA for reproducibility.
+         JitPack resolves short SHAs via "<short-sha>" version format. -->
+    <hwp2hwpx.version>712fd12736</hwp2hwpx.version>
+    <shade.plugin.version>3.6.0</shade.plugin.version>
+  </properties>
+
+  <repositories>
+    <!-- neolord0/hwp2hwpx is not published to Maven Central; resolve via JitPack -->
+    <repository>
+      <id>jitpack.io</id>
+      <url>https://jitpack.io</url>
+    </repository>
+  </repositories>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.github.neolord0</groupId>
+      <artifactId>hwp2hwpx</artifactId>
+      <version>${hwp2hwpx.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>hwp-to-hwpx</finalName>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>${shade.plugin.version}</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <transformers>
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>com.docstomd.hwp.Main</mainClass>
+                </transformer>
+                <transformer
+                  implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
