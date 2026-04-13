@@ -7,9 +7,13 @@ import {
   Eye,
   FileCode2,
   FolderOpen,
+  Save,
+  SaveAll,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { useSaveShortcut } from "../hooks/use-save-shortcut";
+import { saveMarkdownAs, saveMarkdownTo } from "../lib/file-writer";
 import { useFileStore } from "../store/file-store";
 import { MilkdownEditor } from "./editor/milkdown-editor";
 import { SourceEditor } from "./editor/source-editor";
@@ -25,9 +29,11 @@ async function openFolder(filePath: string): Promise<void> {
 export function ResultPanel() {
   const { files, selectedFileId } = useFileStore();
   const setEditedMarkdown = useFileStore((s) => s.setEditedMarkdown);
+  const markSaved = useFileStore((s) => s.markSaved);
   const selectedFile = files.find((f) => f.id === selectedFileId);
   const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState<ViewMode>("preview");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const displayedMarkdown =
     selectedFile?.editedMarkdown ?? selectedFile?.result?.markdown ?? "";
@@ -51,6 +57,39 @@ export function ResultPanel() {
     },
     [selectedFile, setEditedMarkdown],
   );
+
+  const handleSave = useCallback(async () => {
+    if (!selectedFile?.result?.outputPath || !selectedFile.isDirty) return;
+    try {
+      await saveMarkdownTo(selectedFile.result.outputPath, displayedMarkdown);
+      markSaved(selectedFile.id);
+      setSaveError(null);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "저장 실패");
+    }
+  }, [selectedFile, displayedMarkdown, markSaved]);
+
+  const handleSaveAs = useCallback(async () => {
+    if (!selectedFile?.result?.outputPath) return;
+    try {
+      const saved = await saveMarkdownAs(
+        selectedFile.result.outputPath,
+        displayedMarkdown,
+      );
+      if (saved !== null) {
+        markSaved(selectedFile.id);
+        setSaveError(null);
+      }
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "저장 실패");
+    }
+  }, [selectedFile, displayedMarkdown, markSaved]);
+
+  useSaveShortcut({
+    enabled: selectedFile?.status === "done",
+    onSave: handleSave,
+    onSaveAs: handleSaveAs,
+  });
 
   if (!selectedFile || selectedFile.status !== "done" || !selectedFile.result) {
     return (
@@ -85,6 +124,27 @@ export function ResultPanel() {
         <div className="flex items-center gap-1">
           <button
             type="button"
+            onClick={handleSave}
+            disabled={!selectedFile.isDirty}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            title="저장 (Cmd/Ctrl+S)"
+            data-testid="save-btn"
+          >
+            <Save size={12} />
+            저장
+          </button>
+          <button
+            type="button"
+            onClick={handleSaveAs}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+            title="다른 이름으로 저장 (Cmd/Ctrl+Shift+S)"
+            data-testid="save-as-btn"
+          >
+            <SaveAll size={12} />
+            다른 이름
+          </button>
+          <button
+            type="button"
             onClick={handleOpenFolder}
             className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
             title={selectedFile.result.outputPath}
@@ -103,6 +163,14 @@ export function ResultPanel() {
           </button>
         </div>
       </div>
+      {saveError && (
+        <div
+          className="border-b border-[var(--color-error)] bg-[var(--color-error)]/10 px-3 py-1.5 text-xs text-[var(--color-error)]"
+          data-testid="save-error"
+        >
+          저장 오류: {saveError}
+        </div>
+      )}
       <div className="flex-1 overflow-hidden">
         {mode === "preview" && (
           <div className="h-full overflow-y-auto">
