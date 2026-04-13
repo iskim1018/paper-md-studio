@@ -1,5 +1,5 @@
-import DOMPurify from "dompurify";
 import { useEffect, useState } from "react";
+import { sanitizeViewerHtml } from "../../lib/sanitize";
 
 interface HwpxViewerProps {
   readonly filePath: string;
@@ -18,10 +18,7 @@ async function loadHwpxHtml(filePath: string): Promise<string> {
     throw new Error(errorMessage);
   }
 
-  return DOMPurify.sanitize(output.stdout, {
-    ADD_TAGS: ["img"],
-    ADD_ATTR: ["src", "alt"],
-  });
+  return sanitizeViewerHtml(output.stdout);
 }
 
 export function HwpxViewer({ filePath }: HwpxViewerProps) {

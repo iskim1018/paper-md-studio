@@ -1,6 +1,6 @@
-import DOMPurify from "dompurify";
 import { useEffect, useRef, useState } from "react";
 import { readFileAsBytes } from "../../lib/file-reader";
+import { sanitizeViewerHtml } from "../../lib/sanitize";
 
 interface DocxViewerProps {
   readonly filePath: string;
@@ -49,10 +49,7 @@ async function loadDocxFile(filePath: string): Promise<DocxLoadResult> {
     },
   );
 
-  const html = DOMPurify.sanitize(result.value, {
-    ADD_TAGS: ["img"],
-    ADD_ATTR: ["src", "alt"],
-  });
+  const html = sanitizeViewerHtml(result.value);
 
   return { html, blobUrls };
 }
