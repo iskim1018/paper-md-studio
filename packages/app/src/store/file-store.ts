@@ -23,6 +23,8 @@ export interface FileItem {
   readonly editedMarkdown: string | null;
   /** editedMarkdown이 원본 result.markdown과 다르면 true. */
   readonly isDirty: boolean;
+  /** 정리 버튼 등 일괄 변환 직전의 스냅샷 (1-step undo용). 없으면 null. */
+  readonly cleanupSnapshot: string | null;
 }
 
 interface FileStore {
@@ -42,6 +44,10 @@ interface FileStore {
   markSaved: (id: string) => void;
   /** 편집 내용을 원본 result.markdown으로 되돌린다. */
   discardEdits: (id: string) => void;
+  /** 편집 내용에 변환 함수를 적용하고 직전 상태를 cleanupSnapshot에 저장한다. */
+  applyCleanup: (id: string, transform: (md: string) => string) => void;
+  /** applyCleanup을 되돌린다. */
+  undoCleanup: (id: string) => void;
 }
 
 const FORMAT_EXTENSIONS: Record<string, DocumentFormat> = {
@@ -108,6 +114,7 @@ export const useFileStore = create<FileStore>((set) => ({
         status: "pending" as const,
         editedMarkdown: null,
         isDirty: false,
+        cleanupSnapshot: null,
       }));
 
       return {
@@ -131,6 +138,7 @@ export const useFileStore = create<FileStore>((set) => ({
             ...update,
             editedMarkdown: update.result.markdown,
             isDirty: false,
+            cleanupSnapshot: null,
           };
         }
         return { ...file, ...update };
@@ -146,6 +154,8 @@ export const useFileStore = create<FileStore>((set) => ({
           ...file,
           editedMarkdown: markdown,
           isDirty: originalMarkdown !== null && markdown !== originalMarkdown,
+          // 사용자가 직접 편집하면 이전 cleanup undo 스냅샷은 무효화
+          cleanupSnapshot: null,
         };
       }),
     })),
@@ -166,6 +176,39 @@ export const useFileStore = create<FileStore>((set) => ({
           ...file,
           editedMarkdown: originalMarkdown,
           isDirty: false,
+          cleanupSnapshot: null,
+        };
+      }),
+    })),
+
+  applyCleanup: (id, transform) =>
+    set((state) => ({
+      files: state.files.map((file) => {
+        if (file.id !== id) return file;
+        const current = file.editedMarkdown ?? file.result?.markdown ?? "";
+        const next = transform(current);
+        if (next === current) return file;
+        const originalMarkdown = file.result?.markdown ?? null;
+        return {
+          ...file,
+          editedMarkdown: next,
+          isDirty: originalMarkdown !== null && next !== originalMarkdown,
+          cleanupSnapshot: current,
+        };
+      }),
+    })),
+
+  undoCleanup: (id) =>
+    set((state) => ({
+      files: state.files.map((file) => {
+        if (file.id !== id || file.cleanupSnapshot === null) return file;
+        const originalMarkdown = file.result?.markdown ?? null;
+        const restored = file.cleanupSnapshot;
+        return {
+          ...file,
+          editedMarkdown: restored,
+          isDirty: originalMarkdown !== null && restored !== originalMarkdown,
+          cleanupSnapshot: null,
         };
       }),
     })),

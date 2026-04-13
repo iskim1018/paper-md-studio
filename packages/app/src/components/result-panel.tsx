@@ -4,16 +4,19 @@ import {
   Columns2,
   Copy,
   Edit3,
+  Eraser,
   Eye,
   FileCode2,
   FolderOpen,
   Save,
   SaveAll,
+  Undo2,
 } from "lucide-react";
 import { useCallback, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useSaveShortcut } from "../hooks/use-save-shortcut";
 import { saveMarkdownAs, saveMarkdownTo } from "../lib/file-writer";
+import { removeEmptyTableRows } from "../lib/md-cleanup";
 import { useFileStore } from "../store/file-store";
 import { MarkdownPreview } from "./editor/markdown-preview";
 import { MilkdownEditor } from "./editor/milkdown-editor";
@@ -31,6 +34,8 @@ export function ResultPanel() {
   const { files, selectedFileId } = useFileStore();
   const setEditedMarkdown = useFileStore((s) => s.setEditedMarkdown);
   const markSaved = useFileStore((s) => s.markSaved);
+  const applyCleanup = useFileStore((s) => s.applyCleanup);
+  const undoCleanup = useFileStore((s) => s.undoCleanup);
   const selectedFile = files.find((f) => f.id === selectedFileId);
   const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState<ViewMode>("preview");
@@ -92,6 +97,16 @@ export function ResultPanel() {
     onSaveAs: handleSaveAs,
   });
 
+  const handleRemoveEmptyRows = useCallback(() => {
+    if (!selectedFile) return;
+    applyCleanup(selectedFile.id, removeEmptyTableRows);
+  }, [selectedFile, applyCleanup]);
+
+  const handleUndoCleanup = useCallback(() => {
+    if (!selectedFile) return;
+    undoCleanup(selectedFile.id);
+  }, [selectedFile, undoCleanup]);
+
   if (!selectedFile || selectedFile.status !== "done" || !selectedFile.result) {
     return (
       <div
@@ -146,6 +161,15 @@ export function ResultPanel() {
           </button>
           <button
             type="button"
+            onClick={handleRemoveEmptyRows}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+            title="테이블에서 내용이 빈 행을 일괄 제거 (Cmd/Ctrl+Z로 되돌리기 가능)"
+            data-testid="remove-empty-rows-btn"
+          >
+            <Eraser size={12} />빈 행 정리
+          </button>
+          <button
+            type="button"
             onClick={handleOpenFolder}
             className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
             title={selectedFile.result.outputPath}
@@ -170,6 +194,25 @@ export function ResultPanel() {
           data-testid="save-error"
         >
           저장 오류: {saveError}
+        </div>
+      )}
+      {selectedFile.cleanupSnapshot !== null && (
+        <div
+          className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-panel-bg)] px-3 py-1.5 text-xs"
+          data-testid="cleanup-banner"
+        >
+          <span className="text-[var(--color-muted)]">
+            일괄 정리를 적용했습니다.
+          </span>
+          <button
+            type="button"
+            onClick={handleUndoCleanup}
+            className="flex items-center gap-1 rounded px-2 py-0.5 text-[var(--color-accent,#3b82f6)] hover:underline"
+            data-testid="undo-cleanup-btn"
+          >
+            <Undo2 size={11} />
+            정리 취소
+          </button>
         </div>
       )}
       <div className="flex-1 overflow-hidden">
