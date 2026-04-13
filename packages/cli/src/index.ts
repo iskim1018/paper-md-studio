@@ -34,6 +34,7 @@ docs-to-md - 문서를 Markdown으로 변환
   -v, --version             버전 표시
 
 지원 형식:
+  .hwp    한글 문서 (HWP 5.0, 내부적으로 HWPX로 선변환 — Java 11+ 필요)
   .hwpx   한글 문서 (HWPX)
   .docx   Word 문서
   .pdf    PDF 문서
@@ -45,12 +46,13 @@ docs-to-md - 문서를 Markdown으로 변환
 `);
 }
 
-function printJsonResult(result: ConvertResult): void {
+function printJsonResult(result: ConvertResult, outputPath: string): void {
   const jsonOutput = {
     markdown: result.markdown,
     format: result.format,
     elapsed: result.elapsed,
     imageCount: result.images.length,
+    outputPath,
   };
   console.log(JSON.stringify(jsonOutput));
 }
@@ -125,7 +127,7 @@ async function main(): Promise<void> {
     await saveImages(result, outDir, resolvedInput);
 
     if (isJson) {
-      printJsonResult(result);
+      printJsonResult(result, mdPath);
       return;
     }
 
