@@ -168,6 +168,65 @@ describe("HWPX 파서 상세 테스트", () => {
       expect(result.markdown).toContain("|");
     });
 
+    it("셀 내 2개 이하 paragraph는 공백으로 join한다 (하드 브레이크 축소)", async () => {
+      const result = await writeAndConvert(
+        "cell-short.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run>
+      <tbl>
+        <tr>
+          <tc>
+            <subList>
+              <p><run><t>제목입니다</t></run></p>
+              <p><run><t>부제목</t></run></p>
+            </subList>
+          </tc>
+        </tr>
+      </tbl>
+    </run>
+  </p>
+</sec>`,
+      );
+
+      // 하드 브레이크(  \\n) 없이 공백으로 join되어야 한다
+      expect(result.markdown).toContain("제목입니다 부제목");
+      expect(result.markdown).not.toMatch(/제목입니다\s*\n\s*부제목/);
+    });
+
+    it("셀 내 3개 이상 paragraph는 <br>로 유지한다 (TOC 등 구조적 내용)", async () => {
+      const result = await writeAndConvert(
+        "cell-long.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run>
+      <tbl>
+        <tr>
+          <tc>
+            <subList>
+              <p><run><t>1. 첫 항목</t></run></p>
+              <p><run><t>2. 둘째 항목</t></run></p>
+              <p><run><t>3. 셋째 항목</t></run></p>
+            </subList>
+          </tc>
+        </tr>
+      </tbl>
+    </run>
+  </p>
+</sec>`,
+      );
+
+      // Markdown 하드 브레이크(2-space + newline)로 셀 내 줄바꿈 유지
+      // turndown은 "1."을 "1\\."로 이스케이프하므로 느슨하게 매칭
+      expect(result.markdown).toMatch(/1\\?\. 첫 항목/);
+      expect(result.markdown).toMatch(/2\\?\. 둘째 항목/);
+      expect(result.markdown).toMatch(/3\\?\. 셋째 항목/);
+      // 3개 항목이 같은 줄에 공백으로 join되면 안 됨 (하드 브레이크 유지)
+      expect(result.markdown).not.toMatch(/1\\?\. 첫 항목 2\\?\. 둘째 항목/);
+    });
+
     it("colspan/rowspan 셀을 처리한다", async () => {
       const result = await writeAndConvert(
         "table-span.hwpx",

@@ -242,7 +242,8 @@ function parseCellText(
   collector: ImageCollector,
 ): string {
   const subLists = ensureArray(tc.subList as Array<Record<string, unknown>>);
-  const parts: Array<string> = [];
+  const imageParts: Array<string> = [];
+  const textParts: Array<string> = [];
 
   for (const sl of subLists) {
     const paras = ensureArray(sl.p as Array<Record<string, unknown>>);
@@ -252,14 +253,22 @@ function parseCellText(
       // 셀 내부 run에서 이미지 추출 (표 안의 그림이 누락되지 않도록)
       for (const run of runs) {
         const imgHtml = collectImageFromRun(run, collector);
-        if (imgHtml) parts.push(imgHtml);
+        if (imgHtml) imageParts.push(imgHtml);
       }
 
       const t = extractTextFromRuns(runs, boldSet);
-      if (t.trim()) parts.push(t);
+      if (t.trim()) textParts.push(t);
     }
   }
-  return parts.join("<br>");
+
+  // 셀 내 텍스트 paragraph가 2개 이하면 공백으로 join하여 불필요한
+  // 하드 브레이크를 줄이고, 3개 이상이면 TOC 등 구조적 내용으로 보고
+  // <br>로 유지한다. 이미지는 항상 별도 <br>로 구분한다.
+  const textJoined =
+    textParts.length <= 2 ? textParts.join(" ") : textParts.join("<br>");
+
+  const allParts = [...imageParts, textJoined].filter((s) => s.length > 0);
+  return allParts.join("<br>");
 }
 
 function buildCellAttrs(tc: Record<string, unknown>): string {
