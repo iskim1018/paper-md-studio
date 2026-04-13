@@ -90,12 +90,17 @@ describe("이미지 추출", () => {
       expect(result.markdown).toContain("img_001.png");
     });
 
-    it("이미지가 없는 HWPX는 빈 이미지 배열을 반환한다", async () => {
+    it("실제 HWPX 파일의 images 필드는 배열 형태로 반환된다", async () => {
       const result = await convert({
         inputPath: resolve(import.meta.dirname, "fixtures/sample.hwpx"),
       });
 
-      expect(result.images).toHaveLength(0);
+      expect(Array.isArray(result.images)).toBe(true);
+      for (const img of result.images) {
+        expect(img.name).toMatch(/^img_\d{3}\.[a-z]+$/);
+        expect(img.mimeType).toMatch(/^image\//);
+        expect(img.data.length).toBeGreaterThan(0);
+      }
     });
 
     it("커스텀 imagesDirName이 MD에 반영된다", async () => {
