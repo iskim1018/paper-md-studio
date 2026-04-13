@@ -1,18 +1,45 @@
-import { Check, Copy, FileCode2 } from "lucide-react";
+import { Check, Copy, Edit3, Eye, FileCode2, FolderOpen } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useFileStore } from "../store/file-store";
+import { MilkdownEditor } from "./editor/milkdown-editor";
+
+type ViewMode = "preview" | "edit";
+
+async function openFolder(filePath: string): Promise<void> {
+  const { open } = await import("@tauri-apps/plugin-shell");
+  const folderPath = filePath.substring(0, filePath.lastIndexOf("/"));
+  await open(folderPath);
+}
 
 export function ResultPanel() {
   const { files, selectedFileId } = useFileStore();
+  const setEditedMarkdown = useFileStore((s) => s.setEditedMarkdown);
   const selectedFile = files.find((f) => f.id === selectedFileId);
   const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<ViewMode>("preview");
+
+  const displayedMarkdown =
+    selectedFile?.editedMarkdown ?? selectedFile?.result?.markdown ?? "";
 
   const handleCopy = useCallback(async () => {
-    if (!selectedFile?.result?.markdown) return;
-    await navigator.clipboard.writeText(selectedFile.result.markdown);
+    if (!displayedMarkdown) return;
+    await navigator.clipboard.writeText(displayedMarkdown);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }, [displayedMarkdown]);
+
+  const handleOpenFolder = useCallback(async () => {
+    if (!selectedFile?.result?.outputPath) return;
+    await openFolder(selectedFile.result.outputPath);
   }, [selectedFile]);
+
+  const handleEdit = useCallback(
+    (markdown: string) => {
+      if (!selectedFile) return;
+      setEditedMarkdown(selectedFile.id, markdown);
+    },
+    [selectedFile, setEditedMarkdown],
+  );
 
   if (!selectedFile || selectedFile.status !== "done" || !selectedFile.result) {
     return (
@@ -29,26 +56,111 @@ export function ResultPanel() {
   return (
     <div className="flex h-full flex-col" data-testid="result-panel">
       <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
-        <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
-          Markdown
-        </span>
-        <button
-          type="button"
-          onClick={handleCopy}
-          className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
-        >
-          {copied ? <Check size={12} /> : <Copy size={12} />}
-          {copied ? "복사됨" : "복사"}
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
+            Markdown
+          </span>
+          {selectedFile.isDirty && (
+            <span
+              className="text-xs text-[var(--color-accent,#3b82f6)]"
+              title="저장되지 않은 편집 있음"
+              data-testid="dirty-indicator"
+            >
+              ●
+            </span>
+          )}
+          <ModeToggle mode={mode} onChange={setMode} />
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={handleOpenFolder}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+            title={selectedFile.result.outputPath}
+            data-testid="open-folder-btn"
+          >
+            <FolderOpen size={12} />
+            폴더 열기
+          </button>
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+          >
+            {copied ? <Check size={12} /> : <Copy size={12} />}
+            {copied ? "복사됨" : "복사"}
+          </button>
+        </div>
       </div>
-      <div className="flex-1 overflow-y-auto">
-        <pre
-          className="p-4 text-sm whitespace-pre-wrap break-words font-mono leading-relaxed"
-          data-testid="markdown-output"
-        >
-          {selectedFile.result.markdown}
-        </pre>
+      <div className="flex-1 overflow-hidden">
+        {mode === "preview" ? (
+          <div className="h-full overflow-y-auto">
+            <pre
+              className="p-4 text-sm whitespace-pre-wrap break-words font-mono leading-relaxed"
+              data-testid="markdown-output"
+            >
+              {displayedMarkdown}
+            </pre>
+          </div>
+        ) : (
+          <MilkdownEditor
+            // 파일이 바뀌면 에디터를 재마운트하여 초기값을 반영
+            key={selectedFile.id}
+            initialValue={displayedMarkdown}
+            onChange={handleEdit}
+          />
+        )}
       </div>
+      <div className="border-t border-[var(--color-border)] px-3 py-1.5">
+        <p
+          className="text-xs text-[var(--color-muted)] truncate"
+          title={selectedFile.result.outputPath}
+          data-testid="output-path"
+        >
+          저장: {selectedFile.result.outputPath}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+interface ModeToggleProps {
+  readonly mode: ViewMode;
+  readonly onChange: (mode: ViewMode) => void;
+}
+
+function ModeToggle({ mode, onChange }: ModeToggleProps) {
+  return (
+    <div
+      className="flex items-center rounded border border-[var(--color-border)] text-xs"
+      data-testid="mode-toggle"
+    >
+      <button
+        type="button"
+        onClick={() => onChange("preview")}
+        className={`flex items-center gap-1 px-2 py-0.5 rounded-l transition-colors ${
+          mode === "preview"
+            ? "bg-[var(--color-border)] text-[var(--color-text)]"
+            : "text-[var(--color-muted)] hover:text-[var(--color-text)]"
+        }`}
+        data-testid="mode-preview"
+      >
+        <Eye size={11} />
+        보기
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange("edit")}
+        className={`flex items-center gap-1 px-2 py-0.5 rounded-r transition-colors ${
+          mode === "edit"
+            ? "bg-[var(--color-border)] text-[var(--color-text)]"
+            : "text-[var(--color-muted)] hover:text-[var(--color-text)]"
+        }`}
+        data-testid="mode-edit"
+      >
+        <Edit3 size={11} />
+        편집
+      </button>
     </div>
   );
 }
