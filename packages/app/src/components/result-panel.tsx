@@ -1,6 +1,7 @@
 import {
   Check,
   Code,
+  Columns2,
   Copy,
   Edit3,
   Eye,
@@ -8,11 +9,12 @@ import {
   FolderOpen,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useFileStore } from "../store/file-store";
 import { MilkdownEditor } from "./editor/milkdown-editor";
 import { SourceEditor } from "./editor/source-editor";
 
-type ViewMode = "preview" | "edit" | "source";
+type ViewMode = "preview" | "edit" | "source" | "split";
 
 async function openFolder(filePath: string): Promise<void> {
   const { open } = await import("@tauri-apps/plugin-shell");
@@ -129,6 +131,32 @@ export function ResultPanel() {
             onChange={handleEdit}
           />
         )}
+        {mode === "split" && (
+          <PanelGroup
+            direction="horizontal"
+            className="h-full"
+            data-testid="split-view"
+          >
+            <Panel defaultSize={50} minSize={20}>
+              <MilkdownEditor
+                key={`split-milk-${selectedFile.id}`}
+                initialValue={displayedMarkdown}
+                onChange={handleEdit}
+              />
+            </Panel>
+            <PanelResizeHandle className="w-px bg-[var(--color-border)] hover:bg-[var(--color-accent,#3b82f6)] transition-colors" />
+            <Panel defaultSize={50} minSize={20}>
+              <div className="h-full overflow-y-auto border-l border-[var(--color-border)]">
+                <pre
+                  className="p-4 text-sm whitespace-pre-wrap break-words font-mono leading-relaxed"
+                  data-testid="split-preview"
+                >
+                  {displayedMarkdown}
+                </pre>
+              </div>
+            </Panel>
+          </PanelGroup>
+        )}
       </div>
       <div className="border-t border-[var(--color-border)] px-3 py-1.5">
         <p
@@ -158,6 +186,7 @@ function ModeToggle({ mode, onChange }: ModeToggleProps) {
     { value: "preview", label: "보기", Icon: Eye, testId: "mode-preview" },
     { value: "edit", label: "편집", Icon: Edit3, testId: "mode-edit" },
     { value: "source", label: "소스", Icon: Code, testId: "mode-source" },
+    { value: "split", label: "분할", Icon: Columns2, testId: "mode-split" },
   ];
 
   return (
