@@ -239,19 +239,27 @@ function extractTextFromRuns(
 function parseCellText(
   tc: Record<string, unknown>,
   boldSet: Set<string>,
+  collector: ImageCollector,
 ): string {
   const subLists = ensureArray(tc.subList as Array<Record<string, unknown>>);
-  const texts: Array<string> = [];
+  const parts: Array<string> = [];
 
   for (const sl of subLists) {
     const paras = ensureArray(sl.p as Array<Record<string, unknown>>);
     for (const p of paras) {
       const runs = ensureArray(p.run as Array<Record<string, unknown>>);
+
+      // 셀 내부 run에서 이미지 추출 (표 안의 그림이 누락되지 않도록)
+      for (const run of runs) {
+        const imgHtml = collectImageFromRun(run, collector);
+        if (imgHtml) parts.push(imgHtml);
+      }
+
       const t = extractTextFromRuns(runs, boldSet);
-      if (t.trim()) texts.push(t);
+      if (t.trim()) parts.push(t);
     }
   }
-  return texts.join("<br>");
+  return parts.join("<br>");
 }
 
 function buildCellAttrs(tc: Record<string, unknown>): string {
@@ -268,11 +276,12 @@ function parseTableRow(
   tr: Record<string, unknown>,
   tag: string,
   boldSet: Set<string>,
+  collector: ImageCollector,
 ): string {
   const cells = ensureArray(tr.tc as Array<Record<string, unknown>>);
   let html = "<tr>";
   for (const tc of cells) {
-    const cellText = parseCellText(tc, boldSet);
+    const cellText = parseCellText(tc, boldSet, collector);
     const attrs = buildCellAttrs(tc);
     html += `<${tag}${attrs}>${cellText}</${tag}>`;
   }
@@ -283,6 +292,7 @@ function parseTableRow(
 function parseTable(
   tbl: Record<string, unknown>,
   boldSet: Set<string>,
+  collector: ImageCollector,
 ): string {
   const rows = ensureArray(tbl.tr as Array<Record<string, unknown>>);
   if (rows.length === 0) return "";
@@ -291,7 +301,7 @@ function parseTable(
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (!row) continue;
-    html += parseTableRow(row, i === 0 ? "th" : "td", boldSet);
+    html += parseTableRow(row, i === 0 ? "th" : "td", boldSet, collector);
   }
   html += "</table>\n";
   return html;
@@ -311,12 +321,13 @@ function collectTablesFromRuns(
   htmlParts: Array<string>,
   inList: boolean,
   boldSet: Set<string>,
+  collector: ImageCollector,
 ): boolean {
   for (const run of runs) {
     const tables = ensureArray(run.tbl as Array<Record<string, unknown>>);
     for (const tbl of tables) {
       inList = closeListIfNeeded(htmlParts, inList);
-      htmlParts.push(parseTable(tbl, boldSet));
+      htmlParts.push(parseTable(tbl, boldSet, collector));
     }
   }
   return inList;
@@ -371,7 +382,7 @@ function parseSectionToHtml(
     const styleName = styles.get(styleId)?.name ?? "";
     const runs = ensureArray(para.run as Array<Record<string, unknown>>);
 
-    inList = collectTablesFromRuns(runs, htmlParts, inList, boldSet);
+    inList = collectTablesFromRuns(runs, htmlParts, inList, boldSet, collector);
 
     // 이미지 추출
     for (const run of runs) {

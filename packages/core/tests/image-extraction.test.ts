@@ -103,6 +103,21 @@ describe("이미지 추출", () => {
       }
     });
 
+    it("HWPX 테이블 셀 내부의 이미지도 추출한다 (회귀)", async () => {
+      // sample.hwpx는 BinData/에 image1.jpg + image2-9.bmp 총 9개의
+      // 이미지를 가지며, 대부분 표 셀 내부에 배치되어 있다.
+      // 과거 버그: parseCellText가 텍스트만 추출하고 run.pic/run.img를
+      // 건너뛰어 table 내부 이미지가 모두 누락되었다.
+      const result = await convert({
+        inputPath: resolve(import.meta.dirname, "fixtures/sample.hwpx"),
+      });
+
+      expect(result.images.length).toBeGreaterThanOrEqual(9);
+      // Markdown 본문에도 이미지 참조가 이미지 개수만큼 존재해야 한다.
+      const imageRefMatches = result.markdown.match(/!\[[^\]]*\]\(/g) ?? [];
+      expect(imageRefMatches.length).toBeGreaterThanOrEqual(9);
+    });
+
     it("커스텀 imagesDirName이 MD에 반영된다", async () => {
       const hwpxPath = join(TEMP_DIR, "custom-dir.hwpx");
       writeFileSync(hwpxPath, createHwpxWithImage());
