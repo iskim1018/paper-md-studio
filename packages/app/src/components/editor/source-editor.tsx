@@ -41,6 +41,13 @@ export function SourceEditor({
       }
     });
 
+    // CodeMirror root에 부모 높이를 전파하고 내부 스크롤러에 스크롤 허용.
+    // 이 설정이 없으면 root가 내용 높이만큼만 차지하여 하단 컨텐츠를 볼 수 없다.
+    const fillHeightTheme = EditorView.theme({
+      "&": { height: "100%" },
+      ".cm-scroller": { overflow: "auto" },
+    });
+
     const state = EditorState.create({
       doc: initialValue,
       extensions: [
@@ -49,6 +56,7 @@ export function SourceEditor({
         keymap.of([...defaultKeymap, ...historyKeymap]),
         markdown(),
         oneDark,
+        fillHeightTheme,
         EditorView.lineWrapping,
         EditorState.readOnly.of(readOnly),
         updateListener,
