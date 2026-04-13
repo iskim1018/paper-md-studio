@@ -46,13 +46,49 @@ test.describe("파일 상호작용", () => {
   });
 
   test("여러 파일을 추가하면 모두 표시된다", async ({ page }) => {
-    await addFilesViaStore(page, ["/tmp/a.hwpx", "/tmp/b.docx", "/tmp/c.pdf"]);
+    await addFilesViaStore(page, [
+      "/tmp/a.hwp",
+      "/tmp/a.hwpx",
+      "/tmp/b.docx",
+      "/tmp/c.pdf",
+    ]);
 
     const panel = page.locator('[data-testid="file-list-panel"]');
-    await expect(panel).toContainText("파일 (3)");
+    await expect(panel).toContainText("파일 (4)");
+    await expect(panel).toContainText("HWP");
     await expect(panel).toContainText("HWPX");
     await expect(panel).toContainText("DOCX");
     await expect(panel).toContainText("PDF");
+  });
+
+  test(".hwp 파일도 목록에 추가되고 HWP 배지로 표시된다", async ({ page }) => {
+    await addFilesViaStore(page, ["/tmp/test/한글문서.hwp"]);
+
+    const panel = page.locator('[data-testid="file-list-panel"]');
+    await expect(panel).toContainText("파일 (1)");
+    await expect(panel).toContainText("한글문서.hwp");
+    // HWPX는 'HWPX', HWP는 'HWP'로만 표시되는지 확인
+    await expect(panel.locator("text=HWP").first()).toBeVisible();
+  });
+
+  test(".hwp 파일을 선택하면 원본 미리보기 패널이 열린다", async ({ page }) => {
+    await addFilesViaStore(page, ["/tmp/test/한글문서.hwp"]);
+
+    const preview = page.locator('[data-testid="preview-panel"]');
+    await expect(preview).toBeVisible();
+    await expect(preview).toContainText("원본 미리보기");
+    await expect(preview).toContainText("한글문서.hwp");
+  });
+
+  test(".hwp 파일 메타데이터에 HWP 형식이 표시된다", async ({ page }) => {
+    await addFilesViaStore(page, ["/tmp/test/한글문서.hwp"]);
+
+    const toggle = page.locator('[data-testid="meta-toggle"]');
+    await toggle.click();
+
+    const preview = page.locator('[data-testid="preview-panel"]');
+    await expect(preview).toContainText("HWP");
+    await expect(preview).toContainText("pending");
   });
 
   test("동일 경로 파일은 중복 추가되지 않는다", async ({ page }) => {
