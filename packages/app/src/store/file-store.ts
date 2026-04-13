@@ -19,6 +19,10 @@ export interface FileItem {
   readonly status: FileStatus;
   readonly result?: ConvertResult;
   readonly error?: string;
+  /** 편집 중인 Markdown 문자열. 변환 완료 시 result.markdown으로 초기화된다. */
+  readonly editedMarkdown: string | null;
+  /** editedMarkdown이 원본 result.markdown과 다르면 true. */
+  readonly isDirty: boolean;
 }
 
 interface FileStore {
@@ -32,6 +36,12 @@ interface FileStore {
   ) => void;
   removeFile: (id: string) => void;
   clearFiles: () => void;
+  /** 편집 중인 Markdown 내용을 갱신한다. 원본과 같으면 dirty가 해제된다. */
+  setEditedMarkdown: (id: string, markdown: string) => void;
+  /** 저장 완료 처리 — 편집 내용은 유지하고 dirty만 해제한다. */
+  markSaved: (id: string) => void;
+  /** 편집 내용을 원본 result.markdown으로 되돌린다. */
+  discardEdits: (id: string) => void;
 }
 
 const FORMAT_EXTENSIONS: Record<string, DocumentFormat> = {
@@ -96,6 +106,8 @@ export const useFileStore = create<FileStore>((set) => ({
         name: getFileName(path),
         format: detectFormat(path),
         status: "pending" as const,
+        editedMarkdown: null,
+        isDirty: false,
       }));
 
       return {
@@ -109,9 +121,53 @@ export const useFileStore = create<FileStore>((set) => ({
 
   updateFile: (id, update) =>
     set((state) => ({
+      files: state.files.map((file) => {
+        if (file.id !== id) return file;
+        // 변환 완료(result 수신) 시 editedMarkdown을 원본으로 초기화하고
+        // dirty 플래그를 해제한다.
+        if (update.result !== undefined) {
+          return {
+            ...file,
+            ...update,
+            editedMarkdown: update.result.markdown,
+            isDirty: false,
+          };
+        }
+        return { ...file, ...update };
+      }),
+    })),
+
+  setEditedMarkdown: (id, markdown) =>
+    set((state) => ({
+      files: state.files.map((file) => {
+        if (file.id !== id) return file;
+        const originalMarkdown = file.result?.markdown ?? null;
+        return {
+          ...file,
+          editedMarkdown: markdown,
+          isDirty: originalMarkdown !== null && markdown !== originalMarkdown,
+        };
+      }),
+    })),
+
+  markSaved: (id) =>
+    set((state) => ({
       files: state.files.map((file) =>
-        file.id === id ? { ...file, ...update } : file,
+        file.id === id ? { ...file, isDirty: false } : file,
       ),
+    })),
+
+  discardEdits: (id) =>
+    set((state) => ({
+      files: state.files.map((file) => {
+        if (file.id !== id) return file;
+        const originalMarkdown = file.result?.markdown ?? null;
+        return {
+          ...file,
+          editedMarkdown: originalMarkdown,
+          isDirty: false,
+        };
+      }),
     })),
 
   removeFile: (id) =>

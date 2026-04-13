@@ -227,6 +227,147 @@ describe("useFileStore", () => {
     });
   });
 
+  describe("editing (Phase 5)", () => {
+    it("변환 완료 시 editedMarkdown이 result.markdown으로 초기화된다", () => {
+      useFileStore.getState().addFiles(["/path/to/doc.hwpx"]);
+      const fileId = useFileStore.getState().files[0].id;
+
+      useFileStore.getState().updateFile(fileId, {
+        status: "done",
+        result: {
+          markdown: "# Hello",
+          format: "hwpx",
+          elapsed: 100,
+          imageCount: 0,
+          outputPath: "/path/to/doc.md",
+        },
+      });
+
+      const file = useFileStore.getState().files[0];
+      expect(file.editedMarkdown).toBe("# Hello");
+      expect(file.isDirty).toBe(false);
+    });
+
+    it("setEditedMarkdown 호출 시 isDirty=true가 된다", () => {
+      useFileStore.getState().addFiles(["/path/to/doc.hwpx"]);
+      const fileId = useFileStore.getState().files[0].id;
+      useFileStore.getState().updateFile(fileId, {
+        status: "done",
+        result: {
+          markdown: "# Original",
+          format: "hwpx",
+          elapsed: 1,
+          imageCount: 0,
+          outputPath: "/path/to/doc.md",
+        },
+      });
+
+      useFileStore.getState().setEditedMarkdown(fileId, "# Edited");
+
+      const file = useFileStore.getState().files[0];
+      expect(file.editedMarkdown).toBe("# Edited");
+      expect(file.isDirty).toBe(true);
+    });
+
+    it("원본과 동일한 내용으로 되돌리면 isDirty=false가 된다", () => {
+      useFileStore.getState().addFiles(["/path/to/doc.hwpx"]);
+      const fileId = useFileStore.getState().files[0].id;
+      useFileStore.getState().updateFile(fileId, {
+        status: "done",
+        result: {
+          markdown: "# Original",
+          format: "hwpx",
+          elapsed: 1,
+          imageCount: 0,
+          outputPath: "/path/to/doc.md",
+        },
+      });
+
+      useFileStore.getState().setEditedMarkdown(fileId, "# Edited");
+      useFileStore.getState().setEditedMarkdown(fileId, "# Original");
+
+      expect(useFileStore.getState().files[0].isDirty).toBe(false);
+    });
+
+    it("markSaved 호출 시 isDirty=false가 되고 편집 내용은 유지된다", () => {
+      useFileStore.getState().addFiles(["/path/to/doc.hwpx"]);
+      const fileId = useFileStore.getState().files[0].id;
+      useFileStore.getState().updateFile(fileId, {
+        status: "done",
+        result: {
+          markdown: "# Original",
+          format: "hwpx",
+          elapsed: 1,
+          imageCount: 0,
+          outputPath: "/path/to/doc.md",
+        },
+      });
+      useFileStore.getState().setEditedMarkdown(fileId, "# Edited");
+
+      useFileStore.getState().markSaved(fileId);
+
+      const file = useFileStore.getState().files[0];
+      expect(file.isDirty).toBe(false);
+      expect(file.editedMarkdown).toBe("# Edited");
+    });
+
+    it("discardEdits 호출 시 원본 markdown으로 복원되고 dirty 해제", () => {
+      useFileStore.getState().addFiles(["/path/to/doc.hwpx"]);
+      const fileId = useFileStore.getState().files[0].id;
+      useFileStore.getState().updateFile(fileId, {
+        status: "done",
+        result: {
+          markdown: "# Original",
+          format: "hwpx",
+          elapsed: 1,
+          imageCount: 0,
+          outputPath: "/path/to/doc.md",
+        },
+      });
+      useFileStore.getState().setEditedMarkdown(fileId, "# Edited");
+
+      useFileStore.getState().discardEdits(fileId);
+
+      const file = useFileStore.getState().files[0];
+      expect(file.editedMarkdown).toBe("# Original");
+      expect(file.isDirty).toBe(false);
+    });
+
+    it("변환 전 파일은 editedMarkdown이 null이고 isDirty=false", () => {
+      useFileStore.getState().addFiles(["/path/to/doc.hwpx"]);
+
+      const file = useFileStore.getState().files[0];
+      expect(file.editedMarkdown).toBeNull();
+      expect(file.isDirty).toBe(false);
+    });
+
+    it("다른 파일의 편집 상태에는 영향을 주지 않는다", () => {
+      useFileStore.getState().addFiles(["/path/to/a.hwpx", "/path/to/b.docx"]);
+      const [a, b] = useFileStore.getState().files;
+      const doneResult = (md: string) => ({
+        markdown: md,
+        format: "hwpx" as const,
+        elapsed: 1,
+        imageCount: 0,
+        outputPath: "/x.md",
+      });
+      useFileStore
+        .getState()
+        .updateFile(a.id, { status: "done", result: doneResult("# A") });
+      useFileStore
+        .getState()
+        .updateFile(b.id, { status: "done", result: doneResult("# B") });
+
+      useFileStore.getState().setEditedMarkdown(a.id, "# A edited");
+
+      const [fileA, fileB] = useFileStore.getState().files;
+      expect(fileA.isDirty).toBe(true);
+      expect(fileA.editedMarkdown).toBe("# A edited");
+      expect(fileB.isDirty).toBe(false);
+      expect(fileB.editedMarkdown).toBe("# B");
+    });
+  });
+
   describe("clearFiles", () => {
     it("모든 파일과 선택 상태를 초기화한다", () => {
       useFileStore.getState().addFiles(["/path/to/a.hwpx", "/path/to/b.docx"]);
