@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { HwpParser } from "../src/parsers/hwp-parser.js";
@@ -6,6 +7,8 @@ import { convert } from "../src/pipeline.js";
 
 const FIXTURES = resolve(import.meta.dirname, "fixtures");
 const SAMPLE_HWP = resolve(FIXTURES, "sample.hwp");
+// 보안상 sample.hwp는 저장소에 포함하지 않음. 없으면 Java 의존 테스트 skip.
+const hasHwpSample = existsSync(SAMPLE_HWP);
 
 /** CI 환경에 Java가 없으면 Java 의존 테스트를 스킵한다. */
 function isJavaAvailable(): boolean {
@@ -19,43 +22,46 @@ function isJavaAvailable(): boolean {
 
 const javaAvailable = isJavaAvailable();
 
-describe.skipIf(!javaAvailable)("HwpParser (Java 의존)", () => {
-  it("HWP 바이너리를 HWPX로 선변환 후 Markdown을 생성한다", async () => {
-    const result = await convert({ inputPath: SAMPLE_HWP });
+describe.skipIf(!javaAvailable || !hasHwpSample)(
+  "HwpParser (Java 의존)",
+  () => {
+    it("HWP 바이너리를 HWPX로 선변환 후 Markdown을 생성한다", async () => {
+      const result = await convert({ inputPath: SAMPLE_HWP });
 
-    expect(result.format).toBe("hwp");
-    expect(result.markdown.length).toBeGreaterThan(0);
-    expect(result.elapsed).toBeGreaterThan(0);
-    expect(Array.isArray(result.images)).toBe(true);
-  });
+      expect(result.format).toBe("hwp");
+      expect(result.markdown.length).toBeGreaterThan(0);
+      expect(result.elapsed).toBeGreaterThan(0);
+      expect(Array.isArray(result.images)).toBe(true);
+    });
 
-  it("추출된 이미지는 정상적인 형태를 가진다", async () => {
-    const result = await convert({ inputPath: SAMPLE_HWP });
+    it("추출된 이미지는 정상적인 형태를 가진다", async () => {
+      const result = await convert({ inputPath: SAMPLE_HWP });
 
-    for (const img of result.images) {
-      expect(img.name).toMatch(/^img_\d{3}\.[a-z]+$/);
-      expect(img.mimeType).toMatch(/^image\//);
-      expect(img.data.length).toBeGreaterThan(0);
-    }
-  });
-
-  it("DOCS_TO_MD_HWP_JAR이 존재하지 않는 경로면 명확한 오류를 던진다", async () => {
-    const prev = process.env.DOCS_TO_MD_HWP_JAR;
-    process.env.DOCS_TO_MD_HWP_JAR = "/nonexistent/path/to/hwp.jar";
-    try {
-      const parser = new HwpParser();
-      await expect(
-        parser.parse(SAMPLE_HWP, { imagesDirName: "sample_images" }),
-      ).rejects.toThrow(/DOCS_TO_MD_HWP_JAR/);
-    } finally {
-      if (prev === undefined) {
-        delete process.env.DOCS_TO_MD_HWP_JAR;
-      } else {
-        process.env.DOCS_TO_MD_HWP_JAR = prev;
+      for (const img of result.images) {
+        expect(img.name).toMatch(/^img_\d{3}\.[a-z]+$/);
+        expect(img.mimeType).toMatch(/^image\//);
+        expect(img.data.length).toBeGreaterThan(0);
       }
-    }
-  });
-});
+    });
+
+    it("DOCS_TO_MD_HWP_JAR이 존재하지 않는 경로면 명확한 오류를 던진다", async () => {
+      const prev = process.env.DOCS_TO_MD_HWP_JAR;
+      process.env.DOCS_TO_MD_HWP_JAR = "/nonexistent/path/to/hwp.jar";
+      try {
+        const parser = new HwpParser();
+        await expect(
+          parser.parse(SAMPLE_HWP, { imagesDirName: "sample_images" }),
+        ).rejects.toThrow(/DOCS_TO_MD_HWP_JAR/);
+      } finally {
+        if (prev === undefined) {
+          delete process.env.DOCS_TO_MD_HWP_JAR;
+        } else {
+          process.env.DOCS_TO_MD_HWP_JAR = prev;
+        }
+      }
+    });
+  },
+);
 
 describe("HwpParser (포맷 등록)", () => {
   it("pipeline이 .hwp 확장자를 지원 포맷으로 인식한다", async () => {

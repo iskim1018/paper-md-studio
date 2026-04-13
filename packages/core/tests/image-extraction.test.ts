@@ -1,5 +1,15 @@
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
+
+const FIXTURES = resolve(import.meta.dirname, "fixtures");
+// 보안상 실제 샘플 파일은 저장소에 없음. 없으면 해당 테스트는 skip.
+const hasHwpxSample = existsSync(resolve(FIXTURES, "sample.hwpx"));
+const hasDocxSample = existsSync(resolve(FIXTURES, "sample.docx"));
+const hasDocxImageSample = existsSync(
+  resolve(FIXTURES, "sample-with-image.docx"),
+);
+const hasPdfSample = existsSync(resolve(FIXTURES, "sample.pdf"));
+
 import { strToU8, zipSync } from "fflate";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { convert } from "../src/pipeline.js";
@@ -90,33 +100,39 @@ describe("이미지 추출", () => {
       expect(result.markdown).toContain("img_001.png");
     });
 
-    it("실제 HWPX 파일의 images 필드는 배열 형태로 반환된다", async () => {
-      const result = await convert({
-        inputPath: resolve(import.meta.dirname, "fixtures/sample.hwpx"),
-      });
+    it.skipIf(!hasHwpxSample)(
+      "실제 HWPX 파일의 images 필드는 배열 형태로 반환된다",
+      async () => {
+        const result = await convert({
+          inputPath: resolve(import.meta.dirname, "fixtures/sample.hwpx"),
+        });
 
-      expect(Array.isArray(result.images)).toBe(true);
-      for (const img of result.images) {
-        expect(img.name).toMatch(/^img_\d{3}\.[a-z]+$/);
-        expect(img.mimeType).toMatch(/^image\//);
-        expect(img.data.length).toBeGreaterThan(0);
-      }
-    });
+        expect(Array.isArray(result.images)).toBe(true);
+        for (const img of result.images) {
+          expect(img.name).toMatch(/^img_\d{3}\.[a-z]+$/);
+          expect(img.mimeType).toMatch(/^image\//);
+          expect(img.data.length).toBeGreaterThan(0);
+        }
+      },
+    );
 
-    it("HWPX 테이블 셀 내부의 이미지도 추출한다 (회귀)", async () => {
-      // sample.hwpx는 BinData/에 image1.jpg + image2-9.bmp 총 9개의
-      // 이미지를 가지며, 대부분 표 셀 내부에 배치되어 있다.
-      // 과거 버그: parseCellText가 텍스트만 추출하고 run.pic/run.img를
-      // 건너뛰어 table 내부 이미지가 모두 누락되었다.
-      const result = await convert({
-        inputPath: resolve(import.meta.dirname, "fixtures/sample.hwpx"),
-      });
+    it.skipIf(!hasHwpxSample)(
+      "HWPX 테이블 셀 내부의 이미지도 추출한다 (회귀)",
+      async () => {
+        // sample.hwpx는 BinData/에 image1.jpg + image2-9.bmp 총 9개의
+        // 이미지를 가지며, 대부분 표 셀 내부에 배치되어 있다.
+        // 과거 버그: parseCellText가 텍스트만 추출하고 run.pic/run.img를
+        // 건너뛰어 table 내부 이미지가 모두 누락되었다.
+        const result = await convert({
+          inputPath: resolve(import.meta.dirname, "fixtures/sample.hwpx"),
+        });
 
-      expect(result.images.length).toBeGreaterThanOrEqual(9);
-      // Markdown 본문에도 이미지 참조가 이미지 개수만큼 존재해야 한다.
-      const imageRefMatches = result.markdown.match(/!\[[^\]]*\]\(/g) ?? [];
-      expect(imageRefMatches.length).toBeGreaterThanOrEqual(9);
-    });
+        expect(result.images.length).toBeGreaterThanOrEqual(9);
+        // Markdown 본문에도 이미지 참조가 이미지 개수만큼 존재해야 한다.
+        const imageRefMatches = result.markdown.match(/!\[[^\]]*\]\(/g) ?? [];
+        expect(imageRefMatches.length).toBeGreaterThanOrEqual(9);
+      },
+    );
 
     it("커스텀 imagesDirName이 MD에 반영된다", async () => {
       const hwpxPath = join(TEMP_DIR, "custom-dir.hwpx");
@@ -132,39 +148,48 @@ describe("이미지 추출", () => {
   });
 
   describe("DOCX 이미지 추출", () => {
-    it("DOCX 내 이미지를 추출하고 MD에 참조를 삽입한다", async () => {
-      const result = await convert({
-        inputPath: resolve(
-          import.meta.dirname,
-          "fixtures/sample-with-image.docx",
-        ),
-      });
+    it.skipIf(!hasDocxImageSample)(
+      "DOCX 내 이미지를 추출하고 MD에 참조를 삽입한다",
+      async () => {
+        const result = await convert({
+          inputPath: resolve(
+            import.meta.dirname,
+            "fixtures/sample-with-image.docx",
+          ),
+        });
 
-      expect(result.images).toHaveLength(1);
-      expect(result.images[0].name).toBe("img_001.png");
-      expect(result.images[0].mimeType).toBe("image/png");
-      expect(result.images[0].data.length).toBeGreaterThan(0);
+        expect(result.images).toHaveLength(1);
+        expect(result.images[0].name).toBe("img_001.png");
+        expect(result.images[0].mimeType).toBe("image/png");
+        expect(result.images[0].data.length).toBeGreaterThan(0);
 
-      // MD 내 이미지 참조 확인
-      expect(result.markdown).toContain("img_001.png");
-    });
+        // MD 내 이미지 참조 확인
+        expect(result.markdown).toContain("img_001.png");
+      },
+    );
 
-    it("이미지가 없는 DOCX는 빈 이미지 배열을 반환한다", async () => {
-      const result = await convert({
-        inputPath: resolve(import.meta.dirname, "fixtures/sample.docx"),
-      });
+    it.skipIf(!hasDocxSample)(
+      "이미지가 없는 DOCX는 빈 이미지 배열을 반환한다",
+      async () => {
+        const result = await convert({
+          inputPath: resolve(import.meta.dirname, "fixtures/sample.docx"),
+        });
 
-      expect(result.images).toHaveLength(0);
-    });
+        expect(result.images).toHaveLength(0);
+      },
+    );
   });
 
   describe("PDF 이미지 추출", () => {
-    it("PDF는 이미지 추출을 지원하지 않으므로 빈 배열을 반환한다", async () => {
-      const result = await convert({
-        inputPath: resolve(import.meta.dirname, "fixtures/sample.pdf"),
-      });
+    it.skipIf(!hasPdfSample)(
+      "PDF는 이미지 추출을 지원하지 않으므로 빈 배열을 반환한다",
+      async () => {
+        const result = await convert({
+          inputPath: resolve(import.meta.dirname, "fixtures/sample.pdf"),
+        });
 
-      expect(result.images).toHaveLength(0);
-    });
+        expect(result.images).toHaveLength(0);
+      },
+    );
   });
 });

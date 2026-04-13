@@ -1,8 +1,14 @@
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { convert, convertToHtml } from "../src/pipeline.js";
 
 const FIXTURES = resolve(import.meta.dirname, "fixtures");
+
+// 보안상 실제 샘플 파일은 저장소에 없음. 없으면 해당 describe 전체를 skip.
+const hasDocx = existsSync(resolve(FIXTURES, "sample.docx"));
+const hasHwpx = existsSync(resolve(FIXTURES, "sample.hwpx"));
+const hasPdf = existsSync(resolve(FIXTURES, "sample.pdf"));
 
 describe("convert", () => {
   describe("포맷 감지", () => {
@@ -21,7 +27,7 @@ describe("convert", () => {
     });
   });
 
-  describe("DOCX 변환", () => {
+  describe.skipIf(!hasDocx)("DOCX 변환", () => {
     it("DOCX를 Markdown으로 변환한다", async () => {
       const result = await convert({
         inputPath: resolve(FIXTURES, "sample.docx"),
@@ -34,7 +40,7 @@ describe("convert", () => {
     });
   });
 
-  describe("HWPX 변환", () => {
+  describe.skipIf(!hasHwpx)("HWPX 변환", () => {
     it("HWPX를 Markdown으로 변환한다", async () => {
       const result = await convert({
         inputPath: resolve(FIXTURES, "sample.hwpx"),
@@ -46,7 +52,7 @@ describe("convert", () => {
     });
   });
 
-  describe("PDF 변환", () => {
+  describe.skipIf(!hasPdf)("PDF 변환", () => {
     it("PDF를 Markdown으로 변환한다", async () => {
       const result = await convert({
         inputPath: resolve(FIXTURES, "sample.pdf"),
@@ -66,7 +72,7 @@ describe("convertToHtml", () => {
     );
   });
 
-  it("DOCX에서 HTML을 반환한다", async () => {
+  it.skipIf(!hasDocx)("DOCX에서 HTML을 반환한다", async () => {
     const result = await convertToHtml({
       inputPath: resolve(FIXTURES, "sample.docx"),
     });
@@ -76,7 +82,7 @@ describe("convertToHtml", () => {
     expect(result.html.length).toBeGreaterThan(0);
   });
 
-  it("HWPX에서 HTML을 반환한다", async () => {
+  it.skipIf(!hasHwpx)("HWPX에서 HTML을 반환한다", async () => {
     const result = await convertToHtml({
       inputPath: resolve(FIXTURES, "sample.hwpx"),
     });
@@ -85,7 +91,7 @@ describe("convertToHtml", () => {
     expect(result.html.length).toBeGreaterThan(0);
   });
 
-  it("PDF에서 콘텐츠를 반환한다", async () => {
+  it.skipIf(!hasPdf)("PDF에서 콘텐츠를 반환한다", async () => {
     const result = await convertToHtml({
       inputPath: resolve(FIXTURES, "sample.pdf"),
     });
