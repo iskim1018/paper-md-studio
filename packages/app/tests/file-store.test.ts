@@ -20,10 +20,14 @@ describe("isSupportedFile", () => {
     expect(isSupportedFile("/path/to/FILE.PDF")).toBe(true);
   });
 
+  it(".hwp 파일도 허용한다 (Java 툴체인 경유)", () => {
+    expect(isSupportedFile("/path/to/doc.hwp")).toBe(true);
+    expect(isSupportedFile("/path/to/FILE.HWP")).toBe(true);
+  });
+
   it("지원하지 않는 형식은 거부한다", () => {
     expect(isSupportedFile("/path/to/image.png")).toBe(false);
     expect(isSupportedFile("/path/to/text.txt")).toBe(false);
-    expect(isSupportedFile("/path/to/doc.hwp")).toBe(false);
     expect(isSupportedFile("/path/to/old.doc")).toBe(false);
   });
 

@@ -90,7 +90,10 @@ function FileViewer({ format, filePath }: FileViewerProps) {
       return <PdfViewer filePath={filePath} />;
     case "docx":
       return <DocxViewer filePath={filePath} />;
+    case "hwp":
     case "hwpx":
+      // .hwp는 HwpxViewer가 CLI sidecar(--html)를 통해 처리한다.
+      // core의 convertToHtml이 내부적으로 HwpParser → HWPX 선변환을 수행.
       return <HwpxViewer filePath={filePath} />;
     default:
       return (
