@@ -40,6 +40,111 @@
   }
 }
 
+/* Markdown 프리뷰 (react-markdown) 기본 스타일 */
+.markdown-body {
+  line-height: 1.65;
+  color: var(--color-text);
+
+  h1 {
+    font-size: 1.6em;
+    font-weight: 700;
+    margin: 1em 0 0.5em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--color-border);
+  }
+  h2 {
+    font-size: 1.35em;
+    font-weight: 700;
+    margin: 1em 0 0.5em;
+    padding-bottom: 0.25em;
+    border-bottom: 1px solid var(--color-border);
+  }
+  h3 {
+    font-size: 1.15em;
+    font-weight: 700;
+    margin: 0.9em 0 0.4em;
+  }
+  h4,
+  h5,
+  h6 {
+    font-weight: 700;
+    margin: 0.8em 0 0.4em;
+  }
+  p {
+    margin: 0.6em 0;
+  }
+  ul,
+  ol {
+    margin: 0.6em 0;
+    padding-left: 1.6em;
+  }
+  ul {
+    list-style: disc;
+  }
+  ol {
+    list-style: decimal;
+  }
+  li {
+    margin: 0.2em 0;
+  }
+  li > input[type="checkbox"] {
+    margin-right: 0.4em;
+  }
+  blockquote {
+    margin: 0.8em 0;
+    padding: 0.2em 0.8em;
+    border-left: 3px solid var(--color-border);
+    color: var(--color-muted);
+  }
+  code {
+    background: var(--color-panel-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--color-panel-bg);
+    padding: 0.8em 1em;
+    border-radius: 4px;
+    overflow-x: auto;
+    margin: 0.8em 0;
+  }
+  pre code {
+    background: transparent;
+    padding: 0;
+  }
+  a {
+    color: var(--color-accent);
+    text-decoration: underline;
+  }
+  table {
+    border-collapse: collapse;
+    margin: 0.8em 0;
+    display: block;
+    overflow-x: auto;
+  }
+  th,
+  td {
+    border: 1px solid var(--color-border);
+    padding: 0.4em 0.75em;
+    text-align: left;
+  }
+  th {
+    background: var(--color-panel-bg);
+    font-weight: 600;
+  }
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+  hr {
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    margin: 1.2em 0;
+  }
+}
+
 /* DOCX/HWPX HTML 뷰어 기본 스타일 */
 .docx-content,
 .hwpx-content {

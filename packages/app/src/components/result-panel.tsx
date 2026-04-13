@@ -15,6 +15,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useSaveShortcut } from "../hooks/use-save-shortcut";
 import { saveMarkdownAs, saveMarkdownTo } from "../lib/file-writer";
 import { useFileStore } from "../store/file-store";
+import { MarkdownPreview } from "./editor/markdown-preview";
 import { MilkdownEditor } from "./editor/milkdown-editor";
 import { SourceEditor } from "./editor/source-editor";
 
@@ -172,16 +173,7 @@ export function ResultPanel() {
         </div>
       )}
       <div className="flex-1 overflow-hidden">
-        {mode === "preview" && (
-          <div className="h-full overflow-y-auto">
-            <pre
-              className="p-4 text-sm whitespace-pre-wrap break-words font-mono leading-relaxed"
-              data-testid="markdown-output"
-            >
-              {displayedMarkdown}
-            </pre>
-          </div>
-        )}
+        {mode === "preview" && <MarkdownPreview markdown={displayedMarkdown} />}
         {mode === "edit" && (
           <MilkdownEditor
             // 파일이 바뀌면 에디터를 재마운트하여 초기값을 반영
@@ -206,21 +198,19 @@ export function ResultPanel() {
             data-testid="split-view"
           >
             <Panel defaultSize={50} minSize={20}>
-              <MilkdownEditor
-                key={`split-milk-${selectedFile.id}`}
+              <SourceEditor
+                key={`split-src-${selectedFile.id}-${displayedMarkdown.length}`}
                 initialValue={displayedMarkdown}
                 onChange={handleEdit}
               />
             </Panel>
             <PanelResizeHandle className="w-px bg-[var(--color-border)] hover:bg-[var(--color-accent,#3b82f6)] transition-colors" />
             <Panel defaultSize={50} minSize={20}>
-              <div className="h-full overflow-y-auto border-l border-[var(--color-border)]">
-                <pre
-                  className="p-4 text-sm whitespace-pre-wrap break-words font-mono leading-relaxed"
-                  data-testid="split-preview"
-                >
-                  {displayedMarkdown}
-                </pre>
+              <div
+                className="h-full border-l border-[var(--color-border)]"
+                data-testid="split-preview"
+              >
+                <MarkdownPreview markdown={displayedMarkdown} />
               </div>
             </Panel>
           </PanelGroup>

@@ -64,12 +64,13 @@ test.describe("ResultPanel 에디터 모드", () => {
     await expect(page.locator('[data-testid="mode-split"]')).toBeVisible();
   });
 
-  test("기본 모드는 보기이며 markdown-output이 렌더링된다", async ({
+  test("기본 모드는 보기이며 렌더링된 Markdown 프리뷰가 표시된다", async ({
     page,
   }) => {
-    const output = page.locator('[data-testid="markdown-output"]');
-    await expect(output).toBeVisible();
-    await expect(output).toContainText("테스트 문서");
+    const preview = page.locator('[data-testid="markdown-preview"]').first();
+    await expect(preview).toBeVisible();
+    // react-markdown으로 h1이 렌더링되어야 함
+    await expect(preview.locator("h1")).toContainText("테스트 문서");
   });
 
   test("편집 모드로 전환하면 Milkdown 에디터가 노출된다", async ({ page }) => {
@@ -84,16 +85,19 @@ test.describe("ResultPanel 에디터 모드", () => {
     await expect(page.locator('[data-testid="source-editor"]')).toBeVisible();
   });
 
-  test("분할 모드로 전환하면 편집기+프리뷰가 동시에 표시된다", async ({
+  test("분할 모드로 전환하면 소스 에디터+프리뷰가 동시에 표시된다", async ({
     page,
   }) => {
     await page.locator('[data-testid="mode-split"]').click();
     await expect(page.locator('[data-testid="split-view"]')).toBeVisible();
-    await expect(page.locator('[data-testid="milkdown-editor"]')).toBeVisible();
+    await expect(page.locator('[data-testid="source-editor"]')).toBeVisible();
     await expect(page.locator('[data-testid="split-preview"]')).toBeVisible();
-    await expect(page.locator('[data-testid="split-preview"]')).toContainText(
-      "테스트 문서",
-    );
+    // 렌더링된 markdown-preview 안의 h1에 제목이 있어야 함
+    await expect(
+      page.locator(
+        '[data-testid="split-preview"] [data-testid="markdown-preview"] h1',
+      ),
+    ).toContainText("테스트 문서");
   });
 });
 
