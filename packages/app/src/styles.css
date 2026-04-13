@@ -12,8 +12,22 @@
   --color-panel-bg: #f9fafb;
 }
 
+/* 다크 테마 변수 정의 */
+:root[data-theme="dark"] {
+  --color-bg: #0a0a0a;
+  --color-text: #ededed;
+  --color-border: #374151;
+  --color-muted: #9ca3af;
+  --color-accent: #60a5fa;
+  --color-accent-hover: #3b82f6;
+  --color-success: #4ade80;
+  --color-error: #f87171;
+  --color-panel-bg: #111827;
+}
+
+/* 시스템 설정 자동 추적 (명시적 data-theme이 없을 때만) */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --color-bg: #0a0a0a;
     --color-text: #ededed;
     --color-border: #374151;

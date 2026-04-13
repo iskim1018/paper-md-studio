@@ -3,16 +3,18 @@ import { DropOverlay } from "./components/drop-overlay";
 import { FileListPanel } from "./components/file-list-panel";
 import { PreviewPanel } from "./components/preview-panel";
 import { ResultPanel } from "./components/result-panel";
+import { ThemeToggle } from "./components/theme-toggle";
 
 export function App() {
   return (
     <div className="flex h-screen flex-col" data-testid="app-root">
       <DropOverlay />
       <header
-        className="flex h-12 shrink-0 items-center border-b border-[var(--color-border)] px-4"
+        className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4"
         data-testid="app-header"
       >
         <h1 className="text-sm font-semibold">docs-to-md</h1>
+        <ThemeToggle />
       </header>
       <PanelGroup direction="horizontal" className="flex-1">
         <Panel defaultSize={25} minSize={15}>
