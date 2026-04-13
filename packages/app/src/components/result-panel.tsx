@@ -1,9 +1,18 @@
-import { Check, Copy, Edit3, Eye, FileCode2, FolderOpen } from "lucide-react";
+import {
+  Check,
+  Code,
+  Copy,
+  Edit3,
+  Eye,
+  FileCode2,
+  FolderOpen,
+} from "lucide-react";
 import { useCallback, useState } from "react";
 import { useFileStore } from "../store/file-store";
 import { MilkdownEditor } from "./editor/milkdown-editor";
+import { SourceEditor } from "./editor/source-editor";
 
-type ViewMode = "preview" | "edit";
+type ViewMode = "preview" | "edit" | "source";
 
 async function openFolder(filePath: string): Promise<void> {
   const { open } = await import("@tauri-apps/plugin-shell");
@@ -93,7 +102,7 @@ export function ResultPanel() {
         </div>
       </div>
       <div className="flex-1 overflow-hidden">
-        {mode === "preview" ? (
+        {mode === "preview" && (
           <div className="h-full overflow-y-auto">
             <pre
               className="p-4 text-sm whitespace-pre-wrap break-words font-mono leading-relaxed"
@@ -102,10 +111,20 @@ export function ResultPanel() {
               {displayedMarkdown}
             </pre>
           </div>
-        ) : (
+        )}
+        {mode === "edit" && (
           <MilkdownEditor
             // 파일이 바뀌면 에디터를 재마운트하여 초기값을 반영
-            key={selectedFile.id}
+            key={`milk-${selectedFile.id}`}
+            initialValue={displayedMarkdown}
+            onChange={handleEdit}
+          />
+        )}
+        {mode === "source" && (
+          <SourceEditor
+            // 파일이 바뀌거나 WYSIWYG 편집 후 소스 모드로 돌아올 때
+            // 초기값을 다시 반영하도록 편집 내용 길이를 key에 포함
+            key={`src-${selectedFile.id}-${displayedMarkdown.length}`}
             initialValue={displayedMarkdown}
             onChange={handleEdit}
           />
@@ -130,37 +149,43 @@ interface ModeToggleProps {
 }
 
 function ModeToggle({ mode, onChange }: ModeToggleProps) {
+  const buttons: ReadonlyArray<{
+    readonly value: ViewMode;
+    readonly label: string;
+    readonly Icon: typeof Eye;
+    readonly testId: string;
+  }> = [
+    { value: "preview", label: "보기", Icon: Eye, testId: "mode-preview" },
+    { value: "edit", label: "편집", Icon: Edit3, testId: "mode-edit" },
+    { value: "source", label: "소스", Icon: Code, testId: "mode-source" },
+  ];
+
   return (
     <div
       className="flex items-center rounded border border-[var(--color-border)] text-xs"
       data-testid="mode-toggle"
     >
-      <button
-        type="button"
-        onClick={() => onChange("preview")}
-        className={`flex items-center gap-1 px-2 py-0.5 rounded-l transition-colors ${
-          mode === "preview"
-            ? "bg-[var(--color-border)] text-[var(--color-text)]"
-            : "text-[var(--color-muted)] hover:text-[var(--color-text)]"
-        }`}
-        data-testid="mode-preview"
-      >
-        <Eye size={11} />
-        보기
-      </button>
-      <button
-        type="button"
-        onClick={() => onChange("edit")}
-        className={`flex items-center gap-1 px-2 py-0.5 rounded-r transition-colors ${
-          mode === "edit"
-            ? "bg-[var(--color-border)] text-[var(--color-text)]"
-            : "text-[var(--color-muted)] hover:text-[var(--color-text)]"
-        }`}
-        data-testid="mode-edit"
-      >
-        <Edit3 size={11} />
-        편집
-      </button>
+      {buttons.map(({ value, label, Icon, testId }, i) => {
+        const isActive = mode === value;
+        const radius =
+          i === 0 ? "rounded-l" : i === buttons.length - 1 ? "rounded-r" : "";
+        return (
+          <button
+            key={value}
+            type="button"
+            onClick={() => onChange(value)}
+            className={`flex items-center gap-1 px-2 py-0.5 ${radius} transition-colors ${
+              isActive
+                ? "bg-[var(--color-border)] text-[var(--color-text)]"
+                : "text-[var(--color-muted)] hover:text-[var(--color-text)]"
+            }`}
+            data-testid={testId}
+          >
+            <Icon size={11} />
+            {label}
+          </button>
+        );
+      })}
     </div>
   );
 }
