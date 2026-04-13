@@ -4,26 +4,32 @@
 
 ## 프로젝트 개요
 
-docs-to-md — macOS 전용 문서 변환 도구. HWPX, DOCX, PDF를 Markdown으로 변환합니다.
+docs-to-md — macOS 전용 문서 변환 도구. HWP, HWPX, DOCX, PDF를 Markdown으로 변환합니다.
 CLI-first 접근: 변환 엔진(core)을 먼저 구축하고, 이후 Tauri GUI(app)를 씌웁니다.
 
 ## 기술 스택
 
-- **런타임**: Node.js 20+
+- **런타임**: Node.js 20+ (HWP 변환 시 Java 11+ 추가 필요)
 - **언어**: TypeScript (strict mode)
-- **GUI**: Tauri 2.x + React (Phase 3~)
-- **빌드**: tsup (core/cli), Vite (app)
+- **GUI**: Tauri 2.x + React 19 (Phase 3~)
+- **에디터**: Milkdown (WYSIWYG) + CodeMirror 6 (소스) — Phase 5~
+- **HWP 툴체인**: Maven + `neolord0/hwp2hwpx` (fat jar, Phase 4.5~)
+- **빌드**: tsup (core/cli), Vite (app), Maven (tools/hwp-to-hwpx)
 - **패키지 매니저**: pnpm (모노레포)
 - **린트/포맷**: Biome
-- **테스트**: Vitest
+- **테스트**: Vitest (unit/integration), Playwright (E2E)
 
 ## 프로젝트 구조
 
 ```
 packages/
 ├── core/    # 변환 엔진 라이브러리 (@docs-to-md/core)
+│   └── resources/hwp-to-hwpx.jar  # HWP→HWPX Java 툴 (번들)
 ├── cli/     # CLI 인터페이스 (@docs-to-md/cli)
 └── app/     # Tauri GUI (Phase 3~, @docs-to-md/app)
+
+tools/
+└── hwp-to-hwpx/   # Maven 프로젝트 (neolord0/hwp2hwpx 래퍼)
 ```
 
 ## 명령어
@@ -37,15 +43,21 @@ pnpm lint:fix         # Biome 자동 수정
 pnpm format           # Biome 포맷
 pnpm typecheck        # TypeScript 타입 검사
 pnpm security         # npm 보안 감사
+
+pnpm build:hwp-tool                              # HWP→HWPX Java jar 재빌드
+pnpm --filter @docs-to-md/app sidecar:install    # Tauri sidecar 래퍼 배포
+pnpm --filter @docs-to-md/app tauri dev          # GUI 개발 실행
+pnpm --filter @docs-to-md/app test:e2e           # Playwright E2E
 ```
 
 ## MVP 범위 (v1)
 
-- HWPX → Markdown (@ssabrojs/hwpxjs)
-- DOCX → Markdown (mammoth + turndown)
-- PDF → Markdown (unpdf 또는 @opendocsg/pdf2md)
+- HWPX → Markdown (`@ssabrojs/hwpxjs`)
+- DOCX → Markdown (`mammoth` + `turndown`)
+- PDF → Markdown (`@opendocsg/pdf2md`)
+- HWP (5.0 바이너리) → HWPX → Markdown (`neolord0/hwp2hwpx` Java 툴체인)
 
-v2 후순위: HWP(바이너리), DOC(레거시)
+v2 후순위: DOC(레거시, Phase 8)
 
 ## 코딩 규칙
 
@@ -102,3 +114,11 @@ Conventional Commits 형식:
 | 2026-04-07 | MVP: HWPX+DOCX+PDF | HWP/DOC 라이브러리 미성숙 |
 | 2026-04-07 | pnpm 모노레포 | core/cli/app 패키지 분리, 재사용성 |
 | 2026-04-07 | Biome 채택 | ESLint+Prettier 대체, 단일 도구 |
+| 2026-04-13 | HWP 바이너리 지원을 Phase 4.5로 선행 | 사용자 요구 우선순위 상승 |
+| 2026-04-13 | `neolord0/hwp2hwpx` (Java, Apache-2.0) 채택 | `HWPReader → Hwp2Hwpx → HWPXWriter` 단순 API, 활발한 유지보수 |
+| 2026-04-13 | JitPack + 커밋 SHA 핀닝 | 배포 태그 부재, 재현성 확보 |
+| 2026-04-13 | DOMPurify `ALLOWED_URI_REGEXP` 커스터마이즈 | 뷰어 data/blob URI 이미지가 기본 정책에서 제거되던 이슈 수정 |
+| 2026-04-13 | HWPX `parseCellText`에 `ImageCollector` 전달 | 표 셀 내부 이미지 누락 버그 수정 |
+| 2026-04-13 | Phase 5 에디터: Milkdown Crepe + CodeMirror 6 | React 19 호환, WYSIWYG/소스 각각 성숙, 독립 히스토리 |
+| 2026-04-13 | 4-모드 편집(보기/편집/소스/분할) | 사용자 요구: 편집 + 미리보기 동시 제공 |
+| 2026-04-13 | `data-theme` 기반 수동 테마 오버라이드 | `prefers-color-scheme` 위에 사용자 선택 얹기, localStorage 영속화 |

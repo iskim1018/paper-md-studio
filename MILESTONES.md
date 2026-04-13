@@ -114,39 +114,58 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 
 ---
 
-## Phase 4.5: HWP 지원 (hwp2hwpx 선변환)
+## Phase 4.5: HWP 지원 (hwp2hwpx 선변환) ✅
 
 **목표**: `.hwp` 바이너리 파일을 Java 툴체인으로 `.hwpx`로 선변환한 뒤 기존 HWPX 파이프라인에 태워 지원 포맷에 포함시킨다.
 
 | # | 태스크 | 복잡도 | 상태 |
 |---|--------|--------|------|
-| 4.5-1 | `tools/hwp-to-hwpx/` Maven 프로젝트 스캐폴딩 (JitPack 기반 neolord0/hwp2hwpx 의존성 + main class + maven-shade-plugin fat jar) | M | ⬜ |
-| 4.5-2 | `packages/core/src/parsers/hwp-parser.ts` 프리프로세서 (java 탐지 → child_process.spawn → tmp HWPX → HwpxParser 위임) | M | ⬜ |
-| 4.5-3 | jar 경로 resolver 및 `packages/core/resources/hwp-to-hwpx.jar` 번들링, pipeline.ts 포맷 등록 | S | ⬜ |
-| 4.5-4 | CLI `.hwp` 지원 + help 메시지 + core 유닛/통합 테스트 (fixture: sample.hwp) | M | ⬜ |
-| 4.5-5 | Tauri app `.hwp` 확장자 허용 + Java 미설치 안내 UI | S | ⬜ |
+| 4.5-1 | `tools/hwp-to-hwpx/` Maven 프로젝트 스캐폴딩 (JitPack 기반 neolord0/hwp2hwpx 의존성 + main class + maven-shade-plugin fat jar) | M | ✅ |
+| 4.5-2 | `packages/core/src/parsers/hwp-parser.ts` 프리프로세서 (java 탐지 → child_process.spawn → tmp HWPX → HwpxParser 위임) | M | ✅ |
+| 4.5-3 | jar 경로 resolver 및 `packages/core/resources/hwp-to-hwpx.jar` 번들링, pipeline.ts 포맷 등록 | S | ✅ |
+| 4.5-4 | CLI `.hwp` 지원 + help 메시지 + core 유닛/통합 테스트 (fixture: sample.hwp) | M | ✅ |
+| 4.5-5 | Tauri app `.hwp` 확장자 허용 + Java 미설치 안내 UI | S | ✅ |
 
 **결정 로그**:
 - **라이브러리**: `neolord0/hwp2hwpx` (Apache-2.0) — `HWPReader` → `Hwp2Hwpx.toHWPX` → `HWPXWriter` 3-step API. 내부적으로 `kr.dogfoot.hwplib` + `kr.dogfoot.hwpxlib` 사용
-- **의존성 해결**: JitPack (`com.github.neolord0:hwp2hwpx`) — Maven Central 미배포
+- **의존성 해결**: JitPack (`com.github.neolord0:hwp2hwpx`) — Maven Central 미배포, 커밋 SHA 고정
 - **런타임**: 시스템 `java` 탐지 (Phase 7에서 `jlink` 번들링 수용 예정)
+- **HWPX 이미지 표 셀 추출 버그** (2026-04-13 수정): 9개 중 8개 누락 → `parseCellText`에 `ImageCollector` 전달하여 해결
 
 **완료 기준**:
-- [ ] `docs-to-md sample.hwp` 실행 시 Markdown 생성 성공
-- [ ] Tauri app에서 `.hwp` 드롭 → 변환 결과 표시
-- [ ] Java 미설치 환경에서 명확한 한국어 안내 메시지
+- [x] `docs-to-md sample.hwp` 실행 시 Markdown 생성 성공 (513ms, 이미지 1개 추출)
+- [x] Tauri app에서 `.hwp` 드롭 → 변환 결과 표시
+- [x] Java 미설치 환경에서 명확한 한국어 안내 메시지
+- [x] 추가 부가 수정: 뷰어 DOMPurify가 data/blob URI를 제거하던 문제 수정 (Phase A)
 
 ---
 
-## Phase 5: MD 에디터
+## Phase 5: MD 에디터 ✅
+
+**목표**: 변환된 Markdown을 그 자리에서 편집·저장. 4개 보기 모드 + 저장 단축키 + 다크모드.
 
 | # | 태스크 | 복잡도 | 상태 |
 |---|--------|--------|------|
-| 5-1 | Milkdown WYSIWYG 에디터 통합 | M | ⬜ |
-| 5-2 | CodeMirror 6 소스 편집 모드 | M | ⬜ |
-| 5-3 | 편집/미리보기/분할 모드 전환 | M | ⬜ |
-| 5-4 | 파일 저장 (Cmd+S) | M | ⬜ |
-| 5-5 | 다크모드 지원 | S | ⬜ |
+| 5-1 | Milkdown WYSIWYG 에디터 통합 (+ 스토어 editing 상태) | M | ✅ |
+| 5-2 | CodeMirror 6 소스 편집 모드 | M | ✅ |
+| 5-3 | 편집/미리보기/분할 모드 전환 (react-resizable-panels) | M | ✅ |
+| 5-4 | 파일 저장 (Cmd/Ctrl+S 덮어쓰기 / Shift+S 다른 이름) | M | ✅ |
+| 5-5 | 다크모드 지원 (system/light/dark 순환 + localStorage 영속화) | S | ✅ |
+
+**결정 로그**:
+- **WYSIWYG 엔진**: Milkdown Crepe 7.20 (React 19 호환, CommonMark + GFM 기본)
+- **소스 편집기**: CodeMirror 6 (lang-markdown, history, oneDark 테마, lineNumbers + lineWrapping)
+- **dirty 전략**: `editedMarkdown` 필드와 원본 `result.markdown` 비교. `setEditedMarkdown` 호출 시 자동 계산
+- **Undo/Redo**: 각 에디터 내장 히스토리 재사용 (모드 전환 시 초기화 허용)
+- **다크모드**: `data-theme` 속성으로 CSS 변수 오버라이드, `prefers-color-scheme` 미디어 쿼리와 공존
+
+**완료 기준**:
+- [x] 4-모드 토글 (보기/편집/소스/분할) 정상 전환
+- [x] Milkdown WYSIWYG 편집 시 dirty 인디케이터 표시
+- [x] CodeMirror 소스 편집에서 Cmd+Z undo 동작
+- [x] Cmd/Ctrl+S 덮어쓰기, Cmd/Ctrl+Shift+S 다른 이름 저장
+- [x] 헤더 테마 토글이 localStorage에 영속화
+- [x] Unit/Integration 110 passed, E2E 24 passed (Phase 5 신규 24개 포함)
 
 ---
 
