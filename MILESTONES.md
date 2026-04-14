@@ -169,6 +169,38 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 
 ---
 
+## Phase 5.5: MD 에디터 UX 개선 ✅
+
+**목표**: Phase 5 에디터 사용자 피드백을 반영한 UX/안정성 개선.
+
+| # | 태스크 | 복잡도 | 상태 |
+|---|--------|--------|------|
+| 5.5-1 | SourceEditor 스크롤 안 되던 버그 (cm-scroller overflow) | S | ✅ |
+| 5.5-2 | 결과 패널 전체화면 토글 (헤더 버튼 + Cmd/Ctrl+Shift+F) | S | ✅ |
+| 5.5-3 | 모드 의미 재정의: 보기=react-markdown, 분할=소스+렌더 | M | ✅ |
+| 5.5-4 | HWPX 셀 다중 paragraph를 단일 라인으로 flatten (테이블 안전성) | M | ✅ |
+| 5.5-5 | 빈 테이블 행 일괄 정리 + 정리 취소(1-step undo) | M | ✅ |
+| 5.5-6 | 툴바/배너/푸터 sticky 고정 (shrink-0 + min-h-0) | S | ✅ |
+| 5.5-7 | 빈 행 정리 시 구분선 앞 헤더 row 보존 (테이블 구조 유지) | S | ✅ |
+
+**결정 로그**:
+- **보기 모드 렌더러**: react-markdown + remark-gfm (Milkdown readOnly보다 순수 렌더링 우월, GFM 테이블/체크박스 내장)
+- **분할 모드**: 좌측을 Milkdown → SourceEditor로 교체해 "편집=WYSIWYG / 분할=소스+프리뷰"로 의도 분리
+- **하드 브레이크 전략**: GFM 테이블 셀 내 `  \n`이 구조를 깨뜨리므로 `parseCellText`는 항상 단일 라인으로 flatten, 3+ paragraph는 `" / "` 구분자 사용
+- **빈 행 정리 헤더 보존**: 구분선 바로 앞 row는 비어있어도 GFM 문법상 필수 → lookahead로 보존
+- **1-step undo**: 정리 버튼 클릭 전 상태를 `cleanupSnapshot`에 저장, 수동 편집 발생 시 자동 무효화
+
+**완료 기준**:
+- [x] 긴 문서를 소스/편집 모드에서 스크롤해도 툴바·배너·푸터 항상 보임
+- [x] Cmd/Ctrl+Shift+F로 결과 패널 전체화면 전환
+- [x] 보기 모드에서 Markdown이 렌더된 HTML로 표시 (pre 원문 아님)
+- [x] 분할 모드 좌측 SourceEditor, 우측 MarkdownPreview 실시간 동기화
+- [x] HWPX 테이블이 셀 안 하드 브레이크로 깨지지 않음
+- [x] "빈 행 정리" 1-click → 구분선 앞 헤더 row 보존 + body 빈 row 제거 + "정리 취소" 배너
+- [x] Unit/Integration 124 passed (신규 14개 포함), lint/typecheck clean
+
+---
+
 ## Phase 6: 배치 처리
 
 | # | 태스크 | 복잡도 | 상태 |
