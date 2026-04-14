@@ -7,6 +7,7 @@
  *
  * - 테이블 블록 = 연속된 "|" 시작 라인의 덩어리
  * - 헤더 구분선(`| --- | --- |`)은 제외
+ * - 구분선 바로 앞의 row는 헤더이므로 비어있어도 보존 (테이블 구조 유지)
  * - 모든 셀이 공백/빈 문자열 또는 Markdown 이스케이프만 있으면 빈 row로 간주
  * - 코드 펜스(```) 내부는 건드리지 않는다
  */
@@ -15,7 +16,9 @@ export function removeEmptyTableRows(markdown: string): string {
   const out: Array<string> = [];
   let inFence = false;
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+
     // 코드 펜스 진입/종료 추적
     if (line.trim().startsWith("```")) {
       inFence = !inFence;
@@ -28,7 +31,13 @@ export function removeEmptyTableRows(markdown: string): string {
     }
 
     if (isTableRow(line) && !isSeparatorRow(line) && isEmptyRow(line)) {
-      continue; // 빈 row 제거
+      // 다음 non-empty 라인이 구분선이면 이 row는 헤더 → 보존
+      const nextLine = lines[i + 1];
+      if (nextLine !== undefined && isSeparatorRow(nextLine)) {
+        out.push(line);
+        continue;
+      }
+      continue; // 빈 body row 제거
     }
     out.push(line);
   }
