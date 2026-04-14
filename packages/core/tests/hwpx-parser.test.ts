@@ -195,7 +195,7 @@ describe("HWPX 파서 상세 테스트", () => {
       expect(result.markdown).not.toMatch(/제목입니다\s*\n\s*부제목/);
     });
 
-    it("셀 내 3개 이상 paragraph는 <br>로 유지한다 (TOC 등 구조적 내용)", async () => {
+    it("셀 내 3개 이상 paragraph는 ' / ' 구분자로 단일 라인에 flatten된다", async () => {
       const result = await writeAndConvert(
         "cell-long.hwpx",
         `
@@ -206,9 +206,9 @@ describe("HWPX 파서 상세 테스트", () => {
         <tr>
           <tc>
             <subList>
-              <p><run><t>1. 첫 항목</t></run></p>
-              <p><run><t>2. 둘째 항목</t></run></p>
-              <p><run><t>3. 셋째 항목</t></run></p>
+              <p><run><t>첫 항목</t></run></p>
+              <p><run><t>둘째 항목</t></run></p>
+              <p><run><t>셋째 항목</t></run></p>
             </subList>
           </tc>
         </tr>
@@ -218,13 +218,11 @@ describe("HWPX 파서 상세 테스트", () => {
 </sec>`,
       );
 
-      // Markdown 하드 브레이크(2-space + newline)로 셀 내 줄바꿈 유지
-      // turndown은 "1."을 "1\\."로 이스케이프하므로 느슨하게 매칭
-      expect(result.markdown).toMatch(/1\\?\. 첫 항목/);
-      expect(result.markdown).toMatch(/2\\?\. 둘째 항목/);
-      expect(result.markdown).toMatch(/3\\?\. 셋째 항목/);
-      // 3개 항목이 같은 줄에 공백으로 join되면 안 됨 (하드 브레이크 유지)
-      expect(result.markdown).not.toMatch(/1\\?\. 첫 항목 2\\?\. 둘째 항목/);
+      // GFM 테이블 셀 안에 하드 브레이크가 들어가면 구조가 깨지므로
+      // 3개 이상 paragraph도 단일 라인으로 flatten하고 " / "로 구분한다
+      expect(result.markdown).toContain("첫 항목 / 둘째 항목 / 셋째 항목");
+      // 셀이 여러 라인으로 쪼개지면 안 됨
+      expect(result.markdown).not.toMatch(/첫 항목\s*\n\s*둘째 항목/);
     });
 
     it("colspan/rowspan 셀을 처리한다", async () => {

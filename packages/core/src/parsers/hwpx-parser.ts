@@ -261,14 +261,15 @@ function parseCellText(
     }
   }
 
-  // 셀 내 텍스트 paragraph가 2개 이하면 공백으로 join하여 불필요한
-  // 하드 브레이크를 줄이고, 3개 이상이면 TOC 등 구조적 내용으로 보고
-  // <br>로 유지한다. 이미지는 항상 별도 <br>로 구분한다.
+  // GFM 테이블 셀 내부에 하드 브레이크(`  \n`)가 들어가면 테이블 구조가
+  // 깨지므로, 다중 paragraph는 공백으로 flatten한다. 3개 이상이면 항목
+  // 구분을 위해 "/"를 경계 표시로 사용해 가독성을 유지한다. 이미지는
+  // 텍스트 앞에 공백으로 붙인다.
   const textJoined =
-    textParts.length <= 2 ? textParts.join(" ") : textParts.join("<br>");
+    textParts.length <= 2 ? textParts.join(" ") : textParts.join(" / ");
 
   const allParts = [...imageParts, textJoined].filter((s) => s.length > 0);
-  return allParts.join("<br>");
+  return allParts.join(" ");
 }
 
 function buildCellAttrs(tc: Record<string, unknown>): string {
