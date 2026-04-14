@@ -24,7 +24,10 @@ export function App() {
         </div>
       </header>
       {isFullscreen ? (
-        <div className="flex-1" data-testid="fullscreen-result">
+        <div
+          className="min-h-0 flex-1 overflow-hidden"
+          data-testid="fullscreen-result"
+        >
           <ResultPanel />
         </div>
       ) : (

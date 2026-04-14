@@ -121,7 +121,7 @@ export function ResultPanel() {
 
   return (
     <div className="flex h-full flex-col" data-testid="result-panel">
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
+      <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
         <div className="flex items-center gap-2">
           <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
             Markdown
@@ -190,7 +190,7 @@ export function ResultPanel() {
       </div>
       {saveError && (
         <div
-          className="border-b border-[var(--color-error)] bg-[var(--color-error)]/10 px-3 py-1.5 text-xs text-[var(--color-error)]"
+          className="shrink-0 border-b border-[var(--color-error)] bg-[var(--color-error)]/10 px-3 py-1.5 text-xs text-[var(--color-error)]"
           data-testid="save-error"
         >
           저장 오류: {saveError}
@@ -198,7 +198,7 @@ export function ResultPanel() {
       )}
       {selectedFile.cleanupSnapshot !== null && (
         <div
-          className="flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-panel-bg)] px-3 py-1.5 text-xs"
+          className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-panel-bg)] px-3 py-1.5 text-xs"
           data-testid="cleanup-banner"
         >
           <span className="text-[var(--color-muted)]">
@@ -215,7 +215,7 @@ export function ResultPanel() {
           </button>
         </div>
       )}
-      <div className="flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         {mode === "preview" && <MarkdownPreview markdown={displayedMarkdown} />}
         {mode === "edit" && (
           <MilkdownEditor
@@ -259,7 +259,7 @@ export function ResultPanel() {
           </PanelGroup>
         )}
       </div>
-      <div className="border-t border-[var(--color-border)] px-3 py-1.5">
+      <div className="shrink-0 border-t border-[var(--color-border)] px-3 py-1.5">
         <p
           className="text-xs text-[var(--color-muted)] truncate"
           title={selectedFile.result.outputPath}
