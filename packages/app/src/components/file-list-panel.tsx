@@ -29,22 +29,60 @@ const FORMAT_BADGE_COLOR: Record<string, string> = {
 };
 
 function FileRow({ file }: { readonly file: FileItem }) {
-  const { selectedFileId, selectFile, removeFile } = useFileStore();
+  const selectedFileId = useFileStore((s) => s.selectedFileId);
+  const selectFile = useFileStore((s) => s.selectFile);
+  const removeFile = useFileStore((s) => s.removeFile);
+  const checkedIds = useFileStore((s) => s.checkedIds);
+  const toggleCheck = useFileStore((s) => s.toggleCheck);
+  const setCheckedOnly = useFileStore((s) => s.setCheckedOnly);
+  const checkRange = useFileStore((s) => s.checkRange);
   const retry = useConvertQueueStore((s) => s.retry);
   const isSelected = selectedFileId === file.id;
+  const isChecked = checkedIds.has(file.id);
+
+  const handleRowClick = (e: React.MouseEvent) => {
+    if (e.shiftKey) {
+      checkRange(file.id);
+    } else if (e.metaKey || e.ctrlKey) {
+      toggleCheck(file.id);
+    } else {
+      setCheckedOnly(file.id);
+      selectFile(file.id);
+    }
+  };
 
   return (
-    <button
-      type="button"
+    // biome-ignore lint/a11y/useSemanticElements: <button>은 interactive children(checkbox, retry/delete buttons)을 포함할 수 없으므로 의도적으로 <div role="button"> 사용
+    <div
+      role="button"
+      tabIndex={0}
       data-testid={`file-row-${file.id}`}
       data-status={file.status}
+      data-checked={isChecked ? "true" : "false"}
       className={`flex w-full items-center gap-2 px-3 py-2 cursor-pointer border-b border-[var(--color-border)] transition-colors text-left ${
-        isSelected
-          ? "bg-[var(--color-accent)]/10"
-          : "hover:bg-[var(--color-panel-bg)]"
+        isChecked
+          ? "bg-[var(--color-accent)]/15"
+          : isSelected
+            ? "bg-[var(--color-accent)]/10"
+            : "hover:bg-[var(--color-panel-bg)]"
       }`}
-      onClick={() => selectFile(file.id)}
+      onClick={handleRowClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          handleRowClick(e as unknown as React.MouseEvent);
+        }
+      }}
     >
+      <input
+        type="checkbox"
+        checked={isChecked}
+        onClick={(e) => e.stopPropagation()}
+        onChange={() => toggleCheck(file.id)}
+        aria-label={`${file.name} 선택`}
+        data-testid={`check-${file.id}`}
+        className="cursor-pointer"
+      />
       {STATUS_ICON[file.status]}
       <div className="flex-1 min-w-0">
         <p className="text-sm truncate">{file.name}</p>
@@ -89,19 +127,28 @@ function FileRow({ file }: { readonly file: FileItem }) {
       >
         <Trash2 size={12} />
       </button>
-    </button>
+    </div>
   );
 }
 
 export function FileListPanel() {
   const { files, addFiles, clearFiles } = useFileStore();
+  const checkedIds = useFileStore((s) => s.checkedIds);
+  const checkAll = useFileStore((s) => s.checkAll);
+  const clearChecked = useFileStore((s) => s.clearChecked);
   const startBatch = useConvertQueueStore((s) => s.startBatch);
   const retry = useConvertQueueStore((s) => s.retry);
 
-  const handleConvertAll = useCallback(() => {
-    const pendingFiles = files.filter((f) => f.status === "pending");
-    startBatch(pendingFiles.map((f) => ({ id: f.id, path: f.path })));
-  }, [files, startBatch]);
+  const checkedCount = checkedIds.size;
+
+  const handleConvert = useCallback(() => {
+    // 체크된 항목이 있으면 그것만, 없으면 모든 pending 일괄
+    const target =
+      checkedCount > 0
+        ? files.filter((f) => checkedIds.has(f.id) && f.status === "pending")
+        : files.filter((f) => f.status === "pending");
+    startBatch(target.map((f) => ({ id: f.id, path: f.path })));
+  }, [files, checkedIds, checkedCount, startBatch]);
 
   const handleRetryFailed = useCallback(() => {
     const failedFiles = files.filter((f) => f.status === "error");
@@ -109,6 +156,13 @@ export function FileListPanel() {
       retry({ id: file.id, path: file.path });
     }
   }, [files, retry]);
+
+  const allChecked = files.length > 0 && checkedCount === files.length;
+  const someChecked = checkedCount > 0 && checkedCount < files.length;
+  const handleHeaderCheckChange = useCallback(() => {
+    if (allChecked) clearChecked();
+    else checkAll();
+  }, [allChecked, checkAll, clearChecked]);
 
   // Tauri 환경에서는 네이티브 drag-drop 이벤트(DropOverlay)를 사용하므로
   // React DOM drop 핸들러를 비활성화하여 중복 등록을 방지합니다.
@@ -149,18 +203,34 @@ export function FileListPanel() {
       data-testid="file-list-panel"
     >
       <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
-        <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
-          파일 ({files.length})
-        </span>
+        <div className="flex items-center gap-2">
+          {files.length > 0 && (
+            <input
+              type="checkbox"
+              checked={allChecked}
+              ref={(el) => {
+                if (el) el.indeterminate = someChecked;
+              }}
+              onChange={handleHeaderCheckChange}
+              aria-label="전체 선택"
+              data-testid="check-all"
+              className="cursor-pointer"
+            />
+          )}
+          <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
+            파일 ({files.length}
+            {checkedCount > 0 && ` · 선택 ${checkedCount}`})
+          </span>
+        </div>
         <div className="flex gap-1">
           {hasPending && (
             <button
               type="button"
-              onClick={handleConvertAll}
+              onClick={handleConvert}
               data-testid="convert-all-btn"
               className="text-xs px-2 py-1 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
             >
-              변환
+              {checkedCount > 0 ? `선택 ${checkedCount}개 변환` : "변환"}
             </button>
           )}
           {failedCount > 0 && (

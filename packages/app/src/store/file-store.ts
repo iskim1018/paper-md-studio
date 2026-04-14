@@ -30,6 +30,10 @@ export interface FileItem {
 interface FileStore {
   readonly files: ReadonlyArray<FileItem>;
   readonly selectedFileId: string | null;
+  /** 체크박스로 멀티 선택된 파일 ID. 배치 변환/삭제의 대상. */
+  readonly checkedIds: ReadonlySet<string>;
+  /** Shift+클릭 범위 선택의 anchor. 마지막으로 체크/단일선택된 ID. */
+  readonly lastCheckedId: string | null;
   addFiles: (paths: ReadonlyArray<string>) => void;
   selectFile: (id: string | null) => void;
   updateFile: (
@@ -48,6 +52,16 @@ interface FileStore {
   applyCleanup: (id: string, transform: (md: string) => string) => void;
   /** applyCleanup을 되돌린다. */
   undoCleanup: (id: string) => void;
+  /** 체크 상태를 토글한다 (Cmd/Ctrl+클릭). */
+  toggleCheck: (id: string) => void;
+  /** 단일 선택 — 다른 체크는 모두 해제 (일반 클릭). */
+  setCheckedOnly: (id: string) => void;
+  /** lastCheckedId부터 toId까지 범위 체크 (Shift+클릭). anchor 없으면 단일 체크. */
+  checkRange: (toId: string) => void;
+  /** 모든 파일 체크. */
+  checkAll: () => void;
+  /** 모든 체크 해제. */
+  clearChecked: () => void;
 }
 
 const FORMAT_EXTENSIONS: Record<string, DocumentFormat> = {
@@ -88,9 +102,28 @@ function generateId(): string {
   return `file-${nextId}-${Date.now()}`;
 }
 
+/** 두 인덱스 사이의 모든 ID를 기존 Set에 추가한 새 Set을 반환. */
+function addRangeToSet(
+  ids: ReadonlyArray<string>,
+  fromIdx: number,
+  toIdx: number,
+  current: ReadonlySet<string>,
+): Set<string> {
+  const start = Math.min(fromIdx, toIdx);
+  const end = Math.max(fromIdx, toIdx);
+  const next = new Set(current);
+  for (let i = start; i <= end; i++) {
+    const id = ids[i];
+    if (id) next.add(id);
+  }
+  return next;
+}
+
 export const useFileStore = create<FileStore>((set) => ({
   files: [],
   selectedFileId: null,
+  checkedIds: new Set<string>(),
+  lastCheckedId: null,
 
   addFiles: (paths) => {
     const validPaths = paths.filter(isSupportedFile);
@@ -214,12 +247,76 @@ export const useFileStore = create<FileStore>((set) => ({
     })),
 
   removeFile: (id) =>
+    set((state) => {
+      const nextChecked = new Set(state.checkedIds);
+      nextChecked.delete(id);
+      return {
+        files: state.files.filter((file) => file.id !== id),
+        selectedFileId:
+          state.selectedFileId === id ? null : state.selectedFileId,
+        checkedIds: nextChecked,
+        lastCheckedId: state.lastCheckedId === id ? null : state.lastCheckedId,
+      };
+    }),
+
+  clearFiles: () =>
+    set({
+      files: [],
+      selectedFileId: null,
+      checkedIds: new Set<string>(),
+      lastCheckedId: null,
+    }),
+
+  toggleCheck: (id) =>
+    set((state) => {
+      const nextChecked = new Set(state.checkedIds);
+      if (nextChecked.has(id)) {
+        nextChecked.delete(id);
+      } else {
+        nextChecked.add(id);
+      }
+      return { checkedIds: nextChecked, lastCheckedId: id };
+    }),
+
+  setCheckedOnly: (id) =>
+    set({
+      checkedIds: new Set<string>([id]),
+      lastCheckedId: id,
+    }),
+
+  checkRange: (toId) =>
+    set((state) => {
+      const ids = state.files.map((f) => f.id);
+      const toIdx = ids.indexOf(toId);
+      if (toIdx === -1) return state;
+
+      const fromIdx =
+        state.lastCheckedId !== null ? ids.indexOf(state.lastCheckedId) : -1;
+
+      // anchor가 없거나 사라진 경우 단일 체크로 fallback
+      if (fromIdx === -1) {
+        return {
+          checkedIds: new Set<string>([toId]),
+          lastCheckedId: toId,
+        };
+      }
+
+      return {
+        checkedIds: addRangeToSet(ids, fromIdx, toIdx, state.checkedIds),
+        lastCheckedId: toId,
+      };
+    }),
+
+  checkAll: () =>
     set((state) => ({
-      files: state.files.filter((file) => file.id !== id),
-      selectedFileId: state.selectedFileId === id ? null : state.selectedFileId,
+      checkedIds: new Set<string>(state.files.map((f) => f.id)),
     })),
 
-  clearFiles: () => set({ files: [], selectedFileId: null }),
+  clearChecked: () =>
+    set({
+      checkedIds: new Set<string>(),
+      lastCheckedId: null,
+    }),
 }));
 
 export { isSupportedFile };

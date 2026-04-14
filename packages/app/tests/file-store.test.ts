@@ -377,6 +377,117 @@ describe("useFileStore", () => {
       const state = useFileStore.getState();
       expect(state.files).toHaveLength(0);
       expect(state.selectedFileId).toBeNull();
+      expect(state.checkedIds.size).toBe(0);
+    });
+  });
+
+  describe("multi-select 체크박스 (Phase 6)", () => {
+    function getIds(): Array<string> {
+      return useFileStore.getState().files.map((f) => f.id);
+    }
+
+    it("초기 상태: checkedIds는 빈 Set, lastCheckedId는 null", () => {
+      const state = useFileStore.getState();
+      expect(state.checkedIds.size).toBe(0);
+      expect(state.lastCheckedId).toBeNull();
+    });
+
+    it("toggleCheck(id)는 파일 체크 상태를 토글한다", () => {
+      useFileStore.getState().addFiles(["/a.hwpx", "/b.docx"]);
+      const [a, b] = getIds();
+
+      useFileStore.getState().toggleCheck(a);
+      expect(useFileStore.getState().checkedIds.has(a)).toBe(true);
+      expect(useFileStore.getState().checkedIds.has(b)).toBe(false);
+      expect(useFileStore.getState().lastCheckedId).toBe(a);
+
+      useFileStore.getState().toggleCheck(a);
+      expect(useFileStore.getState().checkedIds.has(a)).toBe(false);
+    });
+
+    it("setCheckedOnly(id)는 단일 선택으로 다른 체크는 모두 해제", () => {
+      useFileStore.getState().addFiles(["/a.hwpx", "/b.docx", "/c.pdf"]);
+      const [a, b, c] = getIds();
+      useFileStore.getState().toggleCheck(a);
+      useFileStore.getState().toggleCheck(b);
+
+      useFileStore.getState().setCheckedOnly(c);
+
+      const state = useFileStore.getState();
+      expect(state.checkedIds.size).toBe(1);
+      expect(state.checkedIds.has(c)).toBe(true);
+      expect(state.lastCheckedId).toBe(c);
+    });
+
+    it("checkRange(toId)는 lastCheckedId부터 toId까지 모두 체크한다", () => {
+      useFileStore
+        .getState()
+        .addFiles(["/a.hwpx", "/b.docx", "/c.pdf", "/d.hwpx", "/e.docx"]);
+      const [_a, b, _c, d, _e] = getIds();
+      useFileStore.getState().setCheckedOnly(b); // anchor
+
+      useFileStore.getState().checkRange(d);
+
+      const state = useFileStore.getState();
+      // b, c, d 세 개가 체크됨 (a, e는 제외)
+      expect(state.checkedIds.size).toBe(3);
+      expect(state.checkedIds.has(b)).toBe(true);
+      expect(state.checkedIds.has(d)).toBe(true);
+      expect(state.lastCheckedId).toBe(d);
+    });
+
+    it("checkRange는 역방향(아래→위)도 동작한다", () => {
+      useFileStore
+        .getState()
+        .addFiles(["/a.hwpx", "/b.docx", "/c.pdf", "/d.hwpx"]);
+      const [a, _b, _c, d] = getIds();
+      useFileStore.getState().setCheckedOnly(d);
+
+      useFileStore.getState().checkRange(a);
+
+      expect(useFileStore.getState().checkedIds.size).toBe(4);
+    });
+
+    it("checkRange는 lastCheckedId가 null이면 toId만 단일 체크", () => {
+      useFileStore.getState().addFiles(["/a.hwpx", "/b.docx"]);
+      const [_a, b] = getIds();
+
+      useFileStore.getState().checkRange(b);
+
+      const state = useFileStore.getState();
+      expect(state.checkedIds.size).toBe(1);
+      expect(state.checkedIds.has(b)).toBe(true);
+    });
+
+    it("checkAll()은 모든 파일을 체크한다", () => {
+      useFileStore.getState().addFiles(["/a.hwpx", "/b.docx", "/c.pdf"]);
+
+      useFileStore.getState().checkAll();
+
+      expect(useFileStore.getState().checkedIds.size).toBe(3);
+    });
+
+    it("clearChecked()는 모든 체크와 anchor를 해제한다", () => {
+      useFileStore.getState().addFiles(["/a.hwpx", "/b.docx"]);
+      useFileStore.getState().checkAll();
+
+      useFileStore.getState().clearChecked();
+
+      const state = useFileStore.getState();
+      expect(state.checkedIds.size).toBe(0);
+      expect(state.lastCheckedId).toBeNull();
+    });
+
+    it("removeFile은 checkedIds에서도 해당 파일을 제거한다", () => {
+      useFileStore.getState().addFiles(["/a.hwpx", "/b.docx"]);
+      const [a, b] = getIds();
+      useFileStore.getState().checkAll();
+
+      useFileStore.getState().removeFile(a);
+
+      const state = useFileStore.getState();
+      expect(state.checkedIds.has(a)).toBe(false);
+      expect(state.checkedIds.has(b)).toBe(true);
     });
   });
 });
