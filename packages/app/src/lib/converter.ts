@@ -5,19 +5,30 @@ interface CliOutput {
   readonly format: DocumentFormat;
   readonly elapsed: number;
   readonly imageCount: number;
+  readonly outputPath: string;
+}
+
+export interface ConvertOptions {
+  /** 출력 디렉토리. null/undefined면 원본 파일과 같은 폴더에 저장. */
+  readonly outputDir?: string | null;
 }
 
 /**
  * sidecar CLI를 호출하여 문서를 변환합니다.
  * CLI는 --json 플래그로 JSON 결과를 stdout에 출력합니다.
  */
-export async function convertFile(inputPath: string): Promise<ConvertResult> {
+export async function convertFile(
+  inputPath: string,
+  options: ConvertOptions = {},
+): Promise<ConvertResult> {
   const { Command } = await import("@tauri-apps/plugin-shell");
 
-  const command = Command.sidecar("binaries/docs-to-md-cli", [
-    inputPath,
-    "--json",
-  ]);
+  const args: Array<string> = [inputPath, "--json"];
+  if (options.outputDir) {
+    args.push("--output", options.outputDir);
+  }
+
+  const command = Command.sidecar("binaries/docs-to-md-cli", args);
 
   const output = await command.execute();
 
@@ -43,5 +54,6 @@ export async function convertFile(inputPath: string): Promise<ConvertResult> {
     format: result.format,
     elapsed: result.elapsed,
     imageCount: result.imageCount,
+    outputPath: result.outputPath,
   };
 }
