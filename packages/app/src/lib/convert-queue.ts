@@ -18,16 +18,21 @@ export interface QueueSnapshot {
   readonly failed: number;
 }
 
+/** run() 결과. skipped=true면 completed/failed 어느 쪽도 집계하지 않는다. */
+export interface RunOutcome {
+  readonly skipped?: boolean;
+}
+
 export interface ConvertQueueOptions<T extends QueueItemBase> {
   readonly concurrency: number;
-  readonly run: (item: T) => Promise<void>;
+  readonly run: (item: T) => Promise<RunOutcome | undefined>;
   readonly onProgress?: (snapshot: QueueSnapshot) => void;
   readonly onIdle?: () => void;
 }
 
 export class ConvertQueue<T extends QueueItemBase> {
   private readonly concurrency: number;
-  private readonly runFn: (item: T) => Promise<void>;
+  private readonly runFn: (item: T) => Promise<RunOutcome | undefined>;
   private readonly onProgress?: (snapshot: QueueSnapshot) => void;
   private readonly onIdle?: () => void;
 
@@ -93,8 +98,8 @@ export class ConvertQueue<T extends QueueItemBase> {
 
   private execute(item: T): void {
     this.runFn(item)
-      .then(() => {
-        this.completed += 1;
+      .then((outcome) => {
+        if (!outcome?.skipped) this.completed += 1;
       })
       .catch(() => {
         this.failed += 1;

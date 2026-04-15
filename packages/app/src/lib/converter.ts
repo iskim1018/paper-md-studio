@@ -11,6 +11,8 @@ interface CliOutput {
 export interface ConvertOptions {
   /** 출력 디렉토리. null/undefined면 원본 파일과 같은 폴더에 저장. */
   readonly outputDir?: string | null;
+  /** 출력 파일 전체 경로(.md). 지정 시 outputDir보다 우선. */
+  readonly outputPath?: string | null;
 }
 
 /**
@@ -24,7 +26,9 @@ export async function convertFile(
   const { Command } = await import("@tauri-apps/plugin-shell");
 
   const args: Array<string> = [inputPath, "--json"];
-  if (options.outputDir) {
+  if (options.outputPath) {
+    args.push("--output", options.outputPath);
+  } else if (options.outputDir) {
     args.push("--output", options.outputDir);
   }
 

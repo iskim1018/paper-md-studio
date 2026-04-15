@@ -17,8 +17,14 @@
     "shell:allow-open",
     "dialog:allow-open",
     "dialog:allow-save",
+    "dialog:allow-ask",
     "fs:allow-read-file",
     "fs:allow-write-text-file",
-    "fs:default"
+    "fs:allow-exists",
+    "fs:default",
+    {
+      "identifier": "fs:scope",
+      "allow": ["**"]
+    }
   ]
 }

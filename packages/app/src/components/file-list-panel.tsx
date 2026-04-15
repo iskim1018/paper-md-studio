@@ -138,6 +138,12 @@ export function FileListPanel() {
   const clearChecked = useFileStore((s) => s.clearChecked);
   const startBatch = useConvertQueueStore((s) => s.startBatch);
   const retry = useConvertQueueStore((s) => s.retry);
+  const resetQueue = useConvertQueueStore((s) => s.reset);
+
+  const handleClear = useCallback(() => {
+    resetQueue();
+    clearFiles();
+  }, [resetQueue, clearFiles]);
 
   const checkedCount = checkedIds.size;
 
@@ -246,7 +252,7 @@ export function FileListPanel() {
           {files.length > 0 && (
             <button
               type="button"
-              onClick={clearFiles}
+              onClick={handleClear}
               data-testid="clear-files-btn"
               className="text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-error)] transition-colors"
             >

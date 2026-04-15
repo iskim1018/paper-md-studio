@@ -121,9 +121,9 @@ export function ResultPanel() {
 
   return (
     <div className="flex h-full flex-col" data-testid="result-panel">
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-y-1 border-b border-[var(--color-border)] px-3 py-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide whitespace-nowrap">
             Markdown
           </span>
           {selectedFile.isDirty && (
@@ -137,12 +137,12 @@ export function ResultPanel() {
           )}
           <ModeToggle mode={mode} onChange={setMode} />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           <button
             type="button"
             onClick={handleSave}
             disabled={!selectedFile.isDirty}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex items-center gap-1 whitespace-nowrap text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             title="저장 (Cmd/Ctrl+S)"
             data-testid="save-btn"
           >
@@ -152,7 +152,7 @@ export function ResultPanel() {
           <button
             type="button"
             onClick={handleSaveAs}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+            className="flex items-center gap-1 whitespace-nowrap text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
             title="다른 이름으로 저장 (Cmd/Ctrl+Shift+S)"
             data-testid="save-as-btn"
           >
@@ -162,7 +162,7 @@ export function ResultPanel() {
           <button
             type="button"
             onClick={handleRemoveEmptyRows}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+            className="flex items-center gap-1 whitespace-nowrap text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
             title="테이블에서 내용이 빈 행을 일괄 제거 (Cmd/Ctrl+Z로 되돌리기 가능)"
             data-testid="remove-empty-rows-btn"
           >
@@ -171,7 +171,7 @@ export function ResultPanel() {
           <button
             type="button"
             onClick={handleOpenFolder}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+            className="flex items-center gap-1 whitespace-nowrap text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
             title={selectedFile.result.outputPath}
             data-testid="open-folder-btn"
           >
@@ -181,7 +181,7 @@ export function ResultPanel() {
           <button
             type="button"
             onClick={handleCopy}
-            className="flex items-center gap-1 text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+            className="flex items-center gap-1 whitespace-nowrap text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
           >
             {copied ? <Check size={12} /> : <Copy size={12} />}
             {copied ? "복사됨" : "복사"}
@@ -304,7 +304,7 @@ function ModeToggle({ mode, onChange }: ModeToggleProps) {
             key={value}
             type="button"
             onClick={() => onChange(value)}
-            className={`flex items-center gap-1 px-2 py-0.5 ${radius} transition-colors ${
+            className={`flex items-center gap-1 whitespace-nowrap px-2 py-0.5 ${radius} transition-colors ${
               isActive
                 ? "bg-[var(--color-border)] text-[var(--color-text)]"
                 : "text-[var(--color-muted)] hover:text-[var(--color-text)]"
