@@ -248,13 +248,31 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 
 | # | 태스크 | 복잡도 | 상태 |
 |---|--------|--------|------|
-| 7-1 | macOS 앱 아이콘 | S | ⬜ |
-| 7-2 | DMG 패키징 설정 | M | ⬜ |
-| 7-3 | 코드 서명 & 공증 (Notarization) | L | ⬜ |
-| 7-4 | E2E 테스트 (Playwright) | L | ⬜ |
-| 7-5 | 성능 프로파일링 | M | ⬜ |
-| 7-6 | README/CLAUDE.md 최종화 | S | ⬜ |
-| 7-7 | npm 보안 감사 최종 실행 | S | ⬜ |
+| 7-A | 전체 리네임 `docs-to-md` → `paper-md-studio` (패키지 scope, Tauri 메타, Rust crate, 런타임 식별자, LICENSE, 문서) | M | ✅ |
+| 7-B | Tauri 제품 메타데이터 보강 (productName, identifier, category, long/shortDescription, macOS minSystemVersion, Windows webviewInstallMode) | S | ✅ |
+| 7-C | Windows sidecar wrapper (.cmd) + 번들 JRE/jar 탐지 + `install-sidecar.mjs` OS 분기 | M | ✅ |
+| 7-D | jlink로 HWP 변환용 최소 JRE 번들 (45.5MB, `build:jre`) | M | ✅ |
+| 7-E | 배포 번들 파이프라인: Node 런타임(90MB) + CLI tsup 단일 파일(2.2MB, ESM+createRequire) + JRE tar.gz 아카이브 + sidecar wrapper 배포 모드 + ESM sentinel `package.json` | L | ✅ |
+| 7-F | 다크 모드에서 Milkdown 편집기 배경 오버라이드 (frame-dark 변수 덮어쓰기) | S | ✅ |
+| 7-G | 파일 충돌 프롬프트 (동일 이름 .md 존재 시 덮어쓰기/다른 이름/취소), CLI `--output` .md 경로 지원, 큐 skip 집계, "초기화" 버튼이 progress bar까지 리셋, 툴바 버튼 flex-wrap+whitespace-nowrap | M | ✅ |
+| 7-H | macOS 앱 아이콘 교체 (`tauri icon source.png` 세트 재생성) | S | ✅ |
+| 7-I | Windows MSI/NSIS 빌드 검증 (GitHub Actions windows-latest) | M | ⬜ |
+| 7-J | GitHub Actions CI/Release matrix (macOS + Windows, tag push 자동 릴리스) | M | ⬜ |
+| 7-K | macOS Gatekeeper 우회 가이드 + ad-hoc 코드사인 (Apple Developer 멤버십 없음) | S | ⬜ |
+| 7-L | README / DEVELOPMENT.md / CHANGELOG 최종화 | S | ⬜ |
+| 7-M | THIRD_PARTY_LICENSES.md (Milkdown, hwp2hwpx, Node, Temurin, 기타 의존성) | S | ⬜ |
+| 7-N | E2E 회귀 테스트 (Playwright, 배포 빌드 대상) | L | ⬜ |
+| 7-O | 성능 프로파일링 (대용량 HWPX/PDF, 배치 변환) | M | ⬜ |
+| 7-P | npm 보안 감사 최종 실행 | S | ⬜ |
+
+### Phase 7 결정 로그
+
+| 날짜 | 결정 | 근거 |
+|------|------|------|
+| 2026-04-14 | 이름 `paper-md-studio` 확정 | "종이 문서를 마크다운으로 편집"이라는 도구 성격을 직관적으로 표현 |
+| 2026-04-15 | JRE를 tar.gz로 묶어 번들 후 첫 실행 시 앱 데이터 디렉토리로 추출 | Tauri resource walker가 jlink 생성물의 `legal/*` 심볼릭 링크/권한을 처리하지 못해 "Permission denied" 실패 → 디렉토리째 번들 불가 |
+| 2026-04-15 | CLI 번들 = tsup ESM + createRequire banner + `{"type":"module"}` sentinel | mammoth/pdf2md 등 CJS 의존성을 ESM 단일 파일로 묶되 Node의 CJS 로더로 잘못 로드되지 않게 타입 명시 |
+| 2026-04-15 | 아이콘 서명은 ad-hoc + Gatekeeper 우회 가이드로 대체 | Apple Developer 멤버십 미보유, 개인 배포 시나리오만 요구됨 |
 
 ---
 
