@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "description": "paper-md-studio CLI 인터페이스",
+  "author": "Insung Kim",
+  "license": "MIT",
   "type": "module",
   "bin": {
     "paper-md-studio": "./dist/index.js"

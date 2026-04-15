@@ -3,6 +3,8 @@ name = "paper-md-studio"
 version = "0.1.0"
 description = "HWP/HWPX/DOCX/PDF 문서를 Markdown으로 변환하는 macOS/Windows 데스크톱 앱"
 authors = ["Insung Kim"]
+license = "MIT"
+repository = "https://github.com/iskim/paper-md-studio"
 edition = "2024"
 
 [lib]

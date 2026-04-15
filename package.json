@@ -2,7 +2,29 @@
   "name": "paper-md-studio",
   "version": "0.1.0",
   "private": true,
-  "description": "macOS 문서 변환 도구 - HWP(X), DOC(X), PDF를 Markdown으로 변환",
+  "description": "HWP, HWPX, DOCX, PDF 문서를 Markdown으로 변환·편집하는 크로스플랫폼 데스크톱 앱 (macOS Apple Silicon + Windows 11)",
+  "keywords": [
+    "hwp",
+    "hwpx",
+    "docx",
+    "pdf",
+    "markdown",
+    "converter",
+    "editor",
+    "tauri",
+    "korean",
+    "hangul"
+  ],
+  "author": "Insung Kim",
+  "license": "MIT",
+  "homepage": "https://github.com/iskim/paper-md-studio",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iskim/paper-md-studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/iskim/paper-md-studio/issues"
+  },
   "type": "module",
   "scripts": {
     "build": "pnpm -r build",
