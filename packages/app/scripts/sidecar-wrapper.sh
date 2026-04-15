@@ -12,6 +12,18 @@
 #     packages/app/src-tauri/binaries/paper-md-studio-cli-aarch64-apple-darwin
 #   chmod +x packages/app/src-tauri/binaries/paper-md-studio-cli-*
 
+# 번들 JRE/jar 탐색 (Tauri resources 경로 우선) — 배포 빌드에서 사용
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BUNDLED_JRE="$SCRIPT_DIR/../resources/jre"
+BUNDLED_JAR="$SCRIPT_DIR/../resources/hwp-to-hwpx.jar"
+if [ -x "$BUNDLED_JRE/bin/java" ]; then
+  export JAVA_HOME="$BUNDLED_JRE"
+  export PATH="$JAVA_HOME/bin:$PATH"
+fi
+if [ -f "$BUNDLED_JAR" ] && [ -z "$PAPER_MD_STUDIO_HWP_JAR" ]; then
+  export PAPER_MD_STUDIO_HWP_JAR="$BUNDLED_JAR"
+fi
+
 # Tauri GUI에서 실행 시 PATH에 node/java가 없을 수 있으므로 보강
 export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.nvm/default/bin:$PATH"
 

@@ -55,13 +55,17 @@ async function resolveJarPath(): Promise<string> {
   );
 }
 
-/** 시스템의 java 실행 파일 경로를 결정. JAVA_HOME 우선, 실패 시 PATH의 'java'. */
+/**
+ * 시스템의 java 실행 파일 경로를 결정.
+ * JAVA_HOME 우선, 실패 시 PATH의 'java'. Windows에서는 .exe를 붙인다.
+ */
 function resolveJavaExecutable(): string {
+  const javaBinary = process.platform === "win32" ? "java.exe" : "java";
   const javaHome = process.env[JAVA_ENV];
   if (javaHome) {
-    return join(javaHome, "bin", "java");
+    return join(javaHome, "bin", javaBinary);
   }
-  return "java";
+  return javaBinary;
 }
 
 interface JavaRunResult {
