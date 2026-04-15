@@ -91,29 +91,42 @@ function parseStyles(
   return map;
 }
 
-function parseBoldSet(headerDoc: Record<string, unknown>): Set<string> {
-  const boldIds = new Set<string>();
+interface CharStyles {
+  readonly boldIds: Set<string>;
+  readonly strikeIds: Set<string>;
+}
+
+function emptyCharStyles(): CharStyles {
+  return { boldIds: new Set<string>(), strikeIds: new Set<string>() };
+}
+
+function parseCharStyles(headerDoc: Record<string, unknown>): CharStyles {
+  const styles = emptyCharStyles();
   const head = headerDoc.head as Record<string, unknown> | undefined;
-  if (!head) return boldIds;
+  if (!head) return styles;
 
   const refList = head.refList as Record<string, unknown> | undefined;
-  if (!refList) return boldIds;
+  if (!refList) return styles;
 
   const charPropsNode = refList.charProperties as
     | Record<string, unknown>
     | undefined;
-  if (!charPropsNode) return boldIds;
+  if (!charPropsNode) return styles;
 
   const charPrs = ensureArray(
     charPropsNode.charPr as Array<Record<string, unknown>>,
   );
   for (const cp of charPrs) {
-    // HWPX represents bold as <bold/> empty element → parsed as bold: ""
+    const id = String(cp["@_id"] ?? "");
+    // HWPX는 <bold/>, <strikeout/> 등 빈 element를 사용 → parsed as "" (undefined가 아님)
     if (cp.bold !== undefined) {
-      boldIds.add(String(cp["@_id"] ?? ""));
+      styles.boldIds.add(id);
+    }
+    if (cp.strikeout !== undefined) {
+      styles.strikeIds.add(id);
     }
   }
-  return boldIds;
+  return styles;
 }
 
 // --- Image extraction ---
@@ -206,7 +219,7 @@ function collectImageFromRun(
 
 function extractTextFromRuns(
   runs: Array<Record<string, unknown>>,
-  boldSet: Set<string>,
+  charStyles: CharStyles,
 ): string {
   let text = "";
   for (const run of runs) {
@@ -225,7 +238,12 @@ function extractTextFromRuns(
 
     runText = escapeHtml(runText);
     const charPrId = String(run["@_charPrIDRef"] ?? "");
-    if (boldSet.has(charPrId)) {
+    if (charStyles.strikeIds.has(charPrId)) {
+      // turndown-plugin-gfm의 strikethrough는 <del>만 ~~로 변환하므로
+      // <s>가 아닌 <del>을 사용한다.
+      runText = `<del>${runText}</del>`;
+    }
+    if (charStyles.boldIds.has(charPrId)) {
       runText = `<strong>${runText}</strong>`;
     }
 
@@ -238,7 +256,7 @@ function extractTextFromRuns(
 
 function parseCellText(
   tc: Record<string, unknown>,
-  boldSet: Set<string>,
+  charStyles: CharStyles,
   collector: ImageCollector,
 ): string {
   const subLists = ensureArray(tc.subList as Array<Record<string, unknown>>);
@@ -256,7 +274,7 @@ function parseCellText(
         if (imgHtml) imageParts.push(imgHtml);
       }
 
-      const t = extractTextFromRuns(runs, boldSet);
+      const t = extractTextFromRuns(runs, charStyles);
       if (t.trim()) textParts.push(t);
     }
   }
@@ -285,13 +303,13 @@ function buildCellAttrs(tc: Record<string, unknown>): string {
 function parseTableRow(
   tr: Record<string, unknown>,
   tag: string,
-  boldSet: Set<string>,
+  charStyles: CharStyles,
   collector: ImageCollector,
 ): string {
   const cells = ensureArray(tr.tc as Array<Record<string, unknown>>);
   let html = "<tr>";
   for (const tc of cells) {
-    const cellText = parseCellText(tc, boldSet, collector);
+    const cellText = parseCellText(tc, charStyles, collector);
     const attrs = buildCellAttrs(tc);
     html += `<${tag}${attrs}>${cellText}</${tag}>`;
   }
@@ -301,7 +319,7 @@ function parseTableRow(
 
 function parseTable(
   tbl: Record<string, unknown>,
-  boldSet: Set<string>,
+  charStyles: CharStyles,
   collector: ImageCollector,
 ): string {
   const rows = ensureArray(tbl.tr as Array<Record<string, unknown>>);
@@ -311,7 +329,7 @@ function parseTable(
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     if (!row) continue;
-    html += parseTableRow(row, i === 0 ? "th" : "td", boldSet, collector);
+    html += parseTableRow(row, i === 0 ? "th" : "td", charStyles, collector);
   }
   html += "</table>\n";
   return html;
@@ -330,14 +348,14 @@ function collectTablesFromRuns(
   runs: Array<Record<string, unknown>>,
   htmlParts: Array<string>,
   inList: boolean,
-  boldSet: Set<string>,
+  charStyles: CharStyles,
   collector: ImageCollector,
 ): boolean {
   for (const run of runs) {
     const tables = ensureArray(run.tbl as Array<Record<string, unknown>>);
     for (const tbl of tables) {
       inList = closeListIfNeeded(htmlParts, inList);
-      htmlParts.push(parseTable(tbl, boldSet, collector));
+      htmlParts.push(parseTable(tbl, charStyles, collector));
     }
   }
   return inList;
@@ -376,7 +394,7 @@ function renderParagraph(
 function parseSectionToHtml(
   sectionXml: string,
   styles: Map<string, HwpxStyle>,
-  boldSet: Set<string>,
+  charStyles: CharStyles,
   collector: ImageCollector,
 ): string {
   const doc = xmlParser.parse(sectionXml);
@@ -392,7 +410,13 @@ function parseSectionToHtml(
     const styleName = styles.get(styleId)?.name ?? "";
     const runs = ensureArray(para.run as Array<Record<string, unknown>>);
 
-    inList = collectTablesFromRuns(runs, htmlParts, inList, boldSet, collector);
+    inList = collectTablesFromRuns(
+      runs,
+      htmlParts,
+      inList,
+      charStyles,
+      collector,
+    );
 
     // 이미지 추출
     for (const run of runs) {
@@ -403,7 +427,7 @@ function parseSectionToHtml(
       }
     }
 
-    const text = extractTextFromRuns(runs, boldSet);
+    const text = extractTextFromRuns(runs, charStyles);
     if (!text.trim()) {
       inList = closeListIfNeeded(htmlParts, inList);
       continue;
@@ -494,7 +518,7 @@ export class HwpxParser implements Parser {
       f.toLowerCase().endsWith("header.xml"),
     );
     let styles = new Map<string, HwpxStyle>();
-    let boldSet = new Set<string>();
+    let charStyles: CharStyles = emptyCharStyles();
 
     const headerFile = headerKey ? files[headerKey] : undefined;
     if (headerFile) {
@@ -503,7 +527,7 @@ export class HwpxParser implements Parser {
         unknown
       >;
       styles = parseStyles(headerDoc);
-      boldSet = parseBoldSet(headerDoc);
+      charStyles = parseCharStyles(headerDoc);
     }
 
     // 이미지 수집 준비
@@ -524,7 +548,7 @@ export class HwpxParser implements Parser {
       if (!sectionFile) continue;
       const sectionXml = strFromU8(sectionFile);
       htmlParts.push(
-        parseSectionToHtml(sectionXml, styles, boldSet, collector),
+        parseSectionToHtml(sectionXml, styles, charStyles, collector),
       );
     }
 

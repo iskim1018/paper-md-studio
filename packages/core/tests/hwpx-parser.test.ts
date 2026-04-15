@@ -138,6 +138,72 @@ describe("HWPX 파서 상세 테스트", () => {
     });
   });
 
+  describe("취소선 변환", () => {
+    const headerWithStrike = `<?xml version="1.0" encoding="UTF-8"?>
+<head>
+  <refList>
+    <styles>
+      <style id="0" name="본문" />
+    </styles>
+    <charProperties>
+      <charPr id="0" />
+      <charPr id="1"><bold /></charPr>
+      <charPr id="2"><strikeout /></charPr>
+      <charPr id="3"><bold /><strikeout /></charPr>
+    </charProperties>
+  </refList>
+</head>`;
+
+    it("strikeout을 가진 charPr은 ~~텍스트~~로 변환된다", async () => {
+      const result = await writeAndConvert(
+        "strike.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="2"><t>지운 글씨</t></run>
+  </p>
+</sec>`,
+        { headerXml: headerWithStrike },
+      );
+
+      expect(result.markdown).toContain("~~지운 글씨~~");
+    });
+
+    it("볼드와 취소선이 함께 있으면 모두 적용된다", async () => {
+      const result = await writeAndConvert(
+        "bold-strike.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="3"><t>굵고 지운 글씨</t></run>
+  </p>
+</sec>`,
+        { headerXml: headerWithStrike },
+      );
+
+      // **~~text~~** 또는 ~~**text**~~ 어느 순서든 허용
+      expect(result.markdown).toMatch(
+        /\*\*~~굵고 지운 글씨~~\*\*|~~\*\*굵고 지운 글씨\*\*~~/,
+      );
+    });
+
+    it("취소선이 없는 charPr은 일반 텍스트로 유지된다", async () => {
+      const result = await writeAndConvert(
+        "no-strike.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="0"><t>일반 글씨</t></run>
+  </p>
+</sec>`,
+        { headerXml: headerWithStrike },
+      );
+
+      expect(result.markdown).toContain("일반 글씨");
+      expect(result.markdown).not.toContain("~~일반");
+    });
+  });
+
   describe("테이블 변환", () => {
     it("테이블을 파이프 테이블로 변환한다", async () => {
       const result = await writeAndConvert(

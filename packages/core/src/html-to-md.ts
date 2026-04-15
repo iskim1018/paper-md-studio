@@ -17,6 +17,13 @@ function getService(): TurndownService {
 
   service.use(gfm);
 
+  // turndown-plugin-gfm@1.0.2의 strikethrough 규칙이 단일 `~text~`로
+  // 변환하는 버그가 있어 GFM 스펙(`~~text~~`)에 맞춰 override.
+  service.addRule("strikethrough", {
+    filter: ["del", "s", "strike"],
+    replacement: (content) => `~~${content}~~`,
+  });
+
   return service;
 }
 
