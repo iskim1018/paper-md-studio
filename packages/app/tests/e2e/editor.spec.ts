@@ -177,7 +177,7 @@ test.describe("테마 토글", () => {
     await page.locator('[data-testid="theme-toggle"]').click();
 
     const stored = await page.evaluate(() =>
-      window.localStorage.getItem("docs-to-md:theme"),
+      window.localStorage.getItem("paper-md-studio:theme"),
     );
     expect(stored).toBe("light");
   });

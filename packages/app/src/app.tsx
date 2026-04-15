@@ -17,7 +17,7 @@ export function App() {
         className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4"
         data-testid="app-header"
       >
-        <h1 className="text-sm font-semibold">docs-to-md</h1>
+        <h1 className="text-sm font-semibold">Paper MD Studio</h1>
         <div className="flex items-center gap-1">
           <FullscreenToggle />
           <ThemeToggle />

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 export type Theme = "light" | "dark" | "system";
 
-const STORAGE_KEY = "docs-to-md:theme";
+const STORAGE_KEY = "paper-md-studio:theme";
 const THEMES: ReadonlyArray<Theme> = ["system", "light", "dark"];
 
 function readStoredTheme(): Theme {

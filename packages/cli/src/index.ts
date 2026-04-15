@@ -20,10 +20,10 @@ const { values, positionals } = parseArgs({
 
 function printHelp(): void {
   console.log(`
-docs-to-md - 문서를 Markdown으로 변환
+paper-md-studio - 문서를 Markdown으로 변환
 
 사용법:
-  docs-to-md <파일경로> [옵션]
+  paper-md-studio <파일경로> [옵션]
 
 옵션:
   -o, --output <경로>       출력 디렉토리 (기본: 입력 파일과 같은 위치)
@@ -40,9 +40,9 @@ docs-to-md - 문서를 Markdown으로 변환
   .pdf    PDF 문서
 
 예시:
-  docs-to-md document.hwpx
-  docs-to-md report.pdf -o ./output
-  docs-to-md presentation.docx --images-dir assets
+  paper-md-studio document.hwpx
+  paper-md-studio report.pdf -o ./output
+  paper-md-studio presentation.docx --images-dir assets
 `);
 }
 
@@ -83,14 +83,14 @@ async function main(): Promise<void> {
   }
 
   if (values.version) {
-    console.log("docs-to-md v0.1.0");
+    console.log("paper-md-studio v0.1.0");
     return;
   }
 
   const inputPath = positionals[0];
   if (!inputPath) {
     console.error("오류: 변환할 파일 경로를 지정해주세요.");
-    console.error("도움말: docs-to-md --help\n");
+    console.error("도움말: paper-md-studio --help\n");
     process.exit(1);
   }
 

@@ -44,19 +44,19 @@ describe.skipIf(!javaAvailable || !hasHwpSample)(
       }
     });
 
-    it("DOCS_TO_MD_HWP_JAR이 존재하지 않는 경로면 명확한 오류를 던진다", async () => {
-      const prev = process.env.DOCS_TO_MD_HWP_JAR;
-      process.env.DOCS_TO_MD_HWP_JAR = "/nonexistent/path/to/hwp.jar";
+    it("PAPER_MD_STUDIO_HWP_JAR이 존재하지 않는 경로면 명확한 오류를 던진다", async () => {
+      const prev = process.env.PAPER_MD_STUDIO_HWP_JAR;
+      process.env.PAPER_MD_STUDIO_HWP_JAR = "/nonexistent/path/to/hwp.jar";
       try {
         const parser = new HwpParser();
         await expect(
           parser.parse(SAMPLE_HWP, { imagesDirName: "sample_images" }),
-        ).rejects.toThrow(/DOCS_TO_MD_HWP_JAR/);
+        ).rejects.toThrow(/PAPER_MD_STUDIO_HWP_JAR/);
       } finally {
         if (prev === undefined) {
-          delete process.env.DOCS_TO_MD_HWP_JAR;
+          delete process.env.PAPER_MD_STUDIO_HWP_JAR;
         } else {
-          process.env.DOCS_TO_MD_HWP_JAR = prev;
+          process.env.PAPER_MD_STUDIO_HWP_JAR = prev;
         }
       }
     });

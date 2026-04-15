@@ -1,5 +1,5 @@
 {
-  "name": "docs-to-md",
+  "name": "paper-md-studio",
   "version": "0.1.0",
   "private": true,
   "description": "macOS 문서 변환 도구 - HWP(X), DOC(X), PDF를 Markdown으로 변환",

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-const STORAGE_KEY = "docs-to-md:settings";
+const STORAGE_KEY = "paper-md-studio:settings";
 
 interface PersistedSettings {
   readonly outputDir: string | null;

@@ -8,7 +8,7 @@ test.describe("앱 레이아웃", () => {
   test("앱 헤더가 표시된다", async ({ page }) => {
     const header = page.locator('[data-testid="app-header"]');
     await expect(header).toBeVisible();
-    await expect(header).toContainText("docs-to-md");
+    await expect(header).toContainText("Paper MD Studio");
   });
 
   test("3-Panel 레이아웃이 렌더링된다", async ({ page }) => {

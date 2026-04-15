@@ -3,7 +3,7 @@ import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 import { useTheme } from "../src/hooks/use-theme";
 
-const STORAGE_KEY = "docs-to-md:theme";
+const STORAGE_KEY = "paper-md-studio:theme";
 
 describe("useTheme", () => {
   beforeEach(() => {

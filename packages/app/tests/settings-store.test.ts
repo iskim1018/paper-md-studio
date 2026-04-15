@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useSettingsStore } from "../src/store/settings-store";
 
-const STORAGE_KEY = "docs-to-md:settings";
+const STORAGE_KEY = "paper-md-studio:settings";
 
 describe("useSettingsStore", () => {
   beforeEach(() => {

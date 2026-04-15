@@ -60,7 +60,7 @@ async function setQueueState(
 test.describe("출력 폴더 선택 (Phase 6-3)", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      window.localStorage.removeItem("docs-to-md:settings");
+      window.localStorage.removeItem("paper-md-studio:settings");
     });
     await page.goto("/");
   });

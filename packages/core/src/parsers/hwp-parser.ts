@@ -8,14 +8,14 @@ import type { ParseOptions, ParseResult, Parser } from "../types.js";
 import { HwpxParser } from "./hwpx-parser.js";
 
 const JAR_FILE_NAME = "hwp-to-hwpx.jar";
-const JAR_ENV_OVERRIDE = "DOCS_TO_MD_HWP_JAR";
+const JAR_ENV_OVERRIDE = "PAPER_MD_STUDIO_HWP_JAR";
 const JAVA_ENV = "JAVA_HOME";
 
 /**
  * core 패키지 내 hwp-to-hwpx.jar 경로를 탐색한다.
  *
  * 탐색 순서:
- *   1. DOCS_TO_MD_HWP_JAR 환경변수 (최우선)
+ *   1. PAPER_MD_STUDIO_HWP_JAR 환경변수 (최우선)
  *   2. src/parsers/*.ts 기준 상대경로 (개발 모드)
  *   3. dist/index.js 기준 상대경로 (빌드 산출물)
  *   4. 패키지 루트 기준 상대경로
@@ -109,7 +109,7 @@ export class HwpParser implements Parser {
     const jarPath = await resolveJarPath();
     const javaCmd = resolveJavaExecutable();
 
-    const tmpDir = await mkdtemp(join(tmpdir(), "docs-to-md-hwp-"));
+    const tmpDir = await mkdtemp(join(tmpdir(), "paper-md-studio-hwp-"));
     const baseName = basename(inputPath).replace(/\.[^.]+$/, "");
     const tmpHwpxPath = normalizeToNFC(join(tmpDir, `${baseName}.hwpx`));
 
