@@ -1,8 +1,8 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicosResworworworworworking/tauri/dev/crates/tauri-config-schema/schema.json",
-  "productName": "docs-to-md",
+  "productName": "Paper MD Studio",
   "version": "0.1.0",
-  "identifier": "com.docs-to-md.app",
+  "identifier": "com.paper-md-studio.app",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "docs-to-md",
+        "title": "Paper MD Studio",
         "width": 1200,
         "height": 800,
         "minWidth": 800,

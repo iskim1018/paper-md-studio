@@ -1,12 +1,12 @@
 [package]
-name = "docs-to-md"
+name = "paper-md-studio"
 version = "0.1.0"
-description = "macOS 문서 변환 도구"
+description = "HWP/HWPX/DOCX/PDF 문서를 Markdown으로 변환하는 macOS/Windows 데스크톱 앱"
 authors = ["Insung Kim"]
 edition = "2024"
 
 [lib]
-name = "docs_to_md_lib"
+name = "paper_md_studio_lib"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [build-dependencies]
