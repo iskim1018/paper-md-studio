@@ -6,7 +6,7 @@
 # gitignore 대상이므로 이 파일이 캐노니컬 소스입니다.
 #
 # 복사 방법:
-#   pnpm --filter @docs-to-md/app sidecar:install
+#   pnpm --filter @paper-md-studio/app sidecar:install
 # 또는 직접:
 #   cp packages/app/scripts/sidecar-wrapper.sh \
 #     packages/app/src-tauri/binaries/docs-to-md-cli-aarch64-apple-darwin

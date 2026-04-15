@@ -1,5 +1,5 @@
 {
-  "name": "@docs-to-md/core",
+  "name": "@paper-md-studio/core",
   "version": "0.1.0",
   "private": true,
   "description": "문서 변환 엔진 - HWP, HWPX, DOCX, PDF를 Markdown으로 변환",

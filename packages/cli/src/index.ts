@@ -3,8 +3,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { ConvertResult } from "@docs-to-md/core";
-import { convert, convertToHtml, normalizePath } from "@docs-to-md/core";
+import type { ConvertResult } from "@paper-md-studio/core";
+import { convert, convertToHtml, normalizePath } from "@paper-md-studio/core";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,

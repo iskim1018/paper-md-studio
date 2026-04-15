@@ -23,10 +23,10 @@ CLI-first 접근: 변환 엔진(core)을 먼저 구축하고, 이후 Tauri GUI(a
 
 ```
 packages/
-├── core/    # 변환 엔진 라이브러리 (@docs-to-md/core)
+├── core/    # 변환 엔진 라이브러리 (@paper-md-studio/core)
 │   └── resources/hwp-to-hwpx.jar  # HWP→HWPX Java 툴 (번들)
-├── cli/     # CLI 인터페이스 (@docs-to-md/cli)
-└── app/     # Tauri GUI (Phase 3~, @docs-to-md/app)
+├── cli/     # CLI 인터페이스 (@paper-md-studio/cli)
+└── app/     # Tauri GUI (Phase 3~, @paper-md-studio/app)
 
 tools/
 └── hwp-to-hwpx/   # Maven 프로젝트 (neolord0/hwp2hwpx 래퍼)
@@ -45,9 +45,9 @@ pnpm typecheck        # TypeScript 타입 검사
 pnpm security         # npm 보안 감사
 
 pnpm build:hwp-tool                              # HWP→HWPX Java jar 재빌드
-pnpm --filter @docs-to-md/app sidecar:install    # Tauri sidecar 래퍼 배포
-pnpm --filter @docs-to-md/app tauri dev          # GUI 개발 실행
-pnpm --filter @docs-to-md/app test:e2e           # Playwright E2E
+pnpm --filter @paper-md-studio/app sidecar:install    # Tauri sidecar 래퍼 배포
+pnpm --filter @paper-md-studio/app tauri dev          # GUI 개발 실행
+pnpm --filter @paper-md-studio/app test:e2e           # Playwright E2E
 ```
 
 ## MVP 범위 (v1)
@@ -83,7 +83,7 @@ v2 후순위: DOC(레거시, Phase 8)
 ### 한글 파일명 (macOS NFD 대응)
 - macOS는 파일명을 NFD로 저장하여 한글이 자모 분리됨
 - 모든 파일 경로 진입점에서 `normalizePath()`로 NFC 정규화 필수
-- `@docs-to-md/core`의 `normalizePath`, `normalizeToNFC` 사용
+- `@paper-md-studio/core`의 `normalizePath`, `normalizeToNFC` 사용
 
 ### 기타
 - 모든 에러 메시지는 한국어로 작성

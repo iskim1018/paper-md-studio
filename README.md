@@ -46,9 +46,9 @@ docs-to-md --help
 # 사전 요구사항: Rust 툴체인, Xcode Command Line Tools
 #               (HWP 변환 시) Java 11+ 런타임 — sdkman/Homebrew 등
 # sidecar 래퍼 설치 (최초 1회)
-pnpm --filter @docs-to-md/app sidecar:install
+pnpm --filter @paper-md-studio/app sidecar:install
 # 개발 모드 실행
-pnpm --filter @docs-to-md/app tauri dev
+pnpm --filter @paper-md-studio/app tauri dev
 ```
 
 파일을 드래그 앤 드롭하면 원본 뷰어와 Markdown 결과가 나란히 표시됩니다.

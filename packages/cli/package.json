@@ -1,5 +1,5 @@
 {
-  "name": "@docs-to-md/cli",
+  "name": "@paper-md-studio/cli",
   "version": "0.1.0",
   "private": true,
   "description": "docs-to-md CLI 인터페이스",
@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@docs-to-md/core": "workspace:*"
+    "@paper-md-studio/core": "workspace:*"
   },
   "files": ["dist"]
 }
