@@ -235,3 +235,115 @@ test.describe("재시도 버튼 (Phase 6-4)", () => {
     );
   });
 });
+
+test.describe("멀티 셀렉트 (Phase 6)", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await addPendingFiles(page, [
+      "/tmp/a.hwpx",
+      "/tmp/b.docx",
+      "/tmp/c.pdf",
+      "/tmp/d.hwp",
+    ]);
+  });
+
+  async function getFileIds(page: Page): Promise<Array<string>> {
+    return page.evaluate(() => {
+      const store = (window as Record<string, unknown>).__FILE_STORE__ as {
+        getState: () => { files: ReadonlyArray<{ id: string }> };
+      };
+      return store.getState().files.map((f) => f.id);
+    });
+  }
+
+  async function getCheckedIds(page: Page): Promise<Array<string>> {
+    return page.evaluate(() => {
+      const store = (window as Record<string, unknown>).__FILE_STORE__ as {
+        getState: () => { checkedIds: ReadonlySet<string> };
+      };
+      return Array.from(store.getState().checkedIds);
+    });
+  }
+
+  test("초기에는 어떤 파일도 체크되지 않았고 변환 버튼은 '변환'", async ({
+    page,
+  }) => {
+    const checked = await getCheckedIds(page);
+    expect(checked).toHaveLength(0);
+    await expect(page.locator('[data-testid="convert-all-btn"]')).toContainText(
+      "변환",
+    );
+  });
+
+  test("행 체크박스 클릭 시 해당 파일만 토글된다", async ({ page }) => {
+    const [, second] = await getFileIds(page);
+    const safeId = second ?? "";
+    await page.locator(`[data-testid="check-${safeId}"]`).click();
+
+    const checked = await getCheckedIds(page);
+    expect(checked).toEqual([safeId]);
+    await expect(page.locator('[data-testid="convert-all-btn"]')).toContainText(
+      "선택 1개 변환",
+    );
+  });
+
+  test("일반 클릭은 단일 선택으로 이전 선택을 해제한다", async ({ page }) => {
+    const ids = await getFileIds(page);
+    await page.locator(`[data-testid="file-row-${ids[0]}"]`).click();
+    await page.locator(`[data-testid="file-row-${ids[2]}"]`).click();
+
+    const checked = await getCheckedIds(page);
+    expect(checked).toEqual([ids[2]]);
+  });
+
+  test("Cmd/Ctrl+클릭은 다중 선택을 토글한다", async ({ page }) => {
+    const ids = await getFileIds(page);
+    await page.locator(`[data-testid="file-row-${ids[0]}"]`).click();
+    await page
+      .locator(`[data-testid="file-row-${ids[2]}"]`)
+      .click({ modifiers: ["ControlOrMeta"] });
+
+    const checked = await getCheckedIds(page);
+    expect(checked.sort()).toEqual([ids[0], ids[2]].sort());
+  });
+
+  test("Shift+클릭은 anchor부터 범위 선택한다", async ({ page }) => {
+    const ids = await getFileIds(page);
+    await page.locator(`[data-testid="file-row-${ids[0]}"]`).click();
+    await page
+      .locator(`[data-testid="file-row-${ids[2]}"]`)
+      .click({ modifiers: ["Shift"] });
+
+    const checked = await getCheckedIds(page);
+    // 0, 1, 2 범위 체크
+    expect(checked.sort()).toEqual([ids[0], ids[1], ids[2]].sort());
+  });
+
+  test("전체 체크 헤더 박스는 모두 체크하고 다시 클릭 시 모두 해제", async ({
+    page,
+  }) => {
+    await page.locator('[data-testid="check-all"]').click();
+    expect((await getCheckedIds(page)).length).toBe(4);
+
+    await page.locator('[data-testid="check-all"]').click();
+    expect((await getCheckedIds(page)).length).toBe(0);
+  });
+
+  test("변환 버튼 라벨이 선택 수에 따라 갱신된다", async ({ page }) => {
+    const ids = await getFileIds(page);
+
+    await expect(page.locator('[data-testid="convert-all-btn"]')).toContainText(
+      "변환",
+    );
+
+    await page.locator(`[data-testid="check-${ids[0]}"]`).click();
+    await expect(page.locator('[data-testid="convert-all-btn"]')).toContainText(
+      "선택 1개 변환",
+    );
+
+    await page.locator(`[data-testid="check-${ids[1]}"]`).click();
+    await expect(page.locator('[data-testid="convert-all-btn"]')).toContainText(
+      "선택 2개 변환",
+    );
+  });
+});
