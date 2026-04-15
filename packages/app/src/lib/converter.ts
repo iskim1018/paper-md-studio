@@ -28,7 +28,7 @@ export async function convertFile(
     args.push("--output", options.outputDir);
   }
 
-  const command = Command.sidecar("binaries/docs-to-md-cli", args);
+  const command = Command.sidecar("binaries/paper-md-studio-cli", args);
 
   const output = await command.execute();
 

@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
-    "sidecar:install": "mkdir -p src-tauri/binaries && cp scripts/sidecar-wrapper.sh src-tauri/binaries/docs-to-md-cli-aarch64-apple-darwin && chmod +x src-tauri/binaries/docs-to-md-cli-aarch64-apple-darwin",
+    "sidecar:install": "mkdir -p src-tauri/binaries && cp scripts/sidecar-wrapper.sh src-tauri/binaries/paper-md-studio-cli-aarch64-apple-darwin && chmod +x src-tauri/binaries/paper-md-studio-cli-aarch64-apple-darwin",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },

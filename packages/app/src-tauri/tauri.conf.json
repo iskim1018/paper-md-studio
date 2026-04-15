@@ -35,7 +35,7 @@
       "icons/icon.ico"
     ],
     "externalBin": [
-      "binaries/docs-to-md-cli"
+      "binaries/paper-md-studio-cli"
     ]
   },
   "plugins": {

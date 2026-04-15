@@ -8,7 +8,7 @@
       "identifier": "shell:allow-execute",
       "allow": [
         {
-          "name": "binaries/docs-to-md-cli",
+          "name": "binaries/paper-md-studio-cli",
           "sidecar": true,
           "args": true
         }

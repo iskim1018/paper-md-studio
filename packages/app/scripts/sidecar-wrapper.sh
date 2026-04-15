@@ -1,7 +1,7 @@
 #!/bin/sh
 # Tauri sidecar wrapper: Node.js CLI를 실행합니다.
 #
-# 이 파일은 packages/app/src-tauri/binaries/docs-to-md-cli-<target>로
+# 이 파일은 packages/app/src-tauri/binaries/paper-md-studio-cli-<target>로
 # 복사되어 Tauri의 externalBin으로 사용됩니다. binaries/ 디렉토리는
 # gitignore 대상이므로 이 파일이 캐노니컬 소스입니다.
 #
@@ -9,8 +9,8 @@
 #   pnpm --filter @paper-md-studio/app sidecar:install
 # 또는 직접:
 #   cp packages/app/scripts/sidecar-wrapper.sh \
-#     packages/app/src-tauri/binaries/docs-to-md-cli-aarch64-apple-darwin
-#   chmod +x packages/app/src-tauri/binaries/docs-to-md-cli-*
+#     packages/app/src-tauri/binaries/paper-md-studio-cli-aarch64-apple-darwin
+#   chmod +x packages/app/src-tauri/binaries/paper-md-studio-cli-*
 
 # Tauri GUI에서 실행 시 PATH에 node/java가 없을 수 있으므로 보강
 export PATH="/usr/local/bin:/opt/homebrew/bin:$HOME/.nvm/default/bin:$PATH"

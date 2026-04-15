@@ -7,7 +7,7 @@ interface HwpxViewerProps {
 
 async function loadHwpxHtml(filePath: string): Promise<string> {
   const { Command } = await import("@tauri-apps/plugin-shell");
-  const command = Command.sidecar("binaries/docs-to-md-cli", [
+  const command = Command.sidecar("binaries/paper-md-studio-cli", [
     filePath,
     "--html",
   ]);
