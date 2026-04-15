@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdir, writeFile } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type { ConvertResult } from "@paper-md-studio/core";
 import { convert, convertToHtml, normalizePath } from "@paper-md-studio/core";
@@ -95,9 +95,19 @@ async function main(): Promise<void> {
   }
 
   const resolvedInput = normalizePath(resolve(inputPath));
-  const outputDir = values.output
-    ? normalizePath(resolve(values.output))
-    : undefined;
+  // --output은 디렉토리 또는 .md 파일 경로를 모두 받는다.
+  // 파일 경로로 주어지면 해당 이름으로 저장(앱에서 "다른 이름으로" 처리).
+  let outputDir: string | undefined;
+  let outputFileOverride: string | undefined;
+  if (values.output) {
+    const resolvedOut = normalizePath(resolve(values.output));
+    if (extname(resolvedOut).toLowerCase() === ".md") {
+      outputFileOverride = resolvedOut;
+      outputDir = dirname(resolvedOut);
+    } else {
+      outputDir = resolvedOut;
+    }
+  }
   const isJson = values.json === true;
   const isHtml = values.html === true;
 
@@ -119,8 +129,10 @@ async function main(): Promise<void> {
     });
 
     const outDir = outputDir ?? resolve(resolvedInput, "..");
-    const mdFileName = basename(resolvedInput).replace(/\.[^.]+$/, ".md");
-    const mdPath = join(outDir, mdFileName);
+    const mdFileName = outputFileOverride
+      ? basename(outputFileOverride)
+      : basename(resolvedInput).replace(/\.[^.]+$/, ".md");
+    const mdPath = outputFileOverride ?? join(outDir, mdFileName);
 
     await mkdir(outDir, { recursive: true });
     await writeFile(mdPath, result.markdown, "utf-8");

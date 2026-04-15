@@ -15,23 +15,57 @@ REM   + java.exe로 명시 override 가능.
 
 setlocal
 
+set "RESOURCES_DIR=%~dp0..\resources"
+
 REM 번들 JRE/jar 탐색 (Tauri resources 경로 우선)
-if exist "%~dp0..\resources\jre\bin\java.exe" (
-  set "JAVA_HOME=%~dp0..\resources\jre"
-  set "PATH=%~dp0..\resources\jre\bin;%PATH%"
+REM JRE는 tar.gz로 번들되어 첫 실행 시 %LOCALAPPDATA%로 추출한다.
+REM (Windows 10 1803+ 기본 tar.exe = bsdtar 사용)
+set "BUNDLED_JRE_ARCHIVE=%RESOURCES_DIR%\jre.tar.gz"
+if exist "%BUNDLED_JRE_ARCHIVE%" (
+  set "APP_DATA_DIR=%LOCALAPPDATA%\com.paper-md-studio.app"
+  set "EXTRACTED_JRE=%LOCALAPPDATA%\com.paper-md-studio.app\jre"
+  set "STAMP_FILE=%LOCALAPPDATA%\com.paper-md-studio.app\jre.stamp"
+  for %%A in ("%BUNDLED_JRE_ARCHIVE%") do set "ARCHIVE_SIZE=%%~zA"
+  set "STORED_SIZE="
+  if exist "%STAMP_FILE%" set /p STORED_SIZE=<"%STAMP_FILE%"
+  if not exist "%EXTRACTED_JRE%\bin\java.exe" goto :extract_jre
+  if not "%ARCHIVE_SIZE%"=="%STORED_SIZE%" goto :extract_jre
+  goto :jre_ready
+:extract_jre
+  echo 번들 JRE 추출 중... 1>&2
+  if not exist "%APP_DATA_DIR%" mkdir "%APP_DATA_DIR%"
+  if exist "%EXTRACTED_JRE%" rmdir /s /q "%EXTRACTED_JRE%"
+  tar -xzf "%BUNDLED_JRE_ARCHIVE%" -C "%APP_DATA_DIR%"
+  if errorlevel 1 (
+    echo JRE 추출 실패 1>&2
+    exit /b 1
+  )
+  >"%STAMP_FILE%" echo %ARCHIVE_SIZE%
+:jre_ready
+  if exist "%EXTRACTED_JRE%\bin\java.exe" (
+    set "JAVA_HOME=%EXTRACTED_JRE%"
+    set "PATH=%EXTRACTED_JRE%\bin;%PATH%"
+  )
 )
-if exist "%~dp0..\resources\hwp-to-hwpx.jar" (
+if exist "%RESOURCES_DIR%\hwp-to-hwpx.jar" (
   if "%PAPER_MD_STUDIO_HWP_JAR%"=="" (
-    set "PAPER_MD_STUDIO_HWP_JAR=%~dp0..\resources\hwp-to-hwpx.jar"
+    set "PAPER_MD_STUDIO_HWP_JAR=%RESOURCES_DIR%\hwp-to-hwpx.jar"
   )
 )
 
-REM 개발 모드: 저장소 루트를 찾아 CLI 진입점 실행
-REM 배포 모드: git 없으므로 sidecar 옆의 node_cli 디렉토리 탐색 (Phase 7-E에서 결정)
+REM === 배포 모드: 번들된 node + CLI로 바로 실행 ===
+if exist "%RESOURCES_DIR%\node\node.exe" (
+  if exist "%RESOURCES_DIR%\cli\index.js" (
+    "%RESOURCES_DIR%\node\node.exe" "%RESOURCES_DIR%\cli\index.js" %*
+    exit /b %ERRORLEVEL%
+  )
+)
+
+REM === 개발 모드: 시스템 node + 모노레포 CLI 사용 ===
 for /f "delims=" %%i in ('git -C "%~dp0" rev-parse --show-toplevel 2^>nul') do set "MONO_ROOT=%%i"
 
 if "%MONO_ROOT%"=="" (
-  echo 모노레포 루트를 찾을 수 없습니다. 배포 빌드에는 별도 번들링이 필요합니다. 1>&2
+  echo 모노레포 루트를 찾을 수 없습니다 ^(개발 모드에서만 동작^). 1>&2
   exit /b 1
 )
 

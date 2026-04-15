@@ -42,8 +42,10 @@
       "binaries/paper-md-studio-cli"
     ],
     "resources": {
-      "resources/jre": "resources/jre",
-      "resources/hwp-to-hwpx.jar": "resources/hwp-to-hwpx.jar"
+      "resources/node": "resources/node",
+      "resources/cli": "resources/cli",
+      "resources/hwp-to-hwpx.jar": "resources/hwp-to-hwpx.jar",
+      "resources/jre.tar.gz": "resources/jre.tar.gz"
     },
     "macOS": {
       "minimumSystemVersion": "12.0"

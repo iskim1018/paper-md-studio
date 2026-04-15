@@ -36,6 +36,7 @@ const appResourcesDir = join(
   "resources",
 );
 const jreOutputDir = join(appResourcesDir, "jre");
+const jreArchivePath = join(appResourcesDir, "jre.tar.gz");
 const coreJarPath = join(
   repoRoot,
   "packages",
@@ -113,6 +114,9 @@ async function main() {
     console.log("기존 JRE 디렉토리 삭제...");
     rmSync(jreOutputDir, { recursive: true, force: true });
   }
+  if (existsSync(jreArchivePath)) {
+    rmSync(jreArchivePath, { force: true });
+  }
 
   // --compress=2 = zip compression (JDK 17 문법).
   // JDK 21+는 --compress=zip-9 문법이지만 우선 17 호환성 유지.
@@ -142,6 +146,27 @@ async function main() {
   const size = getDirectorySize(jreOutputDir);
   console.log(`\n✓ JRE 생성 완료: ${formatBytes(size)}`);
   console.log(`  ${jreOutputDir}`);
+
+  // Tauri resource walker가 legal/* 심볼릭링크 및 권한 이슈로 실패하는 것을
+  // 회피하기 위해, JRE를 단일 tar.gz 아카이브로 묶어 번들한다.
+  // 앱 첫 실행 시 sidecar wrapper가 app_data_dir에 추출한다.
+  console.log(`\ntar.gz로 아카이브 중...`);
+  const tarResult = spawnSync(
+    "tar",
+    ["-czf", jreArchivePath, "-C", appResourcesDir, "jre"],
+    { stdio: "inherit", shell: false },
+  );
+  if (tarResult.status !== 0) {
+    console.error(`tar 실패: exit ${tarResult.status}`);
+    process.exit(1);
+  }
+
+  // 원본 디렉토리는 제거해 Tauri가 디렉토리를 스캔하지 않게 한다.
+  rmSync(jreOutputDir, { recursive: true, force: true });
+
+  const archiveSize = statSync(jreArchivePath).size;
+  console.log(`✓ JRE 아카이브: ${formatBytes(archiveSize)}`);
+  console.log(`  ${jreArchivePath}`);
 
   // hwp-to-hwpx.jar를 app resources로 복사 (Tauri bundle.resources가 여기를 가리킴)
   if (existsSync(coreJarPath)) {
