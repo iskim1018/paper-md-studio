@@ -42,13 +42,14 @@ test-results/
 # Test fixture samples (보안상 실제 문서는 저장소에 포함하지 않음)
 # 개발자는 로컬에 packages/core/tests/fixtures/ 아래 sample.{hwp,hwpx,docx,pdf},
 # sample-with-image.docx를 직접 배치. 샘플이 없으면 관련 테스트는 자동 skip.
-packages/core/tests/fixtures/sample.hwp
-packages/core/tests/fixtures/sample.hwpx
-packages/core/tests/fixtures/sample.docx
-packages/core/tests/fixtures/sample-with-image.docx
-packages/core/tests/fixtures/sample.pdf
-packages/core/tests/fixtures/sample.md
-packages/core/tests/fixtures/sample_images/
+# 보안상 실제 문서 fixture는 모두 제외 (README.md만 유지)
+packages/core/tests/fixtures/*.hwp
+packages/core/tests/fixtures/*.hwpx
+packages/core/tests/fixtures/*.docx
+packages/core/tests/fixtures/*.pdf
+packages/core/tests/fixtures/*.md
+packages/core/tests/fixtures/*_images/
+!packages/core/tests/fixtures/README.md
 
 # TypeScript build info
 *.tsbuildinfo
