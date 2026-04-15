@@ -251,6 +251,43 @@ describe("HWPX 파서 상세 테스트", () => {
       );
     });
 
+    it("strikeout shape='NONE'은 취소선으로 간주되지 않는다 (실제 HWPX 스키마)", async () => {
+      // 실제 한컴 HWPX는 charPr마다 <strikeout shape="..."/>를 항상 포함.
+      // shape="NONE"은 취소선 OFF, shape="SOLID" 등은 ON을 의미.
+      const realHeader = `<?xml version="1.0" encoding="UTF-8"?>
+<head>
+  <refList>
+    <styles>
+      <style id="0" name="본문" />
+    </styles>
+    <charProperties>
+      <charPr id="10">
+        <strikeout shape="NONE" color="#000000"/>
+      </charPr>
+      <charPr id="11">
+        <strikeout shape="SOLID" color="#000000"/>
+      </charPr>
+    </charProperties>
+  </refList>
+</head>`;
+      const result = await writeAndConvert(
+        "strike-shape.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="10"><t>정상</t></run>
+    <run charPrIDRef="11"><t>지움</t></run>
+  </p>
+</sec>`,
+        { headerXml: realHeader },
+      );
+
+      // "정상"은 취소선 태그 없이 나와야 하고, "지움"만 ~~...~~
+      expect(result.markdown).toContain("~~지움~~");
+      expect(result.markdown).not.toContain("~~정상");
+      expect(result.markdown).not.toMatch(/~~정상[^~]*지움~~/);
+    });
+
     it("취소선이 없는 charPr은 일반 텍스트로 유지된다", async () => {
       const result = await writeAndConvert(
         "no-strike.hwpx",

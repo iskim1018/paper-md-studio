@@ -118,15 +118,27 @@ function parseCharStyles(headerDoc: Record<string, unknown>): CharStyles {
   );
   for (const cp of charPrs) {
     const id = String(cp["@_id"] ?? "");
-    // HWPX는 <bold/>, <strikeout/> 등 빈 element를 사용 → parsed as "" (undefined가 아님)
+    // <bold/>는 빈 element를 on 마커로만 사용 (parsed as "")
     if (cp.bold !== undefined) {
       styles.boldIds.add(id);
     }
-    if (cp.strikeout !== undefined) {
+    // 실제 한컴 HWPX는 모든 charPr이 <strikeout shape="..."/>를 포함한다.
+    // shape="NONE"이면 적용 안 됨, SOLID/DOT/DASH 등이면 적용됨.
+    // 속성 없이 bare <strikeout/>인 경우는 parsed as ""이므로 on으로 간주.
+    if (isStrikeEnabled(cp.strikeout)) {
       styles.strikeIds.add(id);
     }
   }
   return styles;
+}
+
+function isStrikeEnabled(strikeout: unknown): boolean {
+  if (strikeout === undefined || strikeout === null) return false;
+  // bare <strikeout/> → parsed as "" (빈 문자열)
+  if (typeof strikeout !== "object") return true;
+  const shape = (strikeout as Record<string, unknown>)["@_shape"];
+  if (shape === undefined) return true;
+  return shape !== "NONE";
 }
 
 // --- Image extraction ---
