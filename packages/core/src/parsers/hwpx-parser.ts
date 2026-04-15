@@ -93,11 +93,16 @@ function parseStyles(
 
 interface CharStyles {
   readonly boldIds: Set<string>;
+  readonly italicIds: Set<string>;
   readonly strikeIds: Set<string>;
 }
 
 function emptyCharStyles(): CharStyles {
-  return { boldIds: new Set<string>(), strikeIds: new Set<string>() };
+  return {
+    boldIds: new Set<string>(),
+    italicIds: new Set<string>(),
+    strikeIds: new Set<string>(),
+  };
 }
 
 function parseCharStyles(headerDoc: Record<string, unknown>): CharStyles {
@@ -118,9 +123,12 @@ function parseCharStyles(headerDoc: Record<string, unknown>): CharStyles {
   );
   for (const cp of charPrs) {
     const id = String(cp["@_id"] ?? "");
-    // <bold/>는 빈 element를 on 마커로만 사용 (parsed as "")
+    // <bold/>, <italic/>는 빈 element를 on 마커로만 사용 (parsed as "")
     if (cp.bold !== undefined) {
       styles.boldIds.add(id);
+    }
+    if (cp.italic !== undefined) {
+      styles.italicIds.add(id);
     }
     // 실제 한컴 HWPX는 모든 charPr이 <strikeout shape="..."/>를 포함한다.
     // shape="NONE"이면 적용 안 됨, SOLID/DOT/DASH 등이면 적용됨.
@@ -266,43 +274,56 @@ function extractRawRunText(run: Record<string, unknown>): string {
 
 interface TagState {
   strongOpen: boolean;
+  emOpen: boolean;
   delOpen: boolean;
 }
 
 /**
  * 현재 열려 있는 태그 상태에서 목표 상태로 전환하기 위한 HTML 조각을
- * 계산하고 state를 in-place로 갱신한다. strong이 바뀌면 모든 태그를
- * 닫고 새로 연다(중첩 순서 유지). del만 바뀌면 del만 토글.
+ * 계산하고 state를 in-place로 갱신한다.
+ *
+ * 간결함을 위해 어느 상태라도 바뀌면 모든 태그를 내부→외부 순으로 닫고
+ * 목표 상태의 태그를 외부→내부 순(strong → em → del)으로 다시 연다.
+ * 연속 동일 스타일은 state 비교에서 걸러져 그대로 텍스트만 append된다.
  */
 function transitionTags(
   state: TagState,
   wantStrong: boolean,
+  wantEm: boolean,
   wantDel: boolean,
 ): string {
-  let out = "";
-  if (wantStrong !== state.strongOpen) {
-    if (state.delOpen) {
-      out += "</del>";
-      state.delOpen = false;
-    }
-    if (state.strongOpen) {
-      out += "</strong>";
-      state.strongOpen = false;
-    }
-    if (wantStrong) {
-      out += "<strong>";
-      state.strongOpen = true;
-    }
+  if (
+    wantStrong === state.strongOpen &&
+    wantEm === state.emOpen &&
+    wantDel === state.delOpen
+  ) {
+    return "";
   }
-  if (wantDel !== state.delOpen) {
-    if (state.delOpen) {
-      out += "</del>";
-      state.delOpen = false;
-    }
-    if (wantDel) {
-      out += "<del>";
-      state.delOpen = true;
-    }
+
+  let out = "";
+  if (state.delOpen) {
+    out += "</del>";
+    state.delOpen = false;
+  }
+  if (state.emOpen) {
+    out += "</em>";
+    state.emOpen = false;
+  }
+  if (state.strongOpen) {
+    out += "</strong>";
+    state.strongOpen = false;
+  }
+  if (wantStrong) {
+    out += "<strong>";
+    state.strongOpen = true;
+  }
+  if (wantEm) {
+    out += "<em>";
+    state.emOpen = true;
+  }
+  if (wantDel) {
+    out += "<del>";
+    state.delOpen = true;
   }
   return out;
 }
@@ -322,7 +343,11 @@ function extractTextFromRuns(
   charStyles: CharStyles,
 ): string {
   let text = "";
-  const state: TagState = { strongOpen: false, delOpen: false };
+  const state: TagState = {
+    strongOpen: false,
+    emOpen: false,
+    delOpen: false,
+  };
 
   for (const run of runs) {
     const runText = extractRawRunText(run);
@@ -331,6 +356,7 @@ function extractTextFromRuns(
     text += transitionTags(
       state,
       charStyles.boldIds.has(charPrId),
+      charStyles.italicIds.has(charPrId),
       charStyles.strikeIds.has(charPrId),
     );
     text += escapeHtml(runText);
@@ -338,6 +364,7 @@ function extractTextFromRuns(
 
   // 남은 태그 닫기 (내부→외부)
   if (state.delOpen) text += "</del>";
+  if (state.emOpen) text += "</em>";
   if (state.strongOpen) text += "</strong>";
 
   return text;

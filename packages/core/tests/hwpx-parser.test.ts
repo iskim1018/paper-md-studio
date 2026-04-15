@@ -202,6 +202,91 @@ describe("HWPX 파서 상세 테스트", () => {
     });
   });
 
+  describe("이탈릭 변환", () => {
+    const headerWithItalic = `<?xml version="1.0" encoding="UTF-8"?>
+<head>
+  <refList>
+    <styles>
+      <style id="0" name="본문" />
+    </styles>
+    <charProperties>
+      <charPr id="0" />
+      <charPr id="1"><bold /></charPr>
+      <charPr id="4"><italic /></charPr>
+      <charPr id="5"><bold /><italic /></charPr>
+    </charProperties>
+  </refList>
+</head>`;
+
+    it("italic을 가진 charPr은 *텍스트*로 변환된다", async () => {
+      const result = await writeAndConvert(
+        "italic.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="4"><t>기울임</t></run>
+  </p>
+</sec>`,
+        { headerXml: headerWithItalic },
+      );
+
+      expect(result.markdown).toMatch(/\*기울임\*/);
+      expect(result.markdown).not.toContain("**기울임**");
+    });
+
+    it("볼드+이탈릭은 ***텍스트***로 변환된다", async () => {
+      const result = await writeAndConvert(
+        "bold-italic.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="5"><t>굵고기울임</t></run>
+  </p>
+</sec>`,
+        { headerXml: headerWithItalic },
+      );
+
+      expect(result.markdown).toContain("굵고기울임");
+      // **굵고기울임**과 *굵고기울임* 양쪽 마커가 모두 적용돼야 함
+      expect(result.markdown).toMatch(
+        /\*\*\*굵고기울임\*\*\*|\*\*\*굵고기울임\*\*\*/,
+      );
+    });
+
+    it("연속된 이탈릭 run은 하나의 *로 병합된다", async () => {
+      const result = await writeAndConvert(
+        "italic-merge.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="4"><t>기울1</t></run>
+    <run charPrIDRef="4"><t>기울2</t></run>
+  </p>
+</sec>`,
+        { headerXml: headerWithItalic },
+      );
+
+      expect(result.markdown).toMatch(/\*기울1기울2\*/);
+      expect(result.markdown).not.toContain("*기울1**기울2*");
+    });
+
+    it("italic 없는 charPr은 일반 텍스트로 유지된다", async () => {
+      const result = await writeAndConvert(
+        "no-italic.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="0"><t>일반</t></run>
+  </p>
+</sec>`,
+        { headerXml: headerWithItalic },
+      );
+
+      expect(result.markdown).toContain("일반");
+      expect(result.markdown).not.toMatch(/\*일반\*/);
+    });
+  });
+
   describe("취소선 변환", () => {
     const headerWithStrike = `<?xml version="1.0" encoding="UTF-8"?>
 <head>
