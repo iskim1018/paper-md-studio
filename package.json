@@ -29,6 +29,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "build:hwp-tool": "cd tools/hwp-to-hwpx && mvn -B clean package && cp target/hwp-to-hwpx.jar ../../packages/core/resources/hwp-to-hwpx.jar",
+    "build:jre": "node scripts/build-jre.mjs",
     "dev": "pnpm -r dev",
     "test": "vitest run",
     "test:watch": "vitest",

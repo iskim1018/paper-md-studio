@@ -30,6 +30,10 @@ coverage/
 **/src-tauri/target/
 **/src-tauri/binaries/
 **/src-tauri/gen/
+# Phase 7-D: jlink로 생성되는 번들 JRE (빌드 산출물, pnpm build:jre로 재생성)
+**/src-tauri/resources/jre/
+# Tauri에 번들될 hwp2hwpx jar (core에서 복사되어 app resources로 오는 생성물)
+packages/app/src-tauri/resources/hwp-to-hwpx.jar
 
 # Maven (tools/hwp-to-hwpx)
 tools/**/target/

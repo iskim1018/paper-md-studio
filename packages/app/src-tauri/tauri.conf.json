@@ -41,6 +41,10 @@
     "externalBin": [
       "binaries/paper-md-studio-cli"
     ],
+    "resources": {
+      "resources/jre": "resources/jre",
+      "resources/hwp-to-hwpx.jar": "resources/hwp-to-hwpx.jar"
+    },
     "macOS": {
       "minimumSystemVersion": "12.0"
     },
