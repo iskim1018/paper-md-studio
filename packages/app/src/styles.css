@@ -40,6 +40,52 @@
   }
 }
 
+/* Milkdown Crepe frame 테마의 다크 색상 오버라이드.
+ * frame.css는 .milkdown에 라이트 CSS 변수를 하드코딩하므로 같은 selector에
+ * 덮어쓰기. @milkdown/crepe/theme/frame-dark/style.css의 값을 사용. */
+:root[data-theme="dark"] .milkdown,
+:root[data-theme="dark"] .milkdown-container .ProseMirror {
+  --crepe-color-background: #1a1a1a;
+  --crepe-color-on-background: #e6e6e6;
+  --crepe-color-surface: #121212;
+  --crepe-color-surface-low: #1c1c1c;
+  --crepe-color-on-surface: #d1d1d1;
+  --crepe-color-on-surface-variant: #a9a9a9;
+  --crepe-color-outline: #757575;
+  --crepe-color-primary: #b5b5b5;
+  --crepe-color-secondary: #4d4d4d;
+  --crepe-color-on-secondary: #d6d6d6;
+  --crepe-color-inverse: #e5e5e5;
+  --crepe-color-on-inverse: #2a2a2a;
+  --crepe-color-inline-code: #ff6666;
+  --crepe-color-error: #ff6666;
+  --crepe-color-hover: #232323;
+  --crepe-color-selected: #2f2f2f;
+  --crepe-color-inline-area: #2b2b2b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .milkdown,
+  :root:not([data-theme="light"]) .milkdown-container .ProseMirror {
+    --crepe-color-background: #1a1a1a;
+    --crepe-color-on-background: #e6e6e6;
+    --crepe-color-surface: #121212;
+    --crepe-color-surface-low: #1c1c1c;
+    --crepe-color-on-surface: #d1d1d1;
+    --crepe-color-on-surface-variant: #a9a9a9;
+    --crepe-color-outline: #757575;
+    --crepe-color-primary: #b5b5b5;
+    --crepe-color-secondary: #4d4d4d;
+    --crepe-color-on-secondary: #d6d6d6;
+    --crepe-color-inverse: #e5e5e5;
+    --crepe-color-on-inverse: #2a2a2a;
+    --crepe-color-inline-code: #ff6666;
+    --crepe-color-error: #ff6666;
+    --crepe-color-hover: #232323;
+    --crepe-color-selected: #2f2f2f;
+    --crepe-color-inline-area: #2b2b2b;
+  }
+}
+
 /* Markdown 프리뷰(react-markdown) + Milkdown WYSIWYG 공통 타이포그래피.
  * 보기/편집 모드 간 시각적 일관성을 위해 두 컨테이너에 같은 규칙을 적용.
  * Milkdown Crepe의 frame.css는 .ProseMirror에 기본 스타일을 넣으므로
