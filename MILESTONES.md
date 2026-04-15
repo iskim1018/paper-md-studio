@@ -201,15 +201,46 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 
 ---
 
-## Phase 6: 배치 처리
+## Phase 6: 배치 처리 ✅ (6-5 deferred)
+
+**목표**: 다중 파일을 동시성 5로 병렬 변환하고 진행률·취소·재시도·출력 폴더를 제공.
 
 | # | 태스크 | 복잡도 | 상태 |
 |---|--------|--------|------|
-| 6-1 | 배치 변환 큐 (Web Worker Pool) | M | ⬜ |
-| 6-2 | 배치 진행률 UI | M | ⬜ |
-| 6-3 | 출력 디렉토리 선택 | S | ⬜ |
-| 6-4 | 변환 취소/재시도 | M | ⬜ |
-| 6-5 | 대용량 파일 최적화 | L | ⬜ |
+| 6-1 | 배치 변환 큐 (worker pool 패턴, 동시성 5) | M | ✅ |
+| 6-2 | 배치 진행률 UI (BatchProgress: done/total + %) | M | ✅ |
+| 6-3 | 출력 디렉토리 선택 (localStorage 영속화) | S | ✅ |
+| 6-4 | 변환 취소/재시도 (큐 레벨 cancel + 개별/일괄 재시도) | M | ✅ |
+| 6-5 | 대용량 파일 최적화 | L | ⏸ deferred (사용자 실측 후) |
+| 6-6 | 멀티 셀렉트 (체크박스 + Cmd/Shift 모디파이어) | M | ✅ |
+| 6-7 | HWPX 스타일 변환 강화 (bold/italic/strike) | M | ✅ |
+
+**결정 로그**:
+- **동시성 5 고정**: 슬라이더 없이 시작 (사용자 요청), 기본값 `navigator.hardwareConcurrency` 대신 단순 상수
+- **취소 전략**: 큐 레벨 cancel만 (pending 폐기 + running은 끝까지). sidecar 강제 kill은 Phase 7+로 연기
+- **출력 폴더**: settings-store에서 `outputDir: string | null` 관리, `null`=원본과 같은 폴더
+- **자동 변환 X**: 드롭 시 자동 시작하지 않고 "변환" 버튼 명시 클릭
+- **멀티 셀렉트 중첩 순서**: `<strong>` > `<em>` > `<del>` 고정, 상태 전환 시 모든 태그 close/reopen (연속 같은 스타일은 그대로 merge)
+- **취소선 detection**: `<strikeout shape="..."/>` allowlist (SOLID/DOT/DASH/DASH_DOT/... 12종). `shape="3D"`는 HWP의 text effect placeholder이므로 비적용
+
+**주요 버그 수정 이력**:
+- `3e0b539`: 멀티 셀렉트 추가 (체크박스 + 단축키)
+- `ddd8ccd`: 편집/보기 모드 타이포그래피 통일 (Milkdown + react-markdown)
+- `86871ce`: HWPX 취소선 변환 지원 (bold와 동일 패턴)
+- `943efc4`: 연속 동일 스타일 run 병합 (`**t1****t2**` → `**t1t2**`)
+- `6c13f82`: 취소선 `shape="NONE"` 인식
+- `2c97a71`: 취소선 shape allowlist 도입 (`3D` 오탐 해결)
+- `dfffdf5`: 이탈릭 지원 추가
+
+**완료 기준**:
+- [x] 다중 파일을 드롭 → "변환" 클릭 → 5개씩 병렬 처리
+- [x] 진행 바에 실시간 done/total · % 표시
+- [x] 출력 폴더 변경 시 모든 변환에 반영되고 재시작 후에도 유지
+- [x] 실패 파일 재시도 (개별 + "실패 N개 재시도" 일괄)
+- [x] 체크박스 다중 선택으로 부분 변환 ("선택 N개 변환")
+- [x] 행 클릭 + Cmd/Ctrl/Shift 모디파이어 표준 동작
+- [x] HWPX bold/italic/strike 정확 변환 (오탐 0)
+- [x] Unit 157 passed, E2E 18 batch + 17 editor + 기존 파일 인터랙션
 
 ---
 
