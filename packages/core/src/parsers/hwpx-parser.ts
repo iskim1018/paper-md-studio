@@ -132,13 +132,35 @@ function parseCharStyles(headerDoc: Record<string, unknown>): CharStyles {
   return styles;
 }
 
+/**
+ * HWPX strikeout 스펙의 유효한 line pattern shape 목록.
+ * 이 외의 값(NONE, 3D 등)은 취소선이 적용되지 않은 것으로 간주한다.
+ * "3D"는 HWP의 text effect placeholder이고, "NONE"은 명시적 비적용.
+ */
+const STRIKE_LINE_SHAPES = new Set([
+  "SOLID",
+  "DOT",
+  "DASH",
+  "DASH_DOT",
+  "DASH_DOT_DOT",
+  "LONG_DASH",
+  "CIRCLE",
+  "DOUBLE_LINE",
+  "DOUBLE_SLIM_LINE",
+  "SLIM_THICK_LINE",
+  "THICK_SLIM_LINE",
+  "SLIM_THICK_SLIM_LINE",
+]);
+
 function isStrikeEnabled(strikeout: unknown): boolean {
   if (strikeout === undefined || strikeout === null) return false;
-  // bare <strikeout/> → parsed as "" (빈 문자열)
+  // bare <strikeout/> → parsed as "" (빈 문자열), 구버전 호환으로 enabled 처리
   if (typeof strikeout !== "object") return true;
   const shape = (strikeout as Record<string, unknown>)["@_shape"];
+  // shape 속성이 없는 empty object도 on 마커로 간주
   if (shape === undefined) return true;
-  return shape !== "NONE";
+  if (typeof shape !== "string") return false;
+  return STRIKE_LINE_SHAPES.has(shape);
 }
 
 // --- Image extraction ---

@@ -251,6 +251,42 @@ describe("HWPX 파서 상세 테스트", () => {
       );
     });
 
+    it("strikeout shape='3D'는 취소선으로 간주되지 않는다 (default text effect marker)", async () => {
+      // 실제 sample.hwpx는 대부분의 charPr에 shape="3D"를 넣어두는데
+      // 이는 HWPX strikeout 스펙(NONE/SOLID/DOT/DASH/...)에 없는 값이므로
+      // "미적용" marker로 해석되어야 한다.
+      const header3d = `<?xml version="1.0" encoding="UTF-8"?>
+<head>
+  <refList>
+    <styles>
+      <style id="0" name="본문" />
+    </styles>
+    <charProperties>
+      <charPr id="20">
+        <strikeout shape="3D" color="#000000"/>
+      </charPr>
+      <charPr id="21">
+        <strikeout shape="SOLID" color="#000000"/>
+      </charPr>
+    </charProperties>
+  </refList>
+</head>`;
+      const result = await writeAndConvert(
+        "strike-3d.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="20"><t>그림자텍스트</t></run>
+    <run charPrIDRef="21"><t>실제취소선</t></run>
+  </p>
+</sec>`,
+        { headerXml: header3d },
+      );
+
+      expect(result.markdown).not.toContain("~~그림자텍스트");
+      expect(result.markdown).toContain("~~실제취소선~~");
+    });
+
     it("strikeout shape='NONE'은 취소선으로 간주되지 않는다 (실제 HWPX 스키마)", async () => {
       // 실제 한컴 HWPX는 charPr마다 <strikeout shape="..."/>를 항상 포함.
       // shape="NONE"은 취소선 OFF, shape="SOLID" 등은 ON을 의미.
