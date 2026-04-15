@@ -40,11 +40,27 @@
   }
 }
 
-/* Markdown 프리뷰 (react-markdown) 기본 스타일 */
-.markdown-body {
+/* Markdown 프리뷰(react-markdown) + Milkdown WYSIWYG 공통 타이포그래피.
+ * 보기/편집 모드 간 시각적 일관성을 위해 두 컨테이너에 같은 규칙을 적용.
+ * Milkdown Crepe의 frame.css는 .ProseMirror에 기본 스타일을 넣으므로
+ * 더 구체적인 selector(.milkdown-container .ProseMirror)로 override한다. */
+.markdown-body,
+.milkdown-container .ProseMirror {
+  font-family:
+    system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+  font-size: 0.875rem; /* 14px — text-sm */
   line-height: 1.65;
   color: var(--color-text);
+}
 
+.milkdown-container .ProseMirror {
+  padding: 1rem;
+  outline: none;
+}
+
+.markdown-body,
+.milkdown-container .ProseMirror {
   h1 {
     font-size: 1.6em;
     font-weight: 700;
