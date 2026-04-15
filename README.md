@@ -1,13 +1,15 @@
-# docs-to-md
+# Paper MD Studio
 
-macOS 전용 문서 변환 도구. HWP, HWPX, DOCX, PDF 파일을 Markdown으로 변환합니다.
+HWP, HWPX, DOCX, PDF 문서를 Markdown으로 변환·편집하는 데스크톱 앱
+(macOS Apple Silicon + Windows 11). 변환 결과를 그 자리에서
+WYSIWYG/소스/분할 모드로 편집하고 저장할 수 있습니다.
 
 ## 특징
 
 - **CLI 지원**: 커맨드라인에서 바로 변환
 - **다중 포맷**: HWP, HWPX, DOCX, PDF 지원
 - **이미지 추출**: 문서 내 이미지를 별도 저장하고 MD에서 참조 (표 셀 내부 이미지 포함)
-- **macOS 네이티브 앱**: Tauri 2.x 기반 GUI
+- **macOS + Windows 네이티브 앱**: Tauri 2.x 기반 GUI
 - **내장 MD 에디터**: WYSIWYG / 소스 / 분할 모드 + 원본 미리보기 비교 + 다크모드
 - **파일 저장 단축키**: `Cmd/Ctrl+S` 덮어쓰기, `Cmd/Ctrl+Shift+S` 다른 이름으로 저장
 
@@ -16,7 +18,7 @@ macOS 전용 문서 변환 도구. HWP, HWPX, DOCX, PDF 파일을 Markdown으로
 ```bash
 # 저장소 클론
 git clone <repository-url>
-cd docs-to-md
+cd paper-md-studio
 
 # 의존성 설치
 pnpm install
@@ -31,13 +33,13 @@ pnpm build
 
 ```bash
 # 단일 파일 변환
-docs-to-md 문서.hwp          # HWP → HWPX → MD (Java 11+ 필요)
-docs-to-md document.hwpx
-docs-to-md report.docx -o ./output
-docs-to-md paper.pdf --images-dir assets
+paper-md-studio 문서.hwp          # HWP → HWPX → MD (Java 11+ 필요)
+paper-md-studio document.hwpx
+paper-md-studio report.docx -o ./output
+paper-md-studio paper.pdf --images-dir assets
 
 # 도움말
-docs-to-md --help
+paper-md-studio --help
 ```
 
 ### GUI (Tauri 앱)
@@ -74,7 +76,7 @@ HWP 바이너리는 Java 툴(`neolord0/hwp2hwpx`)로 HWPX로 선변환됩니다.
 pnpm build:hwp-tool  # Maven + JitPack (초기 ~수 분)
 ```
 
-환경변수 `DOCS_TO_MD_HWP_JAR`로 커스텀 jar 경로를 지정할 수 있습니다.
+환경변수 `PAPER_MD_STUDIO_HWP_JAR`로 커스텀 jar 경로를 지정할 수 있습니다.
 
 ### 지원 형식
 
@@ -108,4 +110,5 @@ pnpm lint:fix     # 린트 자동 수정
 
 ## 라이선스
 
-Private
+MIT License — `LICENSE` 파일 참고. 번들된 `neolord0/hwp2hwpx`(Apache-2.0)
+및 기타 의존성의 NOTICE는 추후 `THIRD_PARTY_LICENSES.md`로 정리 예정.

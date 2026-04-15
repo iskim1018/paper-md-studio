@@ -1,10 +1,10 @@
 # hwp-to-hwpx
 
-docs-to-md에서 사용하는 HWP → HWPX 변환 CLI 래퍼.
+paper-md-studio에서 사용하는 HWP → HWPX 변환 CLI 래퍼.
 
 `neolord0/hwp2hwpx` (Apache-2.0) Java 라이브러리를 내부적으로 사용하여
 HWP 5.0 바이너리 파일을 HWPX(OWPML) 포맷으로 변환합니다. 변환된 HWPX는
-기존 docs-to-md의 HWPX 파이프라인에 위임되어 Markdown으로 렌더링됩니다.
+기존 paper-md-studio의 HWPX 파이프라인에 위임되어 Markdown으로 렌더링됩니다.
 
 ## 요구사항
 

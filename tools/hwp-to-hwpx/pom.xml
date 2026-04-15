@@ -2,14 +2,14 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>com.docs-to-md</groupId>
+  <groupId>com.paper-md-studio</groupId>
   <artifactId>hwp-to-hwpx</artifactId>
   <version>0.1.0</version>
   <packaging>jar</packaging>
 
   <name>hwp-to-hwpx</name>
   <description>
-    docs-to-md CLI wrapper around neolord0/hwp2hwpx for converting
+    paper-md-studio CLI wrapper around neolord0/hwp2hwpx for converting
     HWP 5.0 binary files to HWPX (OWPML) format.
   </description>
 

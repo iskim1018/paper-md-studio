@@ -4,8 +4,9 @@
 
 ## 프로젝트 개요
 
-docs-to-md — macOS 전용 문서 변환 도구. HWP, HWPX, DOCX, PDF를 Markdown으로 변환합니다.
-CLI-first 접근: 변환 엔진(core)을 먼저 구축하고, 이후 Tauri GUI(app)를 씌웁니다.
+paper-md-studio — HWP, HWPX, DOCX, PDF를 Markdown으로 변환·편집하는
+크로스플랫폼 데스크톱 앱 (macOS Apple Silicon + Windows 11). CLI-first
+접근: 변환 엔진(core)을 먼저 구축하고, 이후 Tauri GUI(app)를 씌웁니다.
 
 ## 기술 스택
 

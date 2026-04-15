@@ -1,6 +1,6 @@
 # Markdown 출력 스펙
 
-docs-to-md가 생성하는 Markdown은 **GFM(GitHub Flavored Markdown)** 을 기준으로 합니다.
+paper-md-studio가 생성하는 Markdown은 **GFM(GitHub Flavored Markdown)** 을 기준으로 합니다.
 
 ## 변환 엔진
 

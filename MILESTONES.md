@@ -47,7 +47,7 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 
 **완료 기준**:
 - [x] 3개 포맷 각각 실제 파일로 변환 성공
-- [x] CLI로 `docs-to-md <파일>` 실행 가능
+- [x] CLI로 `paper-md-studio <파일>` 실행 가능
 - [x] 각 포맷별 최소 1개 테스트 통과
 
 ---
@@ -133,7 +133,7 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 - **HWPX 이미지 표 셀 추출 버그** (2026-04-13 수정): 9개 중 8개 누락 → `parseCellText`에 `ImageCollector` 전달하여 해결
 
 **완료 기준**:
-- [x] `docs-to-md sample.hwp` 실행 시 Markdown 생성 성공 (513ms, 이미지 1개 추출)
+- [x] `paper-md-studio sample.hwp` 실행 시 Markdown 생성 성공 (513ms, 이미지 1개 추출)
 - [x] Tauri app에서 `.hwp` 드롭 → 변환 결과 표시
 - [x] Java 미설치 환경에서 명확한 한국어 안내 메시지
 - [x] 추가 부가 수정: 뷰어 DOMPurify가 data/blob URI를 제거하던 문제 수정 (Phase A)

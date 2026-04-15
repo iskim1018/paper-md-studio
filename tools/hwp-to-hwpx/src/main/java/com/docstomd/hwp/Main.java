@@ -7,7 +7,7 @@ import kr.dogfoot.hwpxlib.object.HWPXFile;
 import kr.dogfoot.hwpxlib.writer.HWPXWriter;
 
 /**
- * docs-to-md HWP → HWPX CLI wrapper.
+ * paper-md-studio HWP → HWPX CLI wrapper.
  *
  * Usage:
  *   java -jar hwp-to-hwpx.jar &lt;input.hwp&gt; &lt;output.hwpx&gt;
