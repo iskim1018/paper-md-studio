@@ -217,38 +217,95 @@ function collectImageFromRun(
 
 // --- Text extraction ---
 
+function extractRawRunText(run: Record<string, unknown>): string {
+  const parts = ensureArray(run.t as Array<unknown>);
+  return parts
+    .map((t) => {
+      if (typeof t === "string") return t;
+      if (typeof t === "number") return String(t);
+      if (t && typeof t === "object")
+        return String((t as Record<string, unknown>)["#text"] ?? "");
+      return "";
+    })
+    .join("");
+}
+
+interface TagState {
+  strongOpen: boolean;
+  delOpen: boolean;
+}
+
+/**
+ * 현재 열려 있는 태그 상태에서 목표 상태로 전환하기 위한 HTML 조각을
+ * 계산하고 state를 in-place로 갱신한다. strong이 바뀌면 모든 태그를
+ * 닫고 새로 연다(중첩 순서 유지). del만 바뀌면 del만 토글.
+ */
+function transitionTags(
+  state: TagState,
+  wantStrong: boolean,
+  wantDel: boolean,
+): string {
+  let out = "";
+  if (wantStrong !== state.strongOpen) {
+    if (state.delOpen) {
+      out += "</del>";
+      state.delOpen = false;
+    }
+    if (state.strongOpen) {
+      out += "</strong>";
+      state.strongOpen = false;
+    }
+    if (wantStrong) {
+      out += "<strong>";
+      state.strongOpen = true;
+    }
+  }
+  if (wantDel !== state.delOpen) {
+    if (state.delOpen) {
+      out += "</del>";
+      state.delOpen = false;
+    }
+    if (wantDel) {
+      out += "<del>";
+      state.delOpen = true;
+    }
+  }
+  return out;
+}
+
+/**
+ * runs를 순회하면서 동일한 스타일(bold/strike)이 이어지면 하나의
+ * 태그로 감싸고, 스타일이 바뀌면 해당 태그만 닫고 다시 연다.
+ * 최외곽 태그는 <strong>, 내부 태그는 <del>로 중첩 순서를 고정.
+ *
+ * 예: [bold, bold, bold+strike, bold] →
+ *   <strong>t1t2<del>t3</del>t4</strong>
+ *
+ * 이렇게 해서 turndown이 `**t1t2~~t3~~t4**`로 단일 블록을 생성한다.
+ */
 function extractTextFromRuns(
   runs: Array<Record<string, unknown>>,
   charStyles: CharStyles,
 ): string {
   let text = "";
+  const state: TagState = { strongOpen: false, delOpen: false };
+
   for (const run of runs) {
-    const parts = ensureArray(run.t as Array<unknown>);
-    let runText = parts
-      .map((t) => {
-        if (typeof t === "string") return t;
-        if (typeof t === "number") return String(t);
-        if (t && typeof t === "object")
-          return String((t as Record<string, unknown>)["#text"] ?? "");
-        return "";
-      })
-      .join("");
-
+    const runText = extractRawRunText(run);
     if (!runText) continue;
-
-    runText = escapeHtml(runText);
     const charPrId = String(run["@_charPrIDRef"] ?? "");
-    if (charStyles.strikeIds.has(charPrId)) {
-      // turndown-plugin-gfm의 strikethrough는 <del>만 ~~로 변환하므로
-      // <s>가 아닌 <del>을 사용한다.
-      runText = `<del>${runText}</del>`;
-    }
-    if (charStyles.boldIds.has(charPrId)) {
-      runText = `<strong>${runText}</strong>`;
-    }
-
-    text += runText;
+    text += transitionTags(
+      state,
+      charStyles.boldIds.has(charPrId),
+      charStyles.strikeIds.has(charPrId),
+    );
+    text += escapeHtml(runText);
   }
+
+  // 남은 태그 닫기 (내부→외부)
+  if (state.delOpen) text += "</del>";
+  if (state.strongOpen) text += "</strong>";
+
   return text;
 }
 

@@ -136,6 +136,70 @@ describe("HWPX 파서 상세 테스트", () => {
 
       expect(result.markdown).toContain("**굵은 글씨**");
     });
+
+    it("연속된 볼드 run은 하나의 **로 병합된다", async () => {
+      // 사용자 리포트: **볼드1****볼드2** 식으로 split되면 뷰어에서 제대로
+      // 렌더링되지 않음. 하나로 묶여야 함.
+      const result = await writeAndConvert(
+        "bold-merge.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="1"><t>볼드1</t></run>
+    <run charPrIDRef="1"><t>볼드2</t></run>
+  </p>
+</sec>`,
+      );
+
+      expect(result.markdown).toContain("**볼드1볼드2**");
+      expect(result.markdown).not.toContain("**볼드1****볼드2**");
+    });
+
+    it("볼드 사이에 일반 run이 있으면 분리된다", async () => {
+      const result = await writeAndConvert(
+        "bold-split.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="1"><t>볼드</t></run>
+    <run charPrIDRef="0"><t>일반</t></run>
+    <run charPrIDRef="1"><t>다시볼드</t></run>
+  </p>
+</sec>`,
+      );
+
+      expect(result.markdown).toContain("**볼드**");
+      expect(result.markdown).toContain("일반");
+      expect(result.markdown).toContain("**다시볼드**");
+    });
+
+    it("연속된 취소선 run도 하나의 ~~로 병합된다", async () => {
+      const headerWithStrike = `<?xml version="1.0" encoding="UTF-8"?>
+<head>
+  <refList>
+    <styles>
+      <style id="0" name="본문" />
+    </styles>
+    <charProperties>
+      <charPr id="0" />
+      <charPr id="2"><strikeout /></charPr>
+    </charProperties>
+  </refList>
+</head>`;
+      const result = await writeAndConvert(
+        "strike-merge.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run charPrIDRef="2"><t>지움1</t></run>
+    <run charPrIDRef="2"><t>지움2</t></run>
+  </p>
+</sec>`,
+        { headerXml: headerWithStrike },
+      );
+
+      expect(result.markdown).toContain("~~지움1지움2~~");
+    });
   });
 
   describe("취소선 변환", () => {
