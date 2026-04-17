@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type DocumentFormat = "hwp" | "hwpx" | "docx" | "pdf";
+export type DocumentFormat = "hwp" | "hwpx" | "doc" | "docx" | "pdf";
 export type FileStatus = "pending" | "converting" | "done" | "error";
 
 export interface ConvertResult {
@@ -67,6 +67,7 @@ interface FileStore {
 const FORMAT_EXTENSIONS: Record<string, DocumentFormat> = {
   ".hwp": "hwp",
   ".hwpx": "hwpx",
+  ".doc": "doc",
   ".docx": "docx",
   ".pdf": "pdf",
 };

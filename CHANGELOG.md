@@ -2,6 +2,17 @@
 
 이 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.0.0/) 형식을 따릅니다.
 
+## [0.2.0] - 2026-04-17
+
+### 추가
+
+- **DOC (레거시 Word) 지원** (Phase 8)
+  - `.doc` (Word 97-2003) 파일을 DOCX로 선변환 후 Markdown으로 변환
+  - LibreOffice headless를 1순위 변환 도구로 사용 (크로스플랫폼, 이미지 보존)
+  - macOS에서 LibreOffice 미설치 시 textutil fallback (텍스트만 변환)
+  - `PAPER_MD_STUDIO_LIBREOFFICE` 환경변수로 커스텀 경로 지정 가능
+  - App에서 `.doc` 파일 드래그 앤 드롭 + 뷰어 + 배치 변환 지원
+
 ## [0.1.0] - 2026-04-16
 
 첫 번째 릴리스. HWP/HWPX/DOCX/PDF를 Markdown으로 변환하고 편집하는 데스크톱 앱.

@@ -24,6 +24,7 @@ const STATUS_ICON: Record<FileStatus, React.ReactNode> = {
 
 const FORMAT_BADGE_COLOR: Record<string, string> = {
   hwpx: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
+  doc: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
   docx: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
   pdf: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
 };

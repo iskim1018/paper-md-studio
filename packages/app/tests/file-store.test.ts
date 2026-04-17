@@ -25,10 +25,15 @@ describe("isSupportedFile", () => {
     expect(isSupportedFile("/path/to/FILE.HWP")).toBe(true);
   });
 
+  it(".doc 파일을 허용한다 (LibreOffice 경유)", () => {
+    expect(isSupportedFile("/path/to/old.doc")).toBe(true);
+    expect(isSupportedFile("/path/to/FILE.DOC")).toBe(true);
+  });
+
   it("지원하지 않는 형식은 거부한다", () => {
     expect(isSupportedFile("/path/to/image.png")).toBe(false);
     expect(isSupportedFile("/path/to/text.txt")).toBe(false);
-    expect(isSupportedFile("/path/to/old.doc")).toBe(false);
+    expect(isSupportedFile("/path/to/data.numbers")).toBe(false);
   });
 
   it("확장자가 없는 파일은 거부한다", () => {

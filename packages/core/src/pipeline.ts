@@ -1,6 +1,7 @@
 import { basename, extname } from "node:path";
 import { htmlToMarkdown } from "./html-to-md.js";
 import { normalizePath } from "./normalize.js";
+import { DocParser } from "./parsers/doc-parser.js";
 import { DocxParser } from "./parsers/docx-parser.js";
 import { HwpParser } from "./parsers/hwp-parser.js";
 import { HwpxParser } from "./parsers/hwpx-parser.js";
@@ -16,6 +17,7 @@ import type {
 const FORMAT_MAP: Record<string, DocumentFormat> = {
   ".hwp": "hwp",
   ".hwpx": "hwpx",
+  ".doc": "doc",
   ".docx": "docx",
   ".pdf": "pdf",
 };
@@ -23,6 +25,7 @@ const FORMAT_MAP: Record<string, DocumentFormat> = {
 const PARSER_MAP: Record<DocumentFormat, () => Parser> = {
   hwp: () => new HwpParser(),
   hwpx: () => new HwpxParser(),
+  doc: () => new DocParser(),
   docx: () => new DocxParser(),
   pdf: () => new PdfParser(),
 };
@@ -32,7 +35,7 @@ function detectFormat(filePath: string): DocumentFormat {
   const format = FORMAT_MAP[ext];
   if (!format) {
     throw new Error(
-      `지원하지 않는 파일 형식입니다: ${ext} (지원: .hwp, .hwpx, .docx, .pdf)`,
+      `지원하지 않는 파일 형식입니다: ${ext} (지원: .hwp, .hwpx, .doc, .docx, .pdf)`,
     );
   }
   return format;

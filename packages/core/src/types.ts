@@ -1,5 +1,5 @@
 /** 지원하는 문서 포맷 */
-export type DocumentFormat = "hwp" | "hwpx" | "docx" | "pdf";
+export type DocumentFormat = "hwp" | "hwpx" | "doc" | "docx" | "pdf";
 
 /** 변환 시 추출된 이미지 */
 export interface ImageAsset {

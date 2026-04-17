@@ -115,7 +115,7 @@ pnpm build:hwp-tool  # Maven + JitPack (초기 ~수 분)
 | 한글 문서 (HWPX) | `.hwpx` | ✅ | 표 셀 내부 이미지까지 추출 |
 | Word 문서 | `.docx` | ✅ | mammoth + turndown |
 | PDF | `.pdf` | ✅ | 텍스트 추출 (이미지 미지원) |
-| Word 문서 (레거시) | `.doc` | v2 예정 | |
+| Word 문서 (레거시) | `.doc` | ✅ | LibreOffice 필요 (macOS fallback: textutil) |
 
 ## 기술 스택
 

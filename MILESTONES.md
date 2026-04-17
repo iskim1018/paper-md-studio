@@ -276,11 +276,24 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 
 ---
 
-## (v2) Phase 8: DOC(레거시) 지원
+## Phase 8: DOC(레거시) 지원 ✅
 
-HWP는 Phase 4.5에서 선행 지원됨.
+**목표**: `.doc` (Word 97-2003) 파일을 DOC→DOCX 선변환 후 기존 DocxParser에 위임하여 Markdown으로 변환.
 
 | # | 태스크 | 복잡도 | 상태 |
 |---|--------|--------|------|
-| 8-1 | DOC → DOCX 변환 (macOS textutil 또는 LibreOffice headless) | M | ⬜ |
-| 8-2 | 뷰어/에디터 통합 | M | ⬜ |
+| 8-1 | DocParser 구현 (LibreOffice headless 1순위, macOS textutil fallback) + 타입/파이프라인 등록 | M | ✅ |
+| 8-2 | CLI `.doc` 지원 + help 텍스트 + App 뷰어/파일스토어/배지 통합 | M | ✅ |
+| 8-3 | 테스트 (포맷 등록 검증 + file-store .doc 수용 + doc-parser.test.ts) | S | ✅ |
+
+**결정 로그**:
+- **변환 도구**: LibreOffice headless를 1순위 사용 (크로스플랫폼, 이미지 보존). macOS에서 LibreOffice 미설치 시 textutil fallback (이미지 손실).
+- **번들링 안 함**: LibreOffice는 300MB+ → 시스템 설치 요구 (Java와 동일 전략)
+- **환경변수**: `PAPER_MD_STUDIO_LIBREOFFICE`로 커스텀 경로 지정 가능
+- **뷰어**: HwpxViewer 재사용 (CLI sidecar --html 경유, DOC→DOCX→HTML)
+
+**완료 기준**:
+- [x] pipeline이 `.doc` 확장자를 지원 포맷으로 인식
+- [x] App에서 `.doc` 파일 드래그 앤 드롭 허용 + 배지 표시
+- [x] Unit 159 passed (신규 2개 포함), 기존 테스트 전부 통과
+- [x] LibreOffice 미설치 환경에서 명확한 한국어 안내 메시지
