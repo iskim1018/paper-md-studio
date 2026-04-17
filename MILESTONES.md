@@ -256,14 +256,14 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 | 7-F | 다크 모드에서 Milkdown 편집기 배경 오버라이드 (frame-dark 변수 덮어쓰기) | S | ✅ |
 | 7-G | 파일 충돌 프롬프트 (동일 이름 .md 존재 시 덮어쓰기/다른 이름/취소), CLI `--output` .md 경로 지원, 큐 skip 집계, "초기화" 버튼이 progress bar까지 리셋, 툴바 버튼 flex-wrap+whitespace-nowrap | M | ✅ |
 | 7-H | macOS 앱 아이콘 교체 (`tauri icon source.png` 세트 재생성) | S | ✅ |
-| 7-I | Windows MSI/NSIS 빌드 검증 (GitHub Actions windows-latest) | M | ⬜ |
-| 7-J | GitHub Actions CI/Release matrix (macOS + Windows, tag push 자동 릴리스) | M | ⬜ |
-| 7-K | macOS Gatekeeper 우회 가이드 + ad-hoc 코드사인 (Apple Developer 멤버십 없음) | S | ⬜ |
-| 7-L | README / DEVELOPMENT.md / CHANGELOG 최종화 | S | ⬜ |
-| 7-M | THIRD_PARTY_LICENSES.md (Milkdown, hwp2hwpx, Node, Temurin, 기타 의존성) | S | ⬜ |
-| 7-N | E2E 회귀 테스트 (Playwright, 배포 빌드 대상) | L | ⬜ |
-| 7-O | 성능 프로파일링 (대용량 HWPX/PDF, 배치 변환) | M | ⬜ |
-| 7-P | npm 보안 감사 최종 실행 | S | ⬜ |
+| 7-I | Windows MSI/NSIS 빌드 검증 (GitHub Actions windows-latest) | M | ✅ (release.yml matrix로 통합) |
+| 7-J | GitHub Actions CI/Release matrix (macOS + Windows, tag push 자동 릴리스) | M | ✅ |
+| 7-K | macOS Gatekeeper 우회 가이드 + ad-hoc 코드사인 (Apple Developer 멤버십 없음) | S | ✅ |
+| 7-L | README / DEVELOPMENT.md / CHANGELOG 최종화 | S | ✅ |
+| 7-M | THIRD_PARTY_LICENSES.md (Milkdown, hwp2hwpx, Node, Temurin, 기타 의존성) | S | ✅ |
+| 7-N | E2E 회귀 테스트 (Playwright, 배포 빌드 대상) | L | ✅ (playwright.prod.config.ts) |
+| 7-O | 성능 프로파일링 (대용량 HWPX/PDF, 배치 변환) | M | ⏸ deferred (v0.1.1) |
+| 7-P | npm 보안 감사 최종 실행 (dompurify ^3.4.0 패치 적용) | S | ✅ |
 
 ### Phase 7 결정 로그
 

@@ -1,8 +1,37 @@
 # Paper MD Studio
 
+[![CI](https://github.com/iskim/paper-md-studio/actions/workflows/ci.yml/badge.svg)](https://github.com/iskim/paper-md-studio/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 HWP, HWPX, DOCX, PDF 문서를 Markdown으로 변환·편집하는 데스크톱 앱
 (macOS Apple Silicon + Windows 11). 변환 결과를 그 자리에서
 WYSIWYG/소스/분할 모드로 편집하고 저장할 수 있습니다.
+
+## 다운로드
+
+[GitHub Releases](https://github.com/iskim/paper-md-studio/releases)에서
+최신 버전을 내려받으세요.
+
+| 플랫폼 | 파일 |
+|--------|------|
+| macOS (Apple Silicon) | `Paper.MD.Studio_x.x.x_aarch64.dmg` |
+| Windows (x64) | `Paper.MD.Studio_x.x.x_x64-setup.exe` 또는 `.msi` |
+
+### macOS 설치 안내
+
+Apple Developer 인증서로 서명되지 않았으므로 Gatekeeper 경고가 표시됩니다.
+아래 방법 중 하나로 실행하세요:
+
+**방법 1: 터미널에서 격리 속성 제거**
+```bash
+xattr -cr "/Applications/Paper MD Studio.app"
+```
+실행 후 앱을 열어주세요.
+
+**방법 2: 시스템 설정에서 허용**
+1. 앱을 처음 열면 차단 경고가 표시됩니다
+2. **시스템 설정 > 개인정보 보호 및 보안** 으로 이동
+3. 하단 "확인 없이 열기" 클릭
 
 ## 특징
 
@@ -110,5 +139,5 @@ pnpm lint:fix     # 린트 자동 수정
 
 ## 라이선스
 
-MIT License — `LICENSE` 파일 참고. 번들된 `neolord0/hwp2hwpx`(Apache-2.0)
-및 기타 의존성의 NOTICE는 추후 `THIRD_PARTY_LICENSES.md`로 정리 예정.
+MIT License — `LICENSE` 파일 참고.
+번들된 의존성 라이선스는 [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md)를 참고하세요.

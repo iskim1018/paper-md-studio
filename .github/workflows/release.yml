@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-jar:
+    name: Build HWP Tool (JAR)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: maven
+
+      - name: Build hwp-to-hwpx.jar
+        run: cd tools/hwp-to-hwpx && mvn -B clean package
+
+      - name: Copy jar to core resources
+        run: cp tools/hwp-to-hwpx/target/hwp-to-hwpx.jar packages/core/resources/hwp-to-hwpx.jar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hwp-to-hwpx-jar
+          path: packages/core/resources/hwp-to-hwpx.jar
+
+  build-release:
+    name: Build (${{ matrix.label }})
+    needs: build-jar
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS
+            runner: macos-14
+            sidecar-target: aarch64-apple-darwin
+          - label: Windows
+            runner: windows-latest
+            sidecar-target: x86_64-pc-windows-msvc
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/app/src-tauri/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('packages/app/src-tauri/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: hwp-to-hwpx-jar
+          path: packages/core/resources/
+
+      - name: Build core & CLI
+        run: pnpm build
+
+      - name: Build JRE (jlink)
+        run: pnpm build:jre
+
+      - name: Bundle Node runtime
+        run: pnpm build:node
+
+      - name: Build CLI bundle
+        run: pnpm build:cli-bundle
+
+      - name: Prepare app resources
+        run: pnpm build:app-resources
+
+      - name: Install sidecar wrapper
+        run: pnpm --filter @paper-md-studio/app sidecar:install
+
+      - name: Ad-hoc codesign (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "Ad-hoc signing will be applied by tauri-action during build"
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: packages/app
+          tagName: v__VERSION__
+          releaseName: Paper MD Studio v__VERSION__
+          releaseBody: |
+            Paper MD Studio v__VERSION__ 릴리스
+
+            설치 후 macOS에서 Gatekeeper 경고가 표시되면:
+            ```
+            xattr -cr "/Applications/Paper MD Studio.app"
+            ```
+            실행 후 앱을 열어주세요.
+          releaseDraft: true
+          prerelease: false
