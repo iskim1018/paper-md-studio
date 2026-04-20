@@ -7,6 +7,8 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 스캐폴딩    CLI 변환     이미지      Tauri GUI    원본 뷰어    HWP 지원     MD 에디터    배치 처리    패키징
 
 (v2) Phase 8: DOC(레거시) 지원
+(v3) Phase 9 ──> Phase 10 ──> Phase 11
+     REST API     MCP 서버     운영 확장
 ```
 
 ---
@@ -297,3 +299,107 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 - [x] App에서 `.doc` 파일 드래그 앤 드롭 허용 + 배지 표시
 - [x] Unit 159 passed (신규 2개 포함), 기존 테스트 전부 통과
 - [x] LibreOffice 미설치 환경에서 명확한 한국어 안내 메시지
+
+---
+
+## Phase 9: REST API 서버 🚧
+
+**목표**: `@paper-md-studio/core`를 HTTP로 노출하여 외부 서비스/에이전트가 문서를 Markdown으로 변환하도록 지원. content-addressed 캐시로 재변환 비용을 제거하고 Phase 10 MCP의 토큰 절감 기반을 마련한다.
+
+**브랜치**: `feat/phase9-rest-api` · **계획 문서**: `.claude/plan/phase9-rest-api.md` (로컬 전용)
+
+| # | 태스크 | 복잡도 | 상태 |
+|---|--------|--------|------|
+| 9-1  | `packages/server` 스캐폴딩 (Fastify 5 + Zod + tsup + Vitest) | S | ✅ |
+| 9-2  | `StorageAdapter` 인터페이스 + `LocalFsStorage` 구현 (SHA-256 content-addressed) | M | ✅ |
+| 9-3  | `ConvertCache` (core 래핑 + 캐시 히트·미스 로깅) | M | ⏳ |
+| 9-4  | `POST /v1/convert` 동기 엔드포인트 + Zod 스키마 + 멀티파트 업로드 | M | ⏳ |
+| 9-5  | `?images=` 분기 (inline / urls / zip / omit / refs) | L | ⏳ |
+| 9-6  | HMAC signed URL 유틸 (발급·검증, 15분 만료) | S | ⏳ |
+| 9-7  | `GET /v1/conversions/:id/images/:name` 다운로드 핸들러 | S | ⏳ |
+| 9-8  | 비동기 잡: 인메모리 큐 + `POST/GET /v1/conversions` | M | ⏳ |
+| 9-9  | SSE 진행률 (`GET /v1/conversions/:id/events`) | M | ⏳ |
+| 9-10 | API Key 미들웨어 (`X-API-Key`) | S | ⏳ |
+| 9-11 | 레이트리밋 (`@fastify/rate-limit`, IP+API Key) | S | ⏳ |
+| 9-12 | OpenAPI 자동 생성 + `/docs` Swagger UI | S | ⏳ |
+| 9-13 | 업로드 한계·MIME 검증 | S | ⏳ |
+| 9-14 | 통합 테스트 (5 포맷 × 5 이미지 모드, `fastify.inject`) | L | ⏳ |
+| 9-15 | 캐시 히트 테스트 (같은 파일 재업로드 elapsed 비교) | S | ⏳ |
+| 9-16 | Dockerfile (Node 20 + JRE 11 + HWP jar) | M | ⏳ |
+| 9-17 | `docs/REST_API.md` 레퍼런스 + curl 예제 | S | ⏳ |
+| 9-18 | `.env.example` + `CONFIG.md` | S | ⏳ |
+| 9-19 | CI 워크플로우 업데이트 | S | ⏳ |
+
+**설계 결정 요약**:
+- **이미지 처리**: Hybrid — `?images=` 쿼리로 5가지 모드 선택, 기본값 `urls`(signed URL). MCP 전용 `refs` 모드 별도.
+- **캐시 키**: `sha256(file_bytes)` 64자 hex. 동일 파일 재업로드 시 파싱 스킵.
+- **스토리지**: `StorageAdapter` 인터페이스로 추상화 → Phase 11에서 S3/R2 어댑터 교체.
+- **동기/비동기**: 작은 문서는 `POST /v1/convert` 즉시 응답, HWP·대용량은 202 Accepted + SSE 진행률.
+- **인증**: MVP는 `X-API-Key`만. OAuth/JWT는 Phase 11.
+
+**완료 기준**:
+- [ ] 5개 포맷 × 5개 이미지 모드 통합 테스트 그린
+- [ ] 동일 파일 재업로드 시 캐시 히트 (elapsed < 50ms)
+- [ ] OpenAPI `/docs` 접근 가능
+- [ ] Docker 이미지에서 HWP 변환 성공
+- [ ] API Key 없이 401, 레이트 초과 시 429
+
+---
+
+## Phase 10: MCP 서버 📋
+
+**목표**: Phase 9의 REST API 위에(또는 core 직접 호출 모드로) MCP 서버를 제공하여 Claude Desktop/Cursor 등 LLM 클라이언트가 원본 바이너리(HWPX/DOCX/HWP/DOC/PDF)를 **토큰으로 직접 먹지 않고** 변환된 Markdown만 소비하도록 지원. outline/chunk/search로 부분 조회하여 컨텍스트 비용을 추가 절감한다.
+
+**브랜치**: `feat/phase10-mcp-server` · **계획 문서**: `.claude/plan/phase10-mcp-server.md`
+
+| # | 태스크 | 복잡도 | 상태 |
+|---|--------|--------|------|
+| 10-1  | `packages/mcp` 스캐폴딩 (`@modelcontextprotocol/sdk`, stdio + HTTP, bin 엔트리) | S | 📋 |
+| 10-2  | `StorageAdapter` 공용화 (server→shared) + core 직접 호출 어댑터 | M | 📋 |
+| 10-3  | Outline 추출 유틸 (MD heading 트리) | S | 📋 |
+| 10-4  | `convert_document` 툴 (refs 기본 모드) | M | 📋 |
+| 10-5  | `get_document_outline` 툴 | S | 📋 |
+| 10-6  | `get_document_chunk` 툴 (anchor/heading path slice) | M | 📋 |
+| 10-7  | BM25 검색 엔진 + `search_document` 툴 | M | 📋 |
+| 10-8  | 이미지 Resources 노출 (`conv://{id}/images/...`) | M | 📋 |
+| 10-9  | `list_conversions` 툴 | S | 📋 |
+| 10-10 | Remote 모드 (REST 프록시 + API Key) | M | 📋 |
+| 10-11 | Streamable HTTP 전송 (Fastify에 MCP 라우트 부착) | M | 📋 |
+| 10-12 | 통합 테스트 (MCP Inspector / in-memory transport) | L | 📋 |
+| 10-13 | 토큰 절감 벤치마크 스크립트 | M | 📋 |
+| 10-14 | Claude Desktop/Cursor 등록 가이드 (`docs/MCP.md`) | S | 📋 |
+| 10-15 | CI: `packages/mcp` 빌드·테스트 추가 | S | 📋 |
+
+**토큰 절감 목표** (10MB HWPX 기준):
+- 원본 바이너리 LLM 투입: 불가
+- `convert_document` 전체 MD: ≈15,000 토큰
+- `get_document_outline`만: ≈300 토큰 (**50배 절감**)
+- `search_document(q, topK=3)`: ≈1,500 토큰 (**10배 절감**)
+- content-hash 캐시로 재파싱 비용 0
+
+**완료 기준**:
+- [ ] Claude Desktop에서 `convert_document` 호출 성공
+- [ ] 5개 툴 모두 동작 (convert/outline/chunk/search/list)
+- [ ] 토큰 벤치마크: outline vs full 10배 이상 차이 입증
+- [ ] 같은 `conversionId` 재호출 < 100ms
+
+---
+
+## Phase 11: 운영 확장 📋 (후순위)
+
+**목표**: Phase 9/10 MVP를 프로덕션 품질로 끌어올린다. Phase 9/10 완료 후 실사용 패턴을 보고 우선순위를 재조정한다.
+
+**브랜치**: `feat/phase11-ops` · **계획 문서**: `.claude/plan/phase11-ops-hardening.md`
+
+| 영역 | 주요 태스크 |
+|------|-------------|
+| 인증 | OAuth2 / JWT (스코프: `convert:read`, `convert:write`) |
+| 스토리지 | `S3StorageAdapter` + 프리사인드 URL |
+| 큐 | BullMQ + Redis 영속 큐 (워커 분리) |
+| 관측 | Prometheus `/metrics` + OpenTelemetry 트레이싱 |
+| 캐시 GC | 크론 기반 LRU/TTL, 용량 상한 |
+| 배포 | Fly.io/Railway 템플릿, Helm 차트(옵션) |
+| 한글 검색 | mecab-ko / kiwi-nlp 품질 개선 |
+| 비용 대시보드 | MCP 토큰 절감 실측 대시보드 |
+| 로드 테스트 | k6/autocannon + 튜닝 |
+| 보안 감사 | OWASP API Top 10 점검 |
