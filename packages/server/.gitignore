@@ -1,0 +1,4 @@
+dist/
+node_modules/
+.paper-md-storage/
+*.log
