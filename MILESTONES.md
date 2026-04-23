@@ -312,7 +312,7 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 |---|--------|--------|------|
 | 9-1  | `packages/server` 스캐폴딩 (Fastify 5 + Zod + tsup + Vitest) | S | ✅ |
 | 9-2  | `StorageAdapter` 인터페이스 + `LocalFsStorage` 구현 (SHA-256 content-addressed) | M | ✅ |
-| 9-3  | `ConvertCache` (core 래핑 + 캐시 히트·미스 로깅) | M | ⏳ |
+| 9-3  | `ConvertCache` (core 래핑 + 캐시 히트·미스 로깅) | M | ✅ |
 | 9-4  | `POST /v1/convert` 동기 엔드포인트 + Zod 스키마 + 멀티파트 업로드 | M | ⏳ |
 | 9-5  | `?images=` 분기 (inline / urls / zip / omit / refs) | L | ⏳ |
 | 9-6  | HMAC signed URL 유틸 (발급·검증, 15분 만료) | S | ⏳ |
