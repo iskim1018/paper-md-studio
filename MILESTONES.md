@@ -344,6 +344,14 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 - [ ] Docker 이미지에서 HWP 변환 성공
 - [ ] API Key 없이 401, 레이트 초과 시 429
 
+### Phase 9 결정 로그
+
+| 날짜 | 결정 | 근거 |
+|------|------|------|
+| 2026-04-20 | Phase 9+ 는 **장기 feature 브랜치 전략** 채택 (`feat/phase9-rest-api`, `feat/phase10-mcp-server`, `feat/phase11-ops`) | Phase 8까지 main 직접 작업과 달리, 서버 패키지 도입은 변경 범위가 크고 검증 주기가 길어 main을 항상 릴리스 가능 상태로 유지해야 함 |
+| 2026-04-23 | Phase 9-1/9-2 를 `main`으로 fast-forward 병합 (3 commits) | 스캐폴딩·StorageAdapter는 독립 가치가 있고 리스크 낮음. 나머지 9-3~9-19 는 main 에서 계속 진행 |
+| 2026-04-23 | Phase 4/5 historical 플랜 문서를 `.claude/plan/archive/` 로 이동 | 완료된 Phase 의 설계 문서는 기록 용도로 격리, 현역 로드맵(`README.md`, `phase9/10/11.md`)과 시야 분리 |
+
 ---
 
 ## Phase 10: MCP 서버 📋
