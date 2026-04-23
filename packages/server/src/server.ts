@@ -1,3 +1,4 @@
+import fastifyMultipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
   serializerCompiler,
@@ -5,10 +6,15 @@ import {
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { ConvertCache } from "./cache/index.js";
 import type { ServerConfig } from "./config.js";
+import { registerConvertRoute } from "./routes/convert.js";
+import { LocalFsStorage } from "./storage/index.js";
 
 export interface BuildServerOptions {
   readonly config: ServerConfig;
+  /** 주입 시 내부에서 LocalFsStorage + ConvertCache 를 새로 만들지 않는다. */
+  readonly convertCache?: ConvertCache;
 }
 
 export async function buildServer(
@@ -24,6 +30,20 @@ export async function buildServer(
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+
+  await app.register(fastifyMultipart, {
+    limits: {
+      fileSize: config.maxUploadMb * 1024 * 1024,
+      files: 1,
+    },
+  });
+
+  const convertCache =
+    options.convertCache ??
+    new ConvertCache({
+      storage: new LocalFsStorage({ root: config.storageRoot }),
+      logger: app.log,
+    });
 
   app.route({
     method: "GET",
@@ -41,6 +61,8 @@ export async function buildServer(
       version: "0.1.0",
     }),
   });
+
+  await registerConvertRoute(app, { convertCache });
 
   return app;
 }
