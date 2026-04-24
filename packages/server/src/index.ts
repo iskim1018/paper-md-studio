@@ -23,6 +23,14 @@ export type {
 export { ConvertCache } from "./cache/index.js";
 export type { ServerConfig } from "./config.js";
 export { loadConfig } from "./config.js";
+export type {
+  ImageMode,
+  InlineTooLargeInfo,
+  ResponseImage,
+  RewriteOptions,
+  RewriteResult,
+} from "./images/index.js";
+export { IMAGE_MODES, rewriteMarkdown } from "./images/index.js";
 export type { BuildServerOptions } from "./server.js";
 export { buildServer } from "./server.js";
 export type {

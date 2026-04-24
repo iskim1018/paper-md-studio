@@ -11,6 +11,8 @@ const ImageMetaSchema = z.object({
   name: z.string(),
   mimeType: z.string(),
   size: z.number().int().nonnegative(),
+  url: z.string().optional(),
+  uri: z.string().optional(),
 });
 
 export const ConvertDataSchema = z.object({

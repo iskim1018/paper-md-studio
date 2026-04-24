@@ -1,11 +1,12 @@
 import fastifyMultipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
+  hasZodFastifySchemaValidationErrors,
   serializerCompiler,
   validatorCompiler,
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
-import { z } from "zod";
+import { ZodError, z } from "zod";
 import {
   createSignedUrlSigner,
   MemoryApiKeyStore,
@@ -15,6 +16,7 @@ import { ConvertCache } from "./cache/index.js";
 import type { ServerConfig } from "./config.js";
 import { registerConvertRoute } from "./routes/convert.js";
 import { registerImageRoute } from "./routes/images.js";
+import { apiError } from "./schemas/api.js";
 import { LocalFsStorage, type StorageAdapter } from "./storage/index.js";
 
 export interface BuildServerOptions {
@@ -41,6 +43,19 @@ export async function buildServer(
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+  app.setErrorHandler((err, req, reply) => {
+    if (
+      hasZodFastifySchemaValidationErrors(err) ||
+      err instanceof ZodError ||
+      (err as { code?: string }).code === "FST_ERR_VALIDATION"
+    ) {
+      return reply.code(400).send(apiError("요청 검증에 실패했습니다."));
+    }
+    req.log.error({ err }, "처리되지 않은 예외");
+    return reply
+      .code(500)
+      .send(apiError(err instanceof Error ? err.message : "알 수 없는 오류"));
+  });
 
   const apiKeyStore = new MemoryApiKeyStore({
     keys: config.apiKeys,
@@ -89,7 +104,13 @@ export async function buildServer(
     }),
   });
 
-  await registerConvertRoute(app, { convertCache });
+  await registerConvertRoute(app, {
+    convertCache,
+    storage,
+    signer,
+    baseUrl: config.publicBaseUrl,
+    maxInlineKb: config.publicMaxInlineKb,
+  });
   await registerImageRoute(app, { storage, signer });
 
   return app;

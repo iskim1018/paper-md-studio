@@ -112,7 +112,10 @@ export class ConvertCache {
 
     try {
       await writeFile(inputPath, input.bytes);
-      const converted = await this.convertImpl({ inputPath });
+      const converted = await this.convertImpl({
+        inputPath,
+        imagesDirName: "images",
+      });
 
       const meta = await this.storage.put({
         sha256: sha,

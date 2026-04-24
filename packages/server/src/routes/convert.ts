@@ -1,11 +1,16 @@
 import { extname } from "node:path";
 import type { FastifyInstance, FastifyRequest } from "fastify";
+import { z } from "zod";
+import type { SignedUrlSigner } from "../auth/index.js";
 import type { ConvertCache } from "../cache/index.js";
+import type { ImageMode } from "../images/index.js";
+import { IMAGE_MODES, rewriteMarkdown } from "../images/index.js";
 import {
   ApiErrorSchema,
   apiError,
   ConvertSuccessSchema,
 } from "../schemas/api.js";
+import type { StorageAdapter } from "../storage/index.js";
 
 const SUPPORTED_EXTENSIONS = new Set([
   ".hwp",
@@ -15,8 +20,18 @@ const SUPPORTED_EXTENSIONS = new Set([
   ".pdf",
 ]);
 
+const QuerySchema = z.object({
+  images: z
+    .enum(IMAGE_MODES as unknown as [ImageMode, ...Array<ImageMode>])
+    .optional(),
+});
+
 export interface RegisterConvertRouteOptions {
   readonly convertCache: ConvertCache;
+  readonly storage: StorageAdapter;
+  readonly signer: SignedUrlSigner;
+  readonly baseUrl: string | null;
+  readonly maxInlineKb: number;
 }
 
 type ParsedUpload =
@@ -101,12 +116,13 @@ export async function registerConvertRoute(
   app: FastifyInstance,
   options: RegisterConvertRouteOptions,
 ): Promise<void> {
-  const { convertCache } = options;
+  const { convertCache, storage, signer, baseUrl, maxInlineKb } = options;
 
   app.route({
     method: "POST",
     url: "/v1/convert",
     schema: {
+      querystring: QuerySchema,
       response: {
         200: ConvertSuccessSchema,
         400: ApiErrorSchema,
@@ -119,22 +135,50 @@ export async function registerConvertRoute(
       if (!parsed.ok) {
         return reply.code(parsed.status).send(apiError(parsed.error));
       }
+      const { images: mode = "urls" } = req.query as z.infer<
+        typeof QuerySchema
+      >;
 
       try {
         const result = await convertCache.convert({
           bytes: parsed.bytes,
           originalName: parsed.originalName,
         });
+
+        const rewritten = await rewriteMarkdown({
+          markdown: result.markdown,
+          images: result.meta.images,
+          conversionId: result.meta.conversionId,
+          mode,
+          storage,
+          signer,
+          baseUrl,
+          maxInlineKb,
+        });
+
+        if (!rewritten.ok) {
+          const names = rewritten.offenders.map((o) => o.name).join(", ");
+          return reply
+            .code(413)
+            .send(
+              apiError(
+                `이미지가 인라인 크기 상한(${rewritten.limitKb}KB)을 초과했습니다: ${names}. ?images=urls 또는 ?images=refs 를 사용하세요.`,
+              ),
+            );
+        }
+
         return reply.code(200).send({
           success: true as const,
           data: {
             conversionId: result.meta.conversionId,
             format: result.meta.format,
-            markdown: result.markdown,
-            images: result.meta.images.map((img) => ({
+            markdown: rewritten.markdown,
+            images: rewritten.responseImages.map((img) => ({
               name: img.name,
               mimeType: img.mimeType,
               size: img.size,
+              ...(img.url === undefined ? {} : { url: img.url }),
+              ...(img.uri === undefined ? {} : { uri: img.uri }),
             })),
             cached: result.cached,
             elapsedMs: result.elapsedMs,
