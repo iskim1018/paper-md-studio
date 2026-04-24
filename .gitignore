@@ -1,7 +1,3 @@
-packages/app/.omc/
-.claude/skills
-.claude/plan
-
 # Dependencies
 node_modules/
 
@@ -52,7 +48,6 @@ test-results/
 # Test fixture samples (보안상 실제 문서는 저장소에 포함하지 않음)
 # 개발자는 로컬에 packages/core/tests/fixtures/ 아래 sample.{hwp,hwpx,docx,pdf},
 # sample-with-image.docx를 직접 배치. 샘플이 없으면 관련 테스트는 자동 skip.
-# 보안상 실제 문서 fixture는 모두 제외 (README.md만 유지)
 packages/core/tests/fixtures/*.hwp
 packages/core/tests/fixtures/*.hwpx
 packages/core/tests/fixtures/*.docx
@@ -64,10 +59,14 @@ packages/core/tests/fixtures/*_images/
 # TypeScript build info
 *.tsbuildinfo
 
-# Claude Code local settings
-.claude/settings.local.json
+# Claude Code — 공유: settings.json, rules/, skills/{convert-test,doc-update,security-check}/
+# 제외: 개인 데이터 · 로컬 초안 · 이전 실험 잔재
 .claude/memory/
-.claude/rules/
+.claude/plan/
+.claude/settings.local.json
+
+# git history 재작성 전 백업 (로컬 전용)
+.git.backup/
 
 # Logs
 *.log

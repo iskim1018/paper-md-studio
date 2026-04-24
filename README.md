@@ -165,10 +165,6 @@ pnpm build:hwp-tool   # Maven + JitPack (초기 수 분)
 - 📋 Phase 10 — MCP 서버 (Claude Desktop / Cursor 연동)
 - 📋 Phase 11 — 운영 확장 (Redis · S3 · OAuth · BullMQ · 메트릭)
 
-## 기여
-
-이슈와 PR 모두 환영합니다. 작업 전 [`CLAUDE.md`](CLAUDE.md) 의 코딩 규칙(네이밍 · 파일 구조 · 한글 파일명 처리 · 테스트 요구)을 훑어봐 주세요.
-
 ## 라이선스
 
 MIT License — [`LICENSE`](LICENSE) 참고.
