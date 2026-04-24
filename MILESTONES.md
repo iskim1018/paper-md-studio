@@ -354,29 +354,43 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 
 ---
 
-## Phase 10: MCP 서버 📋
+## Phase 10: MCP 서버 🚧
 
 **목표**: Phase 9의 REST API 위에(또는 core 직접 호출 모드로) MCP 서버를 제공하여 Claude Desktop/Cursor 등 LLM 클라이언트가 원본 바이너리(HWPX/DOCX/HWP/DOC/PDF)를 **토큰으로 직접 먹지 않고** 변환된 Markdown만 소비하도록 지원. outline/chunk/search로 부분 조회하여 컨텍스트 비용을 추가 절감한다.
 
-**브랜치**: `feat/phase10-mcp-server` · **계획 문서**: `.claude/plan/phase10-mcp-server.md`
+**브랜치**: `main` (MVP) · **계획 문서**: `.claude/plan/phase10-mcp-server.md` (+ `.claude/plans/cryptic-spinning-frost.md` MVP 계획)
+
+**MVP 범위** (2026-04-24): embedded 모드 + stdio 전송 + 3 툴. `packages/server` 의 `StorageAdapter`/`ConvertCache`/`LocalFsStorage` 등을 workspace 의존성으로 재사용하여 shared 패키지 추출 없이 구현.
 
 | # | 태스크 | 복잡도 | 상태 |
 |---|--------|--------|------|
-| 10-1  | `packages/mcp` 스캐폴딩 (`@modelcontextprotocol/sdk`, stdio + HTTP, bin 엔트리) | S | 📋 |
-| 10-2  | `StorageAdapter` 공용화 (server→shared) + core 직접 호출 어댑터 | M | 📋 |
-| 10-3  | Outline 추출 유틸 (MD heading 트리) | S | 📋 |
-| 10-4  | `convert_document` 툴 (refs 기본 모드) | M | 📋 |
-| 10-5  | `get_document_outline` 툴 | S | 📋 |
-| 10-6  | `get_document_chunk` 툴 (anchor/heading path slice) | M | 📋 |
+| 10-1  | `packages/mcp` 스캐폴딩 (`@modelcontextprotocol/sdk@^1.29`, stdio, bin 엔트리) | S | ✅ |
+| 10-2  | `StorageAdapter` 공용화 — server 를 workspace dep 으로 직접 import (shared 패키지 추출 생략) | M | ✅ |
+| 10-3  | Outline 추출 유틸 (MD heading 트리, GitHub 슬러그, 코드 펜스 인식) + chunk 추출기 | S | ✅ |
+| 10-4  | `convert_document` 툴 (refs/inline/omit 모드, path/url/base64 입력) | M | ✅ |
+| 10-5  | `get_document_outline` 툴 | S | ✅ |
+| 10-6  | `get_document_chunk` 툴 (anchor/headingPath/range slice + prev/next neighbors) | M | ✅ |
 | 10-7  | BM25 검색 엔진 + `search_document` 툴 | M | 📋 |
 | 10-8  | 이미지 Resources 노출 (`conv://{id}/images/...`) | M | 📋 |
 | 10-9  | `list_conversions` 툴 | S | 📋 |
-| 10-10 | Remote 모드 (REST 프록시 + API Key) | M | 📋 |
+| 10-10 | Remote 모드 (REST 프록시 + API Key) | M | ✅ |
 | 10-11 | Streamable HTTP 전송 (Fastify에 MCP 라우트 부착) | M | 📋 |
-| 10-12 | 통합 테스트 (MCP Inspector / in-memory transport) | L | 📋 |
+| 10-12 | 통합 테스트 (SDK `InMemoryTransport` 기반, 30개 테스트) | L | ✅ (MVP 범위) |
 | 10-13 | 토큰 절감 벤치마크 스크립트 | M | 📋 |
-| 10-14 | Claude Desktop/Cursor 등록 가이드 (`docs/MCP.md`) | S | 📋 |
+| 10-14 | Claude Desktop/Cursor 등록 가이드 (`docs/MCP.md`) | S | ✅ |
 | 10-15 | CI: `packages/mcp` 빌드·테스트 추가 | S | 📋 |
+
+**MVP 결정 로그**:
+
+| 날짜 | 결정 | 근거 |
+|------|------|------|
+| 2026-04-24 | embedded 모드 단독으로 MVP 출시, remote 모드는 10-10 에서 별도 PR | 사용자 1순위는 로컬 Claude Desktop 연동. JVM 부담은 HWP 변환 시에만 발생하므로 embedded 로 충분 |
+| 2026-04-24 | `@paper-md-studio/server` 를 workspace 의존성으로 직접 import (shared 패키지 추출 생략) | server 가 이미 `StorageAdapter`·`ConvertCache`·`LocalFsStorage` 등을 public export 하고 있어 10-2 리팩터를 건너뛰고 즉시 구현 가능. Fastify 는 transitive dep 이지만 런타임 import 경로에 없어 tree-shake 됨 |
+| 2026-04-24 | 이미지 rewrite 는 `packages/server` 의 `rewriteMarkdown` 을 재사용하지 않고 MCP-local 헬퍼(`image-rewrite.ts`)로 작성 | server 버전이 `SignedUrlSigner` 주입을 요구하는데 MCP MVP 는 `urls` 모드 미지원. refs/inline/omit 만 구현하는 ~120줄로 깔끔 |
+| 2026-04-24 | 로거는 stderr JSON line. stdout 절대 금지 | stdout 은 MCP JSON-RPC 채널. console.log 한 번에 프로토콜 깨짐 |
+| 2026-04-24 | Remote 모드(10-10) 추가. `Converter` 인터페이스로 embedded/remote 분기 | 팀 공유·외부 에이전트 연동 요구 대응. path 입력·inline 이미지는 remote 에서 거부 (보안+비용) |
+| 2026-04-24 | REST 신규 엔드포인트 `GET /v1/conversions/:id` — meta + markdown 조회 | remote 모드 `get_document_outline`/`get_document_chunk` 가 이미 변환된 markdown 을 재파싱 없이 가져오기 위함 |
+| 2026-04-24 | Remote 모드 제약: `input.path` 400 거부 + `images=inline` 400 거부 | path 는 MCP 서버 머신 FS 라 의미가 다르고 LFI 취약점. inline 은 이미지 바이트 전송 비용 커서 MVP 제외 — `refs`/`omit` 로 충분 |
 
 **토큰 절감 목표** (10MB HWPX 기준):
 - 원본 바이너리 LLM 투입: 불가
