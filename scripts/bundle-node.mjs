@@ -9,7 +9,13 @@
  * 스스로 실행해 해당 플랫폼용 Node를 준비한다.
  */
 import { execSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, rmSync } from "node:fs";
+import {
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";

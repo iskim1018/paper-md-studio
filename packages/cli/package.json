@@ -11,12 +11,17 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm",
-    "build:bundle": "BUILD_BUNDLE=1 tsup",
+    "build:bundle": "cross-env BUILD_BUNDLE=1 tsup",
     "dev": "tsup src/index.ts --format esm --watch",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@paper-md-studio/core": "workspace:*"
   },
-  "files": ["dist"]
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "cross-env": "^10.1.0"
+  }
 }
