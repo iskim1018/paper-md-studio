@@ -34,6 +34,10 @@ export async function registerImageRoute(
     method: "GET",
     url: "/v1/conversions/:id/images/:name",
     schema: {
+      tags: ["images"],
+      summary: "변환 이미지 다운로드 (signed URL)",
+      description:
+        "`POST /v1/convert?images=urls` 응답의 서명 URL 로만 접근할 수 있습니다. `?exp` / `?sig` 쿼리가 없거나 위조·만료된 경우 401. API Key 는 불필요.",
       params: ParamsSchema,
     },
     handler: async (req, reply) => {

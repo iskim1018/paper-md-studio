@@ -1,7 +1,10 @@
 import fastifyMultipart from "@fastify/multipart";
+import fastifySwagger from "@fastify/swagger";
+import fastifySwaggerUi from "@fastify/swagger-ui";
 import Fastify, { type FastifyInstance } from "fastify";
 import {
   hasZodFastifySchemaValidationErrors,
+  jsonSchemaTransform,
   serializerCompiler,
   validatorCompiler,
   type ZodTypeProvider,
@@ -29,6 +32,7 @@ export interface BuildServerOptions {
 
 const AUTH_ALLOWLIST = ["/v1/health"];
 const SIGNED_IMAGE_PATTERN = /^\/v1\/conversions\/[a-f0-9]{64}\/images\//;
+const DOCS_PATTERN = /^\/docs(\/.*)?$/;
 
 export async function buildServer(
   options: BuildServerOptions,
@@ -64,7 +68,43 @@ export async function buildServer(
   await registerApiKeyAuth(app, {
     store: apiKeyStore,
     allowlist: AUTH_ALLOWLIST,
-    bypassPatterns: [SIGNED_IMAGE_PATTERN],
+    bypassPatterns: [SIGNED_IMAGE_PATTERN, DOCS_PATTERN],
+  });
+
+  await app.register(fastifySwagger, {
+    openapi: {
+      openapi: "3.1.0",
+      info: {
+        title: "paper-md-studio REST API",
+        description:
+          "HWP/HWPX/DOCX/DOC/PDF 문서를 Markdown 으로 변환하는 서버 API. content-addressed 캐시로 동일 파일 재요청을 파싱 없이 응답합니다.",
+        version: "0.1.0",
+      },
+      servers: config.publicBaseUrl ? [{ url: config.publicBaseUrl }] : [],
+      components: {
+        securitySchemes: {
+          apiKey: {
+            type: "apiKey",
+            name: "X-API-Key",
+            in: "header",
+          },
+        },
+      },
+      security: [{ apiKey: [] }],
+      tags: [
+        { name: "health", description: "liveness 프로브" },
+        { name: "convert", description: "문서 → Markdown 변환" },
+        { name: "images", description: "변환된 이미지 조회 (signed URL)" },
+      ],
+    },
+    transform: jsonSchemaTransform,
+  });
+  await app.register(fastifySwaggerUi, {
+    routePrefix: "/docs",
+    uiConfig: {
+      docExpansion: "list",
+      deepLinking: true,
+    },
   });
 
   await app.register(fastifyMultipart, {
@@ -91,6 +131,10 @@ export async function buildServer(
     method: "GET",
     url: "/v1/health",
     schema: {
+      tags: ["health"],
+      summary: "liveness 프로브",
+      description:
+        "서버가 응답 가능한 상태인지 확인합니다. API Key 인증 없이 접근 가능합니다.",
       response: {
         200: z.object({
           status: z.literal("ok"),

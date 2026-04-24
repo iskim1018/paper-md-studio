@@ -122,6 +122,10 @@ export async function registerConvertRoute(
     method: "POST",
     url: "/v1/convert",
     schema: {
+      tags: ["convert"],
+      summary: "문서 업로드 및 Markdown 변환",
+      description:
+        "multipart/form-data 의 `file` 필드로 문서를 업로드합니다. 동일 파일(SHA-256 일치) 재업로드 시 캐시 히트 응답. `?images=urls|inline|refs|omit` 로 이미지 전달 방식을 선택합니다.",
       querystring: QuerySchema,
       response: {
         200: ConvertSuccessSchema,
