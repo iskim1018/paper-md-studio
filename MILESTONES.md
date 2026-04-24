@@ -326,8 +326,8 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 | 9-14 | 통합 테스트 (5 포맷 × 5 이미지 모드, `fastify.inject`) | L | ⏳ |
 | 9-15 | 캐시 히트 테스트 (같은 파일 재업로드 elapsed 비교) | S | ✅ (9-4 convert.test.ts 에서 커버) |
 | 9-16 | Dockerfile (Node 20 + JRE 11 + HWP jar) | M | ⏳ |
-| 9-17 | `docs/REST_API.md` 레퍼런스 + curl 예제 | S | ⏳ |
-| 9-18 | `.env.example` + `CONFIG.md` | S | ⏳ |
+| 9-17 | `docs/REST_API.md` 레퍼런스 + curl 예제 | S | ✅ |
+| 9-18 | `.env.example` + `CONFIG.md` | S | ✅ |
 | 9-19 | CI 워크플로우 업데이트 | S | ⏳ |
 
 **설계 결정 요약**:
