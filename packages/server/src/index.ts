@@ -1,4 +1,10 @@
 export type {
+  ApiKeyStore,
+  MemoryApiKeyStoreOptions,
+  RegisterApiKeyAuthOptions,
+} from "./auth/index.js";
+export { MemoryApiKeyStore, registerApiKeyAuth } from "./auth/index.js";
+export type {
   ConvertCacheInput,
   ConvertCacheLogger,
   ConvertCacheOptions,

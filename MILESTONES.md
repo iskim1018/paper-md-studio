@@ -319,12 +319,12 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 | 9-7  | `GET /v1/conversions/:id/images/:name` 다운로드 핸들러 | S | ⏳ |
 | 9-8  | 비동기 잡: 인메모리 큐 + `POST/GET /v1/conversions` | M | ⏳ |
 | 9-9  | SSE 진행률 (`GET /v1/conversions/:id/events`) | M | ⏳ |
-| 9-10 | API Key 미들웨어 (`X-API-Key`) | S | ⏳ |
+| 9-10 | API Key 미들웨어 (`X-API-Key`, HMAC-SHA256 저장소) | S | ✅ |
 | 9-11 | 레이트리밋 (`@fastify/rate-limit`, IP+API Key) | S | ⏳ |
 | 9-12 | OpenAPI 자동 생성 + `/docs` Swagger UI | S | ⏳ |
 | 9-13 | 업로드 한계·MIME 검증 | S | ⏳ |
 | 9-14 | 통합 테스트 (5 포맷 × 5 이미지 모드, `fastify.inject`) | L | ⏳ |
-| 9-15 | 캐시 히트 테스트 (같은 파일 재업로드 elapsed 비교) | S | ⏳ |
+| 9-15 | 캐시 히트 테스트 (같은 파일 재업로드 elapsed 비교) | S | ✅ (9-4 convert.test.ts 에서 커버) |
 | 9-16 | Dockerfile (Node 20 + JRE 11 + HWP jar) | M | ⏳ |
 | 9-17 | `docs/REST_API.md` 레퍼런스 + curl 예제 | S | ⏳ |
 | 9-18 | `.env.example` + `CONFIG.md` | S | ⏳ |

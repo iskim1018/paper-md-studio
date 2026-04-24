@@ -6,6 +6,7 @@ import {
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import { z } from "zod";
+import { MemoryApiKeyStore, registerApiKeyAuth } from "./auth/index.js";
 import { ConvertCache } from "./cache/index.js";
 import type { ServerConfig } from "./config.js";
 import { registerConvertRoute } from "./routes/convert.js";
@@ -16,6 +17,8 @@ export interface BuildServerOptions {
   /** 주입 시 내부에서 LocalFsStorage + ConvertCache 를 새로 만들지 않는다. */
   readonly convertCache?: ConvertCache;
 }
+
+const AUTH_ALLOWLIST = ["/v1/health"];
 
 export async function buildServer(
   options: BuildServerOptions,
@@ -30,6 +33,15 @@ export async function buildServer(
 
   app.setValidatorCompiler(validatorCompiler);
   app.setSerializerCompiler(serializerCompiler);
+
+  const apiKeyStore = new MemoryApiKeyStore({
+    keys: config.apiKeys,
+    signingSecret: config.signingSecret,
+  });
+  await registerApiKeyAuth(app, {
+    store: apiKeyStore,
+    allowlist: AUTH_ALLOWLIST,
+  });
 
   await app.register(fastifyMultipart, {
     limits: {
