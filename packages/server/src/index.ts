@@ -24,6 +24,18 @@ export { ConvertCache } from "./cache/index.js";
 export type { ServerConfig } from "./config.js";
 export { loadConfig } from "./config.js";
 export type {
+  SafeFetchFail,
+  SafeFetchOk,
+  SafeFetchOptions,
+  SafeFetchReason,
+  SafeFetchResult,
+} from "./fetch/index.js";
+export {
+  isBlockedIp,
+  parseContentDispositionFilename,
+  safeFetch,
+} from "./fetch/index.js";
+export type {
   ImageMode,
   InlineTooLargeInfo,
   ResponseImage,

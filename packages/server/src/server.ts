@@ -17,6 +17,8 @@ import {
 } from "./auth/index.js";
 import { ConvertCache } from "./cache/index.js";
 import type { ServerConfig } from "./config.js";
+import type { safeFetch } from "./fetch/index.js";
+import { registerConversionsRoute } from "./routes/conversions.js";
 import { registerConvertRoute } from "./routes/convert.js";
 import { registerImageRoute } from "./routes/images.js";
 import { apiError } from "./schemas/api.js";
@@ -28,6 +30,8 @@ export interface BuildServerOptions {
   readonly storage?: StorageAdapter;
   /** 주입 시 내부에서 ConvertCache 를 새로 만들지 않는다. */
   readonly convertCache?: ConvertCache;
+  /** 테스트 주입용 — 기본값은 fetch.ts 의 safeFetch (외부 URL 을 가져올 때 사용) */
+  readonly safeFetchImpl?: typeof safeFetch;
 }
 
 const AUTH_ALLOWLIST = ["/v1/health"];
@@ -154,8 +158,12 @@ export async function buildServer(
     signer,
     baseUrl: config.publicBaseUrl,
     maxInlineKb: config.publicMaxInlineKb,
+    maxUploadMb: config.maxUploadMb,
+    fetchTimeoutMs: config.fetchTimeoutMs,
+    ...(options.safeFetchImpl ? { safeFetchImpl: options.safeFetchImpl } : {}),
   });
   await registerImageRoute(app, { storage, signer });
+  await registerConversionsRoute(app, { storage });
 
   return app;
 }

@@ -28,7 +28,9 @@ describe("createSignedUrlSigner", () => {
       conversionId: "abc123",
       name: "img_001.png",
     });
-    const tampered = `${sig.slice(0, -1)}0`;
+    const last = sig.slice(-1);
+    const replacement = last === "0" ? "1" : "0";
+    const tampered = `${sig.slice(0, -1)}${replacement}`;
     const result = signer.verify({
       conversionId: "abc123",
       name: "img_001.png",

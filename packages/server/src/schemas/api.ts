@@ -37,3 +37,10 @@ export const ConvertSuccessSchema = z.object({
 export function apiError(message: string): ApiError {
   return { success: false, error: message };
 }
+
+export const ConvertUrlBodySchema = z.object({
+  url: z.string().url(),
+  filename: z.string().min(1).optional(),
+});
+
+export type ConvertUrlBody = z.infer<typeof ConvertUrlBodySchema>;

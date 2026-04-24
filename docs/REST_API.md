@@ -41,14 +41,23 @@ curl -X POST http://localhost:3000/v1/convert \
 
 ### `POST /v1/convert`
 
-문서를 업로드하고 Markdown 으로 변환합니다.
+문서를 업로드하고 Markdown 으로 변환합니다. **두 가지 입력 방식** 을 지원합니다.
 
-**요청**
+**방식 1 — 파일 업로드**
 - Content-Type: `multipart/form-data`
 - 필드: `file` (단일)
+
+**방식 2 — 원격 URL (서버가 fetch)**
+- Content-Type: `application/json`
+- 바디: `{ "url": "https://example.com/file.pdf", "filename": "hint.pdf" }` (filename 은 선택)
+- URL 경로에 확장자가 없으면 `filename` 힌트 필수
+- SSRF 방어 (아래 섹션 참고)
+
+**공통**
 - 허용 확장자: `.hwp` · `.hwpx` · `.doc` · `.docx` · `.pdf`
 - 크기 한계: `MAX_UPLOAD_MB` 환경변수 (기본 50MB)
 - 인증: `X-API-Key` 헤더 (`API_KEYS` 가 설정돼 있을 때)
+- fetch 타임아웃 (URL 모드): `FETCH_TIMEOUT_MS` (기본 30000)
 
 **쿼리 파라미터**
 
@@ -102,10 +111,72 @@ curl -X POST http://localhost:3000/v1/convert \
 
 | 상태 | 사유 |
 |------|------|
-| `400` | 파일 필드 누락 / 빈 파일 / 지원하지 않는 확장자 / 잘못된 쿼리 값 |
+| `400` | 파일 필드 누락 / 빈 파일 / 지원하지 않는 확장자 / 잘못된 쿼리 값 / URL 스킴·호스트 차단 / 잘못된 JSON 바디 |
 | `401` | API Key 누락·불일치 (`API_KEYS` 활성 시) |
-| `413` | 업로드 크기 초과 / `inline` 모드에서 이미지가 `PAPER_MD_PUBLIC_MAX_INLINE_KB` 초과 |
+| `413` | 업로드 크기 초과 / URL 응답 크기 초과 / `inline` 모드에서 이미지가 `PAPER_MD_PUBLIC_MAX_INLINE_KB` 초과 |
 | `500` | 파서 실패 등 예상치 못한 내부 오류 |
+| `502` | 원격 URL fetch 타임아웃 / 네트워크 오류 / HTTP 오류 / 리다이렉트 루프 |
+
+**URL 모드 예시**
+
+```bash
+# 정상 — 공개 URL 의 문서를 변환
+curl -X POST http://localhost:3000/v1/convert \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://example.com/reports/q1.pdf"}'
+
+# 확장자 없는 URL — filename 힌트 제공
+curl -X POST http://localhost:3000/v1/convert \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"https://api.example.com/download?id=42","filename":"report.docx"}'
+
+# 차단 예시 — 사설/loopback 호스트
+curl -X POST http://localhost:3000/v1/convert \
+  -H 'Content-Type: application/json' \
+  -d '{"url":"http://127.0.0.1:22"}' -i
+# → 400 { "success": false, "error": "사설·loopback·link-local 대역 IP 는 차단됩니다: 127.0.0.1" }
+```
+
+**SSRF 방어 동작**
+1. 스킴은 `http:` / `https:` 만 허용 (`file:`, `data:`, `gopher:`, `ftp:` 거부)
+2. 호스트가 IP 리터럴이든 도메인이든 **리졸브된 모든 IP** 를 검사:
+   - `127.0.0.0/8` (loopback), `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` (RFC1918)
+   - `169.254.0.0/16` (link-local — AWS/GCP metadata 포함)
+   - `0.0.0.0/8`, `240.0.0.0/4`, multicast 대역
+   - IPv6: `::1`, `fc00::/7`, `fe80::/10`, `ff00::/8`, IPv4-mapped 카운터파트
+3. `30x` 리다이렉트는 수동 follow(최대 3회) + **매 단계 재검증**
+4. `Content-Length` 헤더 사전 검증, 스트리밍 수신 중에도 누적 바이트 감시
+5. `AbortController` + 타임아웃 (`FETCH_TIMEOUT_MS`)
+
+---
+
+### `GET /v1/conversions/:id`
+
+변환된 문서의 metadata 와 markdown 을 반환합니다. **MCP remote 모드** 가 이 엔드포인트를 사용해 후속 호출(outline/chunk) 의 입력 markdown 을 받아옵니다.
+
+**요구**
+- `id` 는 64자 16진수 (SHA-256). 형식 불일치 → 400.
+- 인증: `X-API-Key` 헤더 (활성 시)
+
+**성공 응답** (`200`)
+```json
+{
+  "success": true,
+  "data": {
+    "conversionId": "f8b1...",
+    "format": "hwpx",
+    "markdown": "# Title\n\n...",
+    "images": [{ "name": "img_001.png", "mimeType": "image/png", "size": 12345 }],
+    "cached": true,
+    "elapsedMs": 0,
+    "createdAt": "2026-04-24T...",
+    "originalName": "sample.hwpx",
+    "size": 3865259
+  }
+}
+```
+
+**에러**: `400` 형식 오류, `401` API Key 누락·불일치, `404` 없는 id. 이미지 바이너리는 포함되지 않으며 `/v1/conversions/:id/images/:name` 로 별도 조회합니다.
 
 ---
 

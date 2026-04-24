@@ -10,7 +10,8 @@
 | `API_KEYS` | (비어있음) | 콤마 구분 API Key 리스트. 비어있으면 인증 비활성 (개발 전용). 하나라도 값이 있으면 `/v1/health`, `/docs*`, `/v1/conversions/.../images/...` 를 제외한 모든 요청이 `X-API-Key` 헤더를 요구. |
 | `SIGNING_SECRET` | `dev-secret-change-me-0123456789` | HMAC-SHA256 시크릿. (1) API Key 해싱, (2) 이미지 signed URL 서명에 공용. **최소 16자. 프로덕션에서 반드시 교체**. |
 | `SIGNED_URL_TTL_SECONDS` | `900` | `?images=urls` 응답의 이미지 URL 유효 기간 (초). 기본 15분 |
-| `MAX_UPLOAD_MB` | `50` | `POST /v1/convert` 단일 업로드 상한 (MiB). 초과 시 413 |
+| `MAX_UPLOAD_MB` | `50` | `POST /v1/convert` 단일 업로드 상한 (MiB). URL 모드에도 동일하게 적용. 초과 시 413 |
+| `FETCH_TIMEOUT_MS` | `30000` | `POST /v1/convert` URL 모드(`application/json { url }`)의 원격 fetch 타임아웃 (ms). 초과 시 502. SSRF 방어 로직 내장 — `http:`/`https:` 만 허용, 사설·loopback·link-local IP 차단, 리다이렉트 매 단계 재검증 |
 | `PAPER_MD_PUBLIC_BASE_URL` | (비어있음) | `?images=urls` 응답에서 절대 URL 을 구성할 때 사용 (예: `https://api.example.com`). 비어있으면 경로만 (`/v1/...`) 반환. 끝의 `/` 는 자동 제거. OpenAPI `servers[]` 에도 반영 |
 | `PAPER_MD_PUBLIC_MAX_INLINE_KB` | `512` | `?images=inline` 으로 base64 인라인할 때 이미지 한 장당 허용 크기 (KB). 초과 시 413 + `?images=urls` / `?images=refs` 힌트 |
 | `RATE_LIMIT_PER_MINUTE` | `60` | 레이트리밋 값 (아직 적용 안 됨). 프로덕션 배포는 앞단 API Gateway 사용 권장 |
