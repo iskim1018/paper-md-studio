@@ -14,6 +14,11 @@ export interface RegisterApiKeyAuthOptions {
   readonly store: ApiKeyStore;
   /** 인증을 요구하지 않는 경로 (정확 매치, 쿼리스트링은 무시) */
   readonly allowlist?: ReadonlyArray<string>;
+  /**
+   * 자체 인증 수단(signed URL 등)을 가진 라우트의 경로 패턴.
+   * 매치되면 API Key 검증을 스킵하고 라우트 핸들러가 직접 인증.
+   */
+  readonly bypassPatterns?: ReadonlyArray<RegExp>;
 }
 
 export async function registerApiKeyAuth(
@@ -25,15 +30,21 @@ export async function registerApiKeyAuth(
     return;
   }
   const allowlist = new Set(options.allowlist ?? []);
-  app.addHook("onRequest", createAuthHook(store, allowlist));
+  const bypassPatterns = options.bypassPatterns ?? [];
+  app.addHook("onRequest", createAuthHook(store, allowlist, bypassPatterns));
 }
 
 function createAuthHook(
   store: ApiKeyStore,
   allowlist: ReadonlySet<string>,
+  bypassPatterns: ReadonlyArray<RegExp>,
 ): onRequestHookHandler {
   return async (req: FastifyRequest, reply: FastifyReply) => {
-    if (isAllowed(req.url, allowlist)) {
+    const path = pathOf(req.url);
+    if (allowlist.has(path)) {
+      return;
+    }
+    if (bypassPatterns.some((pat) => pat.test(path))) {
       return;
     }
     const candidate = extractHeader(req.headers[API_KEY_HEADER]);
@@ -52,9 +63,8 @@ function createAuthHook(
   };
 }
 
-function isAllowed(url: string, allowlist: ReadonlySet<string>): boolean {
-  const path = url.split("?", 1)[0] ?? url;
-  return allowlist.has(path);
+function pathOf(url: string): string {
+  return url.split("?", 1)[0] ?? url;
 }
 
 function extractHeader(

@@ -6,19 +6,27 @@ import {
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import { z } from "zod";
-import { MemoryApiKeyStore, registerApiKeyAuth } from "./auth/index.js";
+import {
+  createSignedUrlSigner,
+  MemoryApiKeyStore,
+  registerApiKeyAuth,
+} from "./auth/index.js";
 import { ConvertCache } from "./cache/index.js";
 import type { ServerConfig } from "./config.js";
 import { registerConvertRoute } from "./routes/convert.js";
-import { LocalFsStorage } from "./storage/index.js";
+import { registerImageRoute } from "./routes/images.js";
+import { LocalFsStorage, type StorageAdapter } from "./storage/index.js";
 
 export interface BuildServerOptions {
   readonly config: ServerConfig;
-  /** 주입 시 내부에서 LocalFsStorage + ConvertCache 를 새로 만들지 않는다. */
+  /** 주입 시 내부에서 LocalFsStorage 를 새로 만들지 않는다. */
+  readonly storage?: StorageAdapter;
+  /** 주입 시 내부에서 ConvertCache 를 새로 만들지 않는다. */
   readonly convertCache?: ConvertCache;
 }
 
 const AUTH_ALLOWLIST = ["/v1/health"];
+const SIGNED_IMAGE_PATTERN = /^\/v1\/conversions\/[a-f0-9]{64}\/images\//;
 
 export async function buildServer(
   options: BuildServerOptions,
@@ -41,6 +49,7 @@ export async function buildServer(
   await registerApiKeyAuth(app, {
     store: apiKeyStore,
     allowlist: AUTH_ALLOWLIST,
+    bypassPatterns: [SIGNED_IMAGE_PATTERN],
   });
 
   await app.register(fastifyMultipart, {
@@ -50,10 +59,16 @@ export async function buildServer(
     },
   });
 
+  const storage =
+    options.storage ?? new LocalFsStorage({ root: config.storageRoot });
+  const signer = createSignedUrlSigner({
+    secret: config.signingSecret,
+    ttlSeconds: config.signedUrlTtlSeconds,
+  });
   const convertCache =
     options.convertCache ??
     new ConvertCache({
-      storage: new LocalFsStorage({ root: config.storageRoot }),
+      storage,
       logger: app.log,
     });
 
@@ -75,6 +90,7 @@ export async function buildServer(
   });
 
   await registerConvertRoute(app, { convertCache });
+  await registerImageRoute(app, { storage, signer });
 
   return app;
 }
