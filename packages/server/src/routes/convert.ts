@@ -86,6 +86,14 @@ async function parseUpload(req: FastifyRequest): Promise<ParsedUpload> {
     };
   }
 
+  if (buffer.byteLength === 0) {
+    return {
+      ok: false,
+      status: 400,
+      error: "업로드 파일이 비어 있습니다.",
+    };
+  }
+
   return { ok: true, bytes: new Uint8Array(buffer), originalName };
 }
 
