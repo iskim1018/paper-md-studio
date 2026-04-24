@@ -1,9 +1,19 @@
 export type {
   ApiKeyStore,
+  CreateSignedUrlSignerOptions,
   MemoryApiKeyStoreOptions,
   RegisterApiKeyAuthOptions,
+  SignedUrlSigner,
+  SignParams,
+  SignResult,
+  VerifyParams,
+  VerifyResult,
 } from "./auth/index.js";
-export { MemoryApiKeyStore, registerApiKeyAuth } from "./auth/index.js";
+export {
+  createSignedUrlSigner,
+  MemoryApiKeyStore,
+  registerApiKeyAuth,
+} from "./auth/index.js";
 export type {
   ConvertCacheInput,
   ConvertCacheLogger,

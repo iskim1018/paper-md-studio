@@ -315,7 +315,7 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 | 9-3  | `ConvertCache` (core 래핑 + 캐시 히트·미스 로깅) | M | ✅ |
 | 9-4  | `POST /v1/convert` 동기 엔드포인트 + Zod 스키마 + 멀티파트 업로드 | M | ✅ |
 | 9-5  | `?images=` 분기 (inline / urls / zip / omit / refs) | L | ⏳ |
-| 9-6  | HMAC signed URL 유틸 (발급·검증, 15분 만료) | S | ⏳ |
+| 9-6  | HMAC signed URL 유틸 (발급·검증, 15분 만료) | S | ✅ |
 | 9-7  | `GET /v1/conversions/:id/images/:name` 다운로드 핸들러 | S | ⏳ |
 | 9-8  | 비동기 잡: 인메모리 큐 + `POST/GET /v1/conversions` | M | ⏳ |
 | 9-9  | SSE 진행률 (`GET /v1/conversions/:id/events`) | M | ⏳ |

@@ -5,3 +5,12 @@ export type {
   MemoryApiKeyStoreOptions,
 } from "./api-key-store.js";
 export { MemoryApiKeyStore } from "./api-key-store.js";
+export type {
+  CreateSignedUrlSignerOptions,
+  SignedUrlSigner,
+  SignParams,
+  SignResult,
+  VerifyParams,
+  VerifyResult,
+} from "./signed-url.js";
+export { createSignedUrlSigner } from "./signed-url.js";
