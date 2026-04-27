@@ -30,8 +30,8 @@
 
 | 플랫폼 | 파일 |
 |--------|------|
-| macOS (Apple Silicon) | `Paper MD Studio_0.1.0_aarch64.dmg` |
-| Windows (x64) | `Paper MD Studio_0.1.0_x64-setup.exe` 또는 `.msi` (예정) |
+| macOS (Apple Silicon) | `Paper MD Studio_0.1.1_aarch64.dmg` |
+| Windows (x64) | `Paper MD Studio_0.1.1_x64-setup.exe` 또는 `.msi` |
 
 ### macOS 설치 안내
 
@@ -86,7 +86,7 @@ curl -X POST http://localhost:3000/v1/convert \
 
 자세한 내용: [`docs/REST_API.md`](docs/REST_API.md) · [`docs/CONFIG.md`](docs/CONFIG.md)
 
-### MCP 서버 (베타, v0.1.0 MVP)
+### MCP 서버 (베타, v0.1.1 MVP)
 
 `@paper-md-studio/mcp` 는 [Model Context Protocol](https://modelcontextprotocol.io) 로 Claude Desktop · Cursor · **Google Antigravity** 같은 MCP 클라이언트에 문서 변환 기능을 노출합니다. LLM 이 원본 바이너리를 토큰으로 소비하지 않고, 변환된 Markdown 이나 특정 섹션만 받아 **컨텍스트를 50배 이상 절감**할 수 있습니다.
 

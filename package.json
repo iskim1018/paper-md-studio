@@ -1,6 +1,6 @@
 {
   "name": "paper-md-studio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "HWP, HWPX, DOCX, PDF 문서를 Markdown으로 변환·편집하는 크로스플랫폼 데스크톱 앱 (macOS Apple Silicon + Windows 11)",
   "keywords": [

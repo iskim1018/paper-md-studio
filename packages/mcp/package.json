@@ -1,6 +1,6 @@
 {
   "name": "@paper-md-studio/mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "paper-md-studio MCP 서버 — LLM 클라이언트용 문서 변환 툴",
   "author": "Insung Kim",

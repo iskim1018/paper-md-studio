@@ -1,6 +1,6 @@
 {
   "name": "@paper-md-studio/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "paper-md-studio CLI 인터페이스",
   "author": "Insung Kim",

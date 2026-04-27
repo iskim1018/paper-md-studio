@@ -1,6 +1,6 @@
 {
   "name": "@paper-md-studio/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "문서 변환 엔진 - HWP, HWPX, DOCX, PDF를 Markdown으로 변환",
   "author": "Insung Kim",

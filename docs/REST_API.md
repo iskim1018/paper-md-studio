@@ -18,7 +18,7 @@ pnpm --filter @paper-md-studio/server dev
 
 # 2. 헬스 체크
 curl http://localhost:3000/v1/health
-# {"status":"ok","version":"0.1.0"}
+# {"status":"ok","version":"0.1.1"}
 
 # 3. 문서 변환 (DOCX 예시)
 curl -X POST http://localhost:3000/v1/convert \
@@ -34,7 +34,7 @@ curl -X POST http://localhost:3000/v1/convert \
 서버 생존 확인. 인증 불필요.
 
 ```json
-{ "status": "ok", "version": "0.1.0" }
+{ "status": "ok", "version": "0.1.1" }
 ```
 
 ---
