@@ -105,7 +105,9 @@ describe("GET /v1/conversions/:id/images/:name", () => {
         ttlSeconds: 900,
       });
       const { exp, sig } = signer.sign({ conversionId, name: imageName });
-      const tampered = `${sig.slice(0, -1)}0`;
+      const lastChar = sig.slice(-1);
+      const replacement = lastChar === "0" ? "1" : "0";
+      const tampered = `${sig.slice(0, -1)}${replacement}`;
 
       const res = await app.inject({
         method: "GET",
