@@ -10,7 +10,7 @@ paper-md-studio — HWP, HWPX, DOCX, PDF를 Markdown으로 변환·편집하는
 
 ## 기술 스택
 
-- **런타임**: Node.js 20+ (HWP 변환 시 Java 11+ 추가 필요)
+- **런타임**: Node.js 22+ (HWP 변환 시 Java 11+ 추가 필요)
 - **언어**: TypeScript (strict mode)
 - **GUI**: Tauri 2.x + React 19 (Phase 3~)
 - **에디터**: Milkdown (WYSIWYG) + CodeMirror 6 (소스) — Phase 5~
@@ -123,3 +123,4 @@ Conventional Commits 형식:
 | 2026-04-13 | Phase 5 에디터: Milkdown Crepe + CodeMirror 6 | React 19 호환, WYSIWYG/소스 각각 성숙, 독립 히스토리 |
 | 2026-04-13 | 4-모드 편집(보기/편집/소스/분할) | 사용자 요구: 편집 + 미리보기 동시 제공 |
 | 2026-04-13 | `data-theme` 기반 수동 테마 오버라이드 | `prefers-color-scheme` 위에 사용자 선택 얹기, localStorage 영속화 |
+| 2026-04-27 | Node.js 22 LTS 로 통일 (engines + CI + Release) | Node 20 EOL 회피. 번들 사이드카는 Phase 2 에서 별도 검증 후 이동 |
