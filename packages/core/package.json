@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@opendocsg/pdf2md": "^0.2.6",
-    "fast-xml-parser": "^5.5.10",
+    "fast-xml-parser": "^5.7.0",
     "fflate": "^0.8.2",
     "mammoth": "^1.12.0",
     "turndown": "^7.2.4",
