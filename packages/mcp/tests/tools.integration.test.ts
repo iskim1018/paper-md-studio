@@ -45,7 +45,6 @@ describe("MCP tools integration (in-memory transport)", () => {
       mode: "embedded",
       storageRoot,
       restUrl: null,
-      apiKey: null,
       maxUploadMb: 10,
       maxInlineKb: 64,
       fetchTimeoutMs: 30000,

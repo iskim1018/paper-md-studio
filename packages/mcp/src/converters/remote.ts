@@ -7,7 +7,6 @@ import type {
 
 export interface RemoteConverterOptions {
   readonly baseUrl: string;
-  readonly apiKey?: string;
   readonly fetchImpl?: typeof fetch;
   /** 대용량 업로드 타임아웃 (ms). 기본 120000 (2분) */
   readonly timeoutMs?: number;
@@ -40,13 +39,11 @@ interface RestEnvelope<T> {
 export class RemoteConverter implements Converter {
   public readonly mode: McpMode = "remote";
   private readonly baseUrl: string;
-  private readonly apiKey: string | undefined;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
 
   constructor(options: RemoteConverterOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, "");
-    this.apiKey = options.apiKey;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? 120000;
   }
@@ -61,9 +58,6 @@ export class RemoteConverter implements Converter {
     const headers: Record<string, string> = {
       "Content-Type": `multipart/form-data; boundary=${boundary}`,
     };
-    if (this.apiKey) {
-      headers["X-API-Key"] = this.apiKey;
-    }
     const url = `${this.baseUrl}/v1/convert?images=refs`;
     const res = await this.fetchWithTimeout(url, {
       method: "POST",
@@ -76,11 +70,7 @@ export class RemoteConverter implements Converter {
 
   async getMarkdown(conversionId: string): Promise<string | null> {
     const url = `${this.baseUrl}/v1/conversions/${encodeURIComponent(conversionId)}`;
-    const headers: Record<string, string> = {};
-    if (this.apiKey) {
-      headers["X-API-Key"] = this.apiKey;
-    }
-    const res = await this.fetchWithTimeout(url, { method: "GET", headers });
+    const res = await this.fetchWithTimeout(url, { method: "GET" });
     if (res.status === 404) {
       return null;
     }

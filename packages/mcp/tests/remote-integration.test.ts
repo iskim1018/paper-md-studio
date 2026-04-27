@@ -77,7 +77,6 @@ describe("MCP remote mode (RemoteConverter ↔ REST server)", () => {
       mode: "remote",
       storageRoot: mcpStorageRoot,
       restUrl: baseUrl,
-      apiKey: null,
       maxUploadMb: 10,
       maxInlineKb: 64,
       fetchTimeoutMs: 30000,

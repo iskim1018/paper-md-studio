@@ -2,8 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createSignedUrlSigner } from "../src/auth/index.js";
-import { rewriteMarkdown } from "../src/images/index.js";
+import { createSignedUrlSigner, rewriteMarkdown } from "../src/images/index.js";
 import {
   LocalFsStorage,
   type StoredImageInfo,

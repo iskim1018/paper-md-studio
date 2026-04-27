@@ -1,20 +1,4 @@
 export type {
-  ApiKeyStore,
-  CreateSignedUrlSignerOptions,
-  MemoryApiKeyStoreOptions,
-  RegisterApiKeyAuthOptions,
-  SignedUrlSigner,
-  SignParams,
-  SignResult,
-  VerifyParams,
-  VerifyResult,
-} from "./auth/index.js";
-export {
-  createSignedUrlSigner,
-  MemoryApiKeyStore,
-  registerApiKeyAuth,
-} from "./auth/index.js";
-export type {
   ConvertCacheInput,
   ConvertCacheLogger,
   ConvertCacheOptions,
@@ -36,13 +20,23 @@ export {
   safeFetch,
 } from "./fetch/index.js";
 export type {
+  CreateSignedUrlSignerOptions,
   ImageMode,
   InlineTooLargeInfo,
   ResponseImage,
   RewriteOptions,
   RewriteResult,
+  SignedUrlSigner,
+  SignParams,
+  SignResult,
+  VerifyParams,
+  VerifyResult,
 } from "./images/index.js";
-export { IMAGE_MODES, rewriteMarkdown } from "./images/index.js";
+export {
+  createSignedUrlSigner,
+  IMAGE_MODES,
+  rewriteMarkdown,
+} from "./images/index.js";
 export type { BuildServerOptions } from "./server.js";
 export { buildServer } from "./server.js";
 export type {

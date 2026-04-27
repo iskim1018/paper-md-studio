@@ -2,11 +2,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadConfig, type ServerConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
 
-function makeConfig(overrides: { apiKeys?: string } = {}): ServerConfig {
+function makeConfig(): ServerConfig {
   return loadConfig({
     SIGNING_SECRET: "test-secret-abcdefghijklmnop",
     LOG_LEVEL: "silent",
-    API_KEYS: overrides.apiKeys ?? "",
   });
 }
 
@@ -51,31 +50,10 @@ describe("OpenAPI 문서화", () => {
     expect(spec.paths["/v1/health"].get).toBeDefined();
   });
 
-  it("securitySchemes 에 apiKey(X-API-Key) 가 정의돼 있다", async () => {
+  it("securitySchemes 가 정의돼 있지 않다 (인증은 GW 책임)", async () => {
     const res = await app.inject({ method: "GET", url: "/docs/json" });
     const spec = res.json();
-    const schemes = spec.components?.securitySchemes;
-    expect(schemes).toBeDefined();
-    const apiKey = schemes.apiKey;
-    expect(apiKey).toBeDefined();
-    expect(apiKey.type).toBe("apiKey");
-    expect(apiKey.name).toBe("X-API-Key");
-    expect(apiKey.in).toBe("header");
-  });
-});
-
-describe("OpenAPI allowlist", () => {
-  it("API_KEYS 설정돼 있어도 /docs, /docs/json 은 인증 없이 통과", async () => {
-    const app = await buildServer({
-      config: makeConfig({ apiKeys: "prod-key-1" }),
-    });
-    try {
-      const docs = await app.inject({ method: "GET", url: "/docs" });
-      const json = await app.inject({ method: "GET", url: "/docs/json" });
-      expect([200, 302]).toContain(docs.statusCode);
-      expect(json.statusCode).toBe(200);
-    } finally {
-      await app.close();
-    }
+    expect(spec.components?.securitySchemes).toBeUndefined();
+    expect(spec.security).toBeUndefined();
   });
 });

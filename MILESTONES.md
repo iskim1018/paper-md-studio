@@ -319,13 +319,13 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 | 9-7  | `GET /v1/conversions/:id/images/:name` 다운로드 핸들러 | S | ✅ |
 | 9-8  | 비동기 잡: 인메모리 큐 + `POST/GET /v1/conversions` | M | ⏳ |
 | 9-9  | SSE 진행률 (`GET /v1/conversions/:id/events`) | M | ⏳ |
-| 9-10 | API Key 미들웨어 (`X-API-Key`, HMAC-SHA256 저장소) | S | ✅ |
-| 9-11 | 레이트리밋 (`@fastify/rate-limit`, IP+API Key) | S | ⏳ |
+| 9-10 | ~~API Key 미들웨어~~ — GW 위임으로 제거 (2026-04-27) | — | ❌ |
+| 9-11 | ~~레이트리밋~~ — GW 위임으로 제거 (2026-04-27) | — | ❌ |
 | 9-12 | OpenAPI 자동 생성 + `/docs` Swagger UI | S | ✅ |
 | 9-13 | 업로드 한계·MIME 검증 | S | ✅ |
 | 9-14 | 통합 테스트 (5 포맷 × 5 이미지 모드, `fastify.inject`) | L | ⏳ |
 | 9-15 | 캐시 히트 테스트 (같은 파일 재업로드 elapsed 비교) | S | ✅ (9-4 convert.test.ts 에서 커버) |
-| 9-16 | Dockerfile (Node 20 + JRE 11 + HWP jar) | M | ⏳ |
+| 9-16 | Dockerfile (Node 22 + JRE 11 + HWP jar) | M | ⏳ |
 | 9-17 | `docs/REST_API.md` 레퍼런스 + curl 예제 | S | ✅ |
 | 9-18 | `.env.example` + `CONFIG.md` | S | ✅ |
 | 9-19 | CI 워크플로우 업데이트 | S | ⏳ |
@@ -335,14 +335,13 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 - **캐시 키**: `sha256(file_bytes)` 64자 hex. 동일 파일 재업로드 시 파싱 스킵.
 - **스토리지**: `StorageAdapter` 인터페이스로 추상화 → Phase 11에서 S3/R2 어댑터 교체.
 - **동기/비동기**: 작은 문서는 `POST /v1/convert` 즉시 응답, HWP·대용량은 202 Accepted + SSE 진행률.
-- **인증**: MVP는 `X-API-Key`만. OAuth/JWT는 Phase 11.
+- **인증/레이트리밋**: GW 책임 (앱은 기능에 집중). 2026-04-27 결정. 이미지 HMAC URL 서명만 앱에 유지 (변환 결과 무결성).
 
 **완료 기준**:
 - [ ] 5개 포맷 × 5개 이미지 모드 통합 테스트 그린
 - [ ] 동일 파일 재업로드 시 캐시 히트 (elapsed < 50ms)
 - [ ] OpenAPI `/docs` 접근 가능
 - [ ] Docker 이미지에서 HWP 변환 성공
-- [ ] API Key 없이 401, 레이트 초과 시 429
 
 ### Phase 9 결정 로그
 
@@ -373,7 +372,7 @@ Phase 0 ──> Phase 1 ──> Phase 2 ──> Phase 3 ──> Phase 4 ──> 
 | 10-7  | BM25 검색 엔진 + `search_document` 툴 | M | 📋 |
 | 10-8  | 이미지 Resources 노출 (`conv://{id}/images/...`) | M | 📋 |
 | 10-9  | `list_conversions` 툴 | S | 📋 |
-| 10-10 | Remote 모드 (REST 프록시 + API Key) | M | ✅ |
+| 10-10 | Remote 모드 (REST 프록시) | M | ✅ |
 | 10-11 | Streamable HTTP 전송 (Fastify에 MCP 라우트 부착) | M | 📋 |
 | 10-12 | 통합 테스트 (SDK `InMemoryTransport` 기반, 30개 테스트) | L | ✅ (MVP 범위) |
 | 10-13 | 토큰 절감 벤치마크 스크립트 | M | 📋 |

@@ -72,7 +72,6 @@ xattr -cr "/Applications/Paper MD Studio.app"
 - `POST /v1/convert` — **두 가지 입력**: (1) `multipart/form-data` 파일 업로드 (2) `application/json { "url": "..." }` 원격 URL fetch (SSRF 방어 포함). 응답: Markdown + 4 가지 이미지 전달 모드 (`urls` / `inline` / `refs` / `omit`)
 - `GET /v1/conversions/:id/images/:name?exp=&sig=` — HMAC signed URL 로 이미지 다운로드
 - `GET /docs` — Swagger UI · OpenAPI 3.1
-- `X-API-Key` 인증 (선택) · HMAC-SHA256 저장
 
 ```bash
 # 파일 업로드
@@ -151,8 +150,7 @@ node -e "console.log(require('path').resolve('packages/mcp/dist/bin.js'))"
       ],
       "env": {
         "PAPER_MD_MCP_MODE": "remote",
-        "PAPER_MD_MCP_REST_URL": "https://papermd.your-team.internal",
-        "PAPER_MD_MCP_API_KEY": "your-api-key"
+        "PAPER_MD_MCP_REST_URL": "https://papermd.your-team.internal"
       }
     }
   }
@@ -313,7 +311,7 @@ pnpm build:hwp-tool   # Maven + JitPack (초기 수 분)
 주요 구현 현황은 [`MILESTONES.md`](MILESTONES.md) 참고.
 
 - ✅ Phase 1~8 — CLI · 이미지 추출 · GUI · 뷰어 · HWP · 에디터 · 배치 · 패키징 · DOC 레거시
-- ✅ Phase 9 (진행 중) — REST API: 변환 · 캐시 · 4 이미지 모드 · Signed URL · API Key · OpenAPI · URL 입력 (SSRF 방어)
+- ✅ Phase 9 (진행 중) — REST API: 변환 · 캐시 · 4 이미지 모드 · Signed URL · OpenAPI · URL 입력 (SSRF 방어)
 - 🚧 Phase 10 (MVP 완료) — MCP 서버: embedded + remote + stdio + 3툴 (Claude Desktop / Antigravity). search / 이미지 Resources / HTTP 전송 등은 후속
 - 📋 Phase 11 — 운영 확장 (Redis · S3 · OAuth · BullMQ · 메트릭)
 

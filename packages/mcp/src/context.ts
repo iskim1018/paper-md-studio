@@ -43,7 +43,6 @@ function buildConverter(
     }
     return new RemoteConverter({
       baseUrl: options.config.restUrl,
-      ...(options.config.apiKey ? { apiKey: options.config.apiKey } : {}),
       timeoutMs: options.config.fetchTimeoutMs,
     });
   }

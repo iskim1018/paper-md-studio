@@ -10,14 +10,10 @@ import {
   type ZodTypeProvider,
 } from "fastify-type-provider-zod";
 import { ZodError, z } from "zod";
-import {
-  createSignedUrlSigner,
-  MemoryApiKeyStore,
-  registerApiKeyAuth,
-} from "./auth/index.js";
 import { ConvertCache } from "./cache/index.js";
 import type { ServerConfig } from "./config.js";
 import type { safeFetch } from "./fetch/index.js";
+import { createSignedUrlSigner } from "./images/index.js";
 import { registerConversionsRoute } from "./routes/conversions.js";
 import { registerConvertRoute } from "./routes/convert.js";
 import { registerImageRoute } from "./routes/images.js";
@@ -33,10 +29,6 @@ export interface BuildServerOptions {
   /** 테스트 주입용 — 기본값은 fetch.ts 의 safeFetch (외부 URL 을 가져올 때 사용) */
   readonly safeFetchImpl?: typeof safeFetch;
 }
-
-const AUTH_ALLOWLIST = ["/v1/health"];
-const SIGNED_IMAGE_PATTERN = /^\/v1\/conversions\/[a-f0-9]{64}\/images\//;
-const DOCS_PATTERN = /^\/docs(\/.*)?$/;
 
 export async function buildServer(
   options: BuildServerOptions,
@@ -65,16 +57,6 @@ export async function buildServer(
       .send(apiError(err instanceof Error ? err.message : "알 수 없는 오류"));
   });
 
-  const apiKeyStore = new MemoryApiKeyStore({
-    keys: config.apiKeys,
-    signingSecret: config.signingSecret,
-  });
-  await registerApiKeyAuth(app, {
-    store: apiKeyStore,
-    allowlist: AUTH_ALLOWLIST,
-    bypassPatterns: [SIGNED_IMAGE_PATTERN, DOCS_PATTERN],
-  });
-
   await app.register(fastifySwagger, {
     openapi: {
       openapi: "3.1.0",
@@ -85,16 +67,6 @@ export async function buildServer(
         version: "0.1.0",
       },
       servers: config.publicBaseUrl ? [{ url: config.publicBaseUrl }] : [],
-      components: {
-        securitySchemes: {
-          apiKey: {
-            type: "apiKey",
-            name: "X-API-Key",
-            in: "header",
-          },
-        },
-      },
-      security: [{ apiKey: [] }],
       tags: [
         { name: "health", description: "liveness 프로브" },
         { name: "convert", description: "문서 → Markdown 변환" },
@@ -137,8 +109,7 @@ export async function buildServer(
     schema: {
       tags: ["health"],
       summary: "liveness 프로브",
-      description:
-        "서버가 응답 가능한 상태인지 확인합니다. API Key 인증 없이 접근 가능합니다.",
+      description: "서버가 응답 가능한 상태인지 확인합니다.",
       response: {
         200: z.object({
           status: z.literal("ok"),

@@ -2,19 +2,18 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createSignedUrlSigner } from "../src/auth/index.js";
 import { loadConfig, type ServerConfig } from "../src/config.js";
+import { createSignedUrlSigner } from "../src/images/index.js";
 import { buildServer } from "../src/server.js";
 import { LocalFsStorage, sha256Hex } from "../src/storage/index.js";
 
 const SIGNING_SECRET = "test-secret-abcdefghijklmnop";
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-function makeConfig(overrides: { apiKeys?: string } = {}): ServerConfig {
+function makeConfig(): ServerConfig {
   return loadConfig({
     SIGNING_SECRET,
     LOG_LEVEL: "silent",
-    API_KEYS: overrides.apiKeys ?? "",
     SIGNED_URL_TTL_SECONDS: "900",
   });
 }
@@ -205,26 +204,6 @@ describe("GET /v1/conversions/:id/images/:name", () => {
         url: "/v1/conversions/not-a-hash/images/x.png?exp=1&sig=abc",
       });
       expect(res.statusCode).toBe(404);
-    } finally {
-      await app.close();
-    }
-  });
-
-  it("API_KEYS 설정돼 있어도 유효한 서명 URL 은 API Key 없이 200", async () => {
-    const { conversionId, imageName } = await seedImage(storage);
-    const app = await buildTestApp(makeConfig({ apiKeys: "prod-key-1" }));
-    try {
-      const signer = createSignedUrlSigner({
-        secret: SIGNING_SECRET,
-        ttlSeconds: 900,
-      });
-      const { exp, sig } = signer.sign({ conversionId, name: imageName });
-
-      const res = await app.inject({
-        method: "GET",
-        url: `/v1/conversions/${conversionId}/images/${imageName}?exp=${exp}&sig=${sig}`,
-      });
-      expect(res.statusCode).toBe(200);
     } finally {
       await app.close();
     }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createSignedUrlSigner } from "../src/auth/index.js";
+import { createSignedUrlSigner } from "../src/images/index.js";
 
 const SECRET = "test-secret-abcdefghijklmnop";
 

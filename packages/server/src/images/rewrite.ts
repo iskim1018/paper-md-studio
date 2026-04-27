@@ -1,4 +1,3 @@
-import type { SignedUrlSigner } from "../auth/index.js";
 import type { StorageAdapter, StoredImageInfo } from "../storage/index.js";
 import type {
   ImageMode,
@@ -6,6 +5,7 @@ import type {
   ResponseImage,
   RewriteResult,
 } from "./types.js";
+import type { SignedUrlSigner } from "./url-signing.js";
 
 // core 는 이미지 저장 시 `./images/<name>` 경로로 markdown 에 링크를 남긴다.
 // 이 패턴만 인식하여 mode 별로 치환한다.

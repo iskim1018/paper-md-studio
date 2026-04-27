@@ -54,37 +54,6 @@ describe("RemoteConverter.convert", () => {
     expect(headers["Content-Type"]).toMatch(/multipart\/form-data; boundary=/);
   });
 
-  it("sends X-API-Key header when configured", async () => {
-    const fetchImpl = vi.fn(async (_url, _init) =>
-      jsonResponse({
-        success: true,
-        data: {
-          conversionId: "b".repeat(64),
-          format: "docx",
-          markdown: "",
-          images: [],
-          cached: false,
-          elapsedMs: 0,
-          createdAt: "2026-04-24T00:00:00Z",
-          originalName: "x.docx",
-          size: 0,
-        },
-      }),
-    );
-    const remote = new RemoteConverter({
-      baseUrl: "http://localhost:3000",
-      apiKey: "secret-key",
-      fetchImpl,
-    });
-    await remote.convert({
-      bytes: new Uint8Array([0]),
-      originalName: "x.docx",
-    });
-    const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
-    const headers = init.headers as Record<string, string>;
-    expect(headers["X-API-Key"]).toBe("secret-key");
-  });
-
   it("throws on 4xx envelope error", async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse(

@@ -1,14 +1,13 @@
 import { basename, extname } from "node:path";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
-import type { SignedUrlSigner } from "../auth/index.js";
 import type { ConvertCache } from "../cache/index.js";
 import {
   parseContentDispositionFilename,
   type SafeFetchResult,
   safeFetch,
 } from "../fetch/index.js";
-import type { ImageMode } from "../images/index.js";
+import type { ImageMode, SignedUrlSigner } from "../images/index.js";
 import { IMAGE_MODES, rewriteMarkdown } from "../images/index.js";
 import {
   ApiErrorSchema,

@@ -5,7 +5,6 @@ import { z } from "zod";
 const envSchema = z.object({
   PAPER_MD_MCP_MODE: z.enum(["embedded", "remote"]).optional(),
   PAPER_MD_MCP_REST_URL: z.string().url().optional(),
-  PAPER_MD_MCP_API_KEY: z.string().min(1).optional(),
   PAPER_MD_MCP_STORAGE: z.string().min(1).optional(),
   PAPER_MD_MCP_MAX_UPLOAD_MB: z
     .string()
@@ -33,7 +32,6 @@ export interface McpConfig {
   readonly mode: McpMode;
   readonly storageRoot: string;
   readonly restUrl: string | null;
-  readonly apiKey: string | null;
   readonly maxUploadMb: number;
   readonly maxInlineKb: number;
   readonly fetchTimeoutMs: number;
@@ -55,7 +53,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): McpConfig {
     mode,
     storageRoot: parsed.PAPER_MD_MCP_STORAGE ?? defaultRoot,
     restUrl: parsed.PAPER_MD_MCP_REST_URL ?? null,
-    apiKey: parsed.PAPER_MD_MCP_API_KEY ?? null,
     maxUploadMb: parsed.PAPER_MD_MCP_MAX_UPLOAD_MB ?? 50,
     maxInlineKb: parsed.PAPER_MD_MCP_MAX_INLINE_KB ?? 512,
     fetchTimeoutMs: parsed.PAPER_MD_MCP_FETCH_TIMEOUT_MS ?? 120000,
