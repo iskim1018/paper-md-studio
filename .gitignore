@@ -26,6 +26,8 @@ coverage/
 **/src-tauri/target/
 **/src-tauri/binaries/
 **/src-tauri/gen/
+# Windows sidecar shim 빌드 산출물 (cargo build 결과)
+packages/app/sidecar-shim/target/
 # Phase 7-D: jlink로 생성되는 번들 JRE (빌드 산출물, pnpm build:jre로 재생성)
 **/src-tauri/resources/jre/
 **/src-tauri/resources/jre.tar.gz

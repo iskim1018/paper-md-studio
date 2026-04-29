@@ -72,7 +72,8 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             packages/app/src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('packages/app/src-tauri/Cargo.lock') }}
+            packages/app/sidecar-shim/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('packages/app/src-tauri/Cargo.lock', 'packages/app/sidecar-shim/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
       - run: pnpm install --frozen-lockfile

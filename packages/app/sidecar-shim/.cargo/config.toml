@@ -1,0 +1,4 @@
+# sidecar-shim 은 standalone crate (Tauri workspace 와 분리).
+# 호스트 빌드 시: cargo build --release
+# Windows 크로스 빌드: cargo build --release --target x86_64-pc-windows-msvc
+#   사전: rustup target add x86_64-pc-windows-msvc

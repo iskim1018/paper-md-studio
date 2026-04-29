@@ -13,6 +13,8 @@
     "tauri": "tauri",
     "typecheck": "tsc --noEmit",
     "sidecar:install": "node scripts/install-sidecar.mjs",
+    "sidecar:build-shim": "cargo build --release --manifest-path sidecar-shim/Cargo.toml",
+    "sidecar:build-shim:win": "cargo build --release --manifest-path sidecar-shim/Cargo.toml --target x86_64-pc-windows-msvc",
     "test:e2e": "playwright test",
     "test:e2e:prod": "vite build && playwright test --config playwright.prod.config.ts",
     "test:e2e:ui": "playwright test --ui"
