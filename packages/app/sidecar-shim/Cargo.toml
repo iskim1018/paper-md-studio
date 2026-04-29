@@ -1,6 +1,6 @@
 [package]
 name = "paper-md-studio-cli-shim"
-version = "0.1.1"
+version = "0.1.2"
 description = "Tauri sidecar shim for paper-md-studio CLI on Windows (PE32+ binary)"
 authors = ["Insung Kim"]
 license = "MIT"
