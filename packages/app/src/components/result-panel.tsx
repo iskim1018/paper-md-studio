@@ -216,7 +216,12 @@ export function ResultPanel() {
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-hidden">
-        {mode === "preview" && <MarkdownPreview markdown={displayedMarkdown} />}
+        {mode === "preview" && (
+          <MarkdownPreview
+            markdown={displayedMarkdown}
+            basePath={selectedFile.result.outputPath}
+          />
+        )}
         {mode === "edit" && (
           <MilkdownEditor
             // 파일이 바뀌면 에디터를 재마운트하여 초기값을 반영
@@ -253,7 +258,10 @@ export function ResultPanel() {
                 className="h-full border-l border-[var(--color-border)]"
                 data-testid="split-preview"
               >
-                <MarkdownPreview markdown={displayedMarkdown} />
+                <MarkdownPreview
+                  markdown={displayedMarkdown}
+                  basePath={selectedFile.result.outputPath}
+                />
               </div>
             </Panel>
           </PanelGroup>
