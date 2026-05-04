@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const freeMock = vi.fn();
@@ -34,6 +35,8 @@ class IntersectionObserverStub {
   takeRecords = vi.fn().mockReturnValue([]);
 }
 
+let scrollIntoViewMock: ReturnType<typeof vi.fn>;
+
 beforeEach(() => {
   freeMock.mockClear();
   pageCountMock.mockClear();
@@ -42,11 +45,18 @@ beforeEach(() => {
   // jsdom은 IntersectionObserver를 제공하지 않는다
   (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver =
     IntersectionObserverStub;
+  // jsdom은 Element.scrollIntoView를 구현하지 않는다
+  scrollIntoViewMock = vi.fn();
+  Element.prototype.scrollIntoView = scrollIntoViewMock;
 });
 
 afterEach(() => {
   cleanup();
 });
+
+function getPageInput(): HTMLInputElement {
+  return screen.getByTestId("hwpx-page-input") as HTMLInputElement;
+}
 
 describe("HwpxViewer", () => {
   it("로딩 중 메시지를 표시한다", () => {
@@ -60,15 +70,11 @@ describe("HwpxViewer", () => {
     render(<HwpxViewer filePath="/tmp/a.hwpx" />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("hwpx-page-indicator").textContent).toBe(
-        "1 / 3",
-      );
+      expect(getPageInput().value).toBe("1");
     });
 
+    expect(screen.getByTestId("hwpx-page-count").textContent).toBe("3");
     expect(renderPageSvgMock).toHaveBeenCalledTimes(3);
-    expect(renderPageSvgMock).toHaveBeenNthCalledWith(1, 0);
-    expect(renderPageSvgMock).toHaveBeenNthCalledWith(2, 1);
-    expect(renderPageSvgMock).toHaveBeenNthCalledWith(3, 2);
     expect(screen.getAllByTestId("hwpx-page")).toHaveLength(3);
     expect(screen.getByText("page 1")).toBeTruthy();
     expect(screen.getByText("page 2")).toBeTruthy();
@@ -115,7 +121,6 @@ describe("HwpxViewer", () => {
   });
 
   it("가로 overflow가 있을 때 스크롤 위치를 가운데로 맞춘다", async () => {
-    // jsdom은 layout 계산을 하지 않으므로 scrollWidth/clientWidth를 모킹
     const widthSpy = vi
       .spyOn(HTMLElement.prototype, "scrollWidth", "get")
       .mockReturnValue(1200);
@@ -132,7 +137,6 @@ describe("HwpxViewer", () => {
       });
 
       const scroller = screen.getByTestId("hwpx-scroller");
-      // (1200 - 800) / 2 = 200
       expect(scroller.scrollLeft).toBe(200);
     } finally {
       widthSpy.mockRestore();
@@ -162,5 +166,113 @@ describe("HwpxViewer", () => {
       widthSpy.mockRestore();
       clientSpy.mockRestore();
     }
+  });
+
+  it("첫 페이지에서 prev 버튼이 비활성화된다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(3));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    expect(
+      (screen.getByTestId("hwpx-prev") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByTestId("hwpx-next") as HTMLButtonElement).disabled,
+    ).toBe(false);
+  });
+
+  it("페이지가 1개뿐이면 prev/next 모두 비활성화된다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(1));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    expect(
+      (screen.getByTestId("hwpx-prev") as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByTestId("hwpx-next") as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it("next 버튼 클릭 시 다음 페이지로 scrollIntoView를 호출한다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(3));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    await userEvent.click(screen.getByTestId("hwpx-next"));
+
+    expect(scrollIntoViewMock).toHaveBeenCalledTimes(1);
+    expect(scrollIntoViewMock).toHaveBeenCalledWith({
+      behavior: "instant",
+      block: "start",
+    });
+    // 호출된 element가 page-index="1"인지 확인
+    const target = scrollIntoViewMock.mock.instances[0] as HTMLElement;
+    expect(target.dataset.pageIndex).toBe("1");
+    // 낙관적 업데이트로 인디케이터가 즉시 반영되어야 한다
+    expect(getPageInput().value).toBe("2");
+  });
+
+  it("페이지 입력 후 Enter 시 해당 페이지로 점프한다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(5));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    const input = getPageInput();
+    await userEvent.clear(input);
+    await userEvent.type(input, "3");
+    await userEvent.keyboard("{Enter}");
+
+    expect(scrollIntoViewMock).toHaveBeenCalledTimes(1);
+    const target = scrollIntoViewMock.mock.instances[0] as HTMLElement;
+    expect(target.dataset.pageIndex).toBe("2"); // 3페이지 = index 2
+    expect(getPageInput().value).toBe("3");
+  });
+
+  it("범위 밖 페이지를 입력하면 현재 페이지로 복원한다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(3));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    const input = getPageInput();
+    await userEvent.clear(input);
+    await userEvent.type(input, "99");
+    await userEvent.keyboard("{Enter}");
+
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    expect(getPageInput().value).toBe("1");
+  });
+
+  it("Esc 키 입력 시 변경한 값을 현재 페이지로 복원한다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(3));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    const input = getPageInput();
+    await userEvent.clear(input);
+    await userEvent.type(input, "2");
+    await userEvent.keyboard("{Escape}");
+
+    expect(scrollIntoViewMock).not.toHaveBeenCalled();
+    expect(getPageInput().value).toBe("1");
+  });
+
+  it("입력 필드는 숫자가 아닌 입력을 차단한다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(3));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    const input = getPageInput();
+    await userEvent.clear(input);
+    await userEvent.type(input, "abc");
+
+    expect(input.value).toBe("");
   });
 });
