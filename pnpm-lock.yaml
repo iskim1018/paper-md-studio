@@ -72,6 +72,9 @@ importers:
       '@milkdown/theme-nord':
         specifier: ^7.20.0
         version: 7.20.0
+      '@rhwp/core':
+        specifier: ^0.7.9
+        version: 0.7.9
       '@tauri-apps/api':
         specifier: ^2.5.0
         version: 2.10.1
@@ -1180,6 +1183,9 @@ packages:
     resolution: {integrity: sha512-PG6q63nQg5c9rIi4/Z5lR5IVF7yU5MqmKaPOe0HSc0O2cX1fPi96sUQu5j7eo4gKCkB2AnNGoWt7y4/Xx3Kcqg==}
     engines: {node: '>=18'}
     hasBin: true
+
+  '@rhwp/core@0.7.9':
+    resolution: {integrity: sha512-J7sKdTNECC2Sl4WErLDONynSF3UAlAzWaJ67T7xFjBxL1eS2yooT3CB8yNfrDOTlUZVtakZSd7LsYzinL/bj1A==}
 
   '@rolldown/binding-android-arm64@1.0.0-rc.12':
     resolution: {integrity: sha512-pv1y2Fv0JybcykuiiD3qBOBdz6RteYojRFY1d+b95WVuzx211CRh+ytI/+9iVyWQ6koTh5dawe4S/yRfOFjgaA==}
@@ -4885,6 +4891,8 @@ snapshots:
   '@playwright/test@1.59.1':
     dependencies:
       playwright: 1.59.1
+
+  '@rhwp/core@0.7.9': {}
 
   '@rolldown/binding-android-arm64@1.0.0-rc.12':
     optional: true

@@ -79,7 +79,7 @@ describe("PreviewPanel", () => {
     });
 
     render(<PreviewPanel />);
-    expect(screen.getByText("HWPX 로딩 중...")).toBeTruthy();
+    expect(screen.getByText("HWP 로딩 중...")).toBeTruthy();
   });
 
   it("파일 정보 토글 시 메타데이터를 표시/숨김한다", async () => {
