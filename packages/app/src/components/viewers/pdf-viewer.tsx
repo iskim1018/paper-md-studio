@@ -1,7 +1,4 @@
-import { ChevronLeft, ChevronRight, Maximize, Minus, Plus } from "lucide-react";
 import {
-  type ChangeEvent,
-  type KeyboardEvent,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -9,6 +6,12 @@ import {
   useState,
 } from "react";
 import { readFileAsBytes } from "../../lib/file-reader";
+import {
+  MAX_SCALE,
+  MIN_SCALE,
+  SCALE_STEP,
+  ViewerToolbar,
+} from "./viewer-toolbar";
 
 interface PdfViewerProps {
   readonly filePath: string;
@@ -37,9 +40,6 @@ interface RenderTask {
   cancel: () => void;
 }
 
-const SCALE_STEP = 0.25;
-const MIN_SCALE = 0.25;
-const MAX_SCALE = 4.0;
 const SCROLL_PADDING_PX = 32; // p-4 양옆
 
 async function loadPdf(filePath: string): Promise<{
@@ -69,19 +69,16 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
   const [pageInfos, setPageInfos] = useState<Array<PageInfo>>([]);
   const [scale, setScale] = useState(1);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageInput, setPageInput] = useState("1");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
   const docRef = useRef<PdfDocument | null>(null);
   const canvasRefsMap = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const renderedScalesMap = useRef<Map<number, number>>(new Map());
   const renderTasksMap = useRef<Map<number, RenderTask>>(new Map());
   const visiblePagesRef = useRef<Set<number>>(new Set());
   const scaleRef = useRef(scale);
-  const skipBlurRef = useRef(false);
 
   useEffect(() => {
     scaleRef.current = scale;
@@ -94,10 +91,8 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
     setError(null);
     setPageInfos([]);
     setCurrentPage(0);
-    setPageInput("1");
     setScale(1);
 
-    // 이전 PDF의 in-flight render 취소 + 맵 초기화
     for (const task of renderTasksMap.current.values()) {
       try {
         task.cancel();
@@ -142,9 +137,7 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
     setScale(Math.max(MIN_SCALE, Math.min(MAX_SCALE, initScale)));
   }, [pageInfos]);
 
-  // 가로 페이지 혼재 시 초기 가로 스크롤 가운데 정렬 (파일 로드 후 1회만).
-  // scale을 deps에 포함해 fit-to-width로 scale이 settle된 다음 cycle에서 동작하도록 함.
-  // 사용자 스크롤을 존중하기 위해 didCenterRef로 1회 가드.
+  // 가로 페이지 혼재 시 초기 가로 스크롤 가운데 정렬 (파일 로드 후 1회만)
   const didCenterRef = useRef(false);
   useEffect(() => {
     didCenterRef.current = false;
@@ -197,7 +190,7 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
         await task.promise;
         renderedScalesMap.current.set(pageIdx, targetScale);
       } catch {
-        // canceled or 렌더 실패 — 무시 (다음 visibility 이벤트에서 재시도)
+        // canceled or 렌더 실패 — 무시
       } finally {
         renderTasksMap.current.delete(pageIdx);
       }
@@ -205,7 +198,7 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
     [],
   );
 
-  // scale 변경 시 visible 페이지를 즉시 재렌더, 비가시 페이지의 캐시는 stale 표시
+  // scale 변경 시 visible 페이지 즉시 재렌더, 비가시는 캐시 stale
   useEffect(() => {
     if (pageInfos.length === 0) return;
     for (const idx of visiblePagesRef.current) {
@@ -218,7 +211,6 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
     }
   }, [scale, pageInfos, renderPage]);
 
-  // IntersectionObserver entry 처리: visibility 맵 + visiblePagesRef + lazy 렌더
   const processEntry = useCallback(
     (entry: IntersectionObserverEntry, visibility: Map<number, number>) => {
       const idx = Number(
@@ -237,7 +229,6 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
     [renderPage],
   );
 
-  // IntersectionObserver: 페이지 가시성 추적 + lazy 렌더 + currentPage 갱신
   useEffect(() => {
     if (pageInfos.length === 0 || !scrollRef.current) return;
     if (typeof IntersectionObserver === "undefined") return;
@@ -269,12 +260,6 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
     return () => observer.disconnect();
   }, [pageInfos, processEntry]);
 
-  // 스크롤로 currentPage 변경 시 입력 필드 동기화 (입력 중이면 덮어쓰지 않음)
-  useEffect(() => {
-    if (inputRef.current && document.activeElement === inputRef.current) return;
-    setPageInput(String(currentPage + 1));
-  }, [currentPage]);
-
   const scrollToPage = useCallback(
     (idx: number) => {
       const total = pageInfos.length;
@@ -288,53 +273,6 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
     },
     [pageInfos.length],
   );
-
-  const submitPageInput = useCallback(() => {
-    const total = pageInfos.length;
-    if (total === 0) return;
-    const n = Number.parseInt(pageInput, 10);
-    if (Number.isFinite(n) && n >= 1 && n <= total) {
-      scrollToPage(n - 1);
-    } else {
-      setPageInput(String(currentPage + 1));
-    }
-  }, [pageInfos.length, pageInput, currentPage, scrollToPage]);
-
-  const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value === "" || /^\d+$/.test(value)) {
-      setPageInput(value);
-    }
-  }, []);
-
-  const handleInputKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submitPageInput();
-        skipBlurRef.current = true;
-        inputRef.current?.blur();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        setPageInput(String(currentPage + 1));
-        skipBlurRef.current = true;
-        inputRef.current?.blur();
-      }
-    },
-    [submitPageInput, currentPage],
-  );
-
-  const handleInputBlur = useCallback(() => {
-    if (skipBlurRef.current) {
-      skipBlurRef.current = false;
-      return;
-    }
-    submitPageInput();
-  }, [submitPageInput]);
-
-  const handleInputFocus = useCallback(() => {
-    inputRef.current?.select();
-  }, []);
 
   const adjustScale = useCallback((delta: number) => {
     setScale((prev) => Math.max(MIN_SCALE, Math.min(MAX_SCALE, prev + delta)));
@@ -366,89 +304,23 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
     );
   }
 
-  const canPrev = currentPage > 0;
-  const canNext = currentPage < pageInfos.length - 1;
-
   return (
     <div
       className="flex h-full flex-col overflow-hidden"
       data-testid="pdf-viewer"
     >
-      <div className="flex items-center justify-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-muted)]">
-        <button
-          type="button"
-          onClick={() => scrollToPage(currentPage - 1)}
-          disabled={!canPrev}
-          className="flex items-center hover:text-[var(--color-text)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="이전 페이지"
-          data-testid="pdf-prev"
-        >
-          <ChevronLeft size={14} />
-        </button>
-        <span
-          data-testid="pdf-page-indicator"
-          className="flex items-center gap-1"
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            inputMode="numeric"
-            value={pageInput}
-            onChange={handleInputChange}
-            onKeyDown={handleInputKeyDown}
-            onBlur={handleInputBlur}
-            onFocus={handleInputFocus}
-            className="w-8 text-center bg-transparent border-b border-[var(--color-border)] focus:outline-none focus:border-[var(--color-accent)]"
-            aria-label="페이지 번호 입력"
-            data-testid="pdf-page-input"
-          />
-          <span>/</span>
-          <span data-testid="pdf-page-count">{pageInfos.length}</span>
-        </span>
-        <button
-          type="button"
-          onClick={() => scrollToPage(currentPage + 1)}
-          disabled={!canNext}
-          className="flex items-center hover:text-[var(--color-text)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="다음 페이지"
-          data-testid="pdf-next"
-        >
-          <ChevronRight size={14} />
-        </button>
-        <span className="mx-1 text-[var(--color-border)]">|</span>
-        <button
-          type="button"
-          onClick={() => adjustScale(-SCALE_STEP)}
-          disabled={scale <= MIN_SCALE}
-          className="flex items-center hover:text-[var(--color-text)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="축소"
-          data-testid="pdf-zoom-out"
-        >
-          <Minus size={14} />
-        </button>
-        <span className="tabular-nums w-12 text-center" data-testid="pdf-scale">
-          {Math.round(scale * 100)}%
-        </span>
-        <button
-          type="button"
-          onClick={() => adjustScale(SCALE_STEP)}
-          disabled={scale >= MAX_SCALE}
-          className="flex items-center hover:text-[var(--color-text)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="확대"
-          data-testid="pdf-zoom-in"
-        >
-          <Plus size={14} />
-        </button>
-        <button
-          type="button"
-          onClick={fitToWidth}
-          className="flex items-center hover:text-[var(--color-text)] transition-colors"
-          aria-label="너비 맞춤"
-          data-testid="pdf-fit"
-        >
-          <Maximize size={14} />
-        </button>
-      </div>
+      <ViewerToolbar
+        currentPage={currentPage}
+        pageCount={pageInfos.length}
+        scale={scale}
+        testIdPrefix="pdf"
+        onPageJump={scrollToPage}
+        onZoomIn={() => adjustScale(SCALE_STEP)}
+        onZoomOut={() => adjustScale(-SCALE_STEP)}
+        onFitToWidth={fitToWidth}
+        canZoomIn={scale < MAX_SCALE}
+        canZoomOut={scale > MIN_SCALE}
+      />
       <div
         ref={scrollRef}
         className="flex-1 overflow-auto bg-[var(--color-panel-bg)] p-4"

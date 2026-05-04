@@ -243,4 +243,62 @@ describe("DocxViewer", () => {
     expect(scrollIntoViewMock).not.toHaveBeenCalled();
     expect(getPageInput().value).toBe("1");
   });
+
+  it("zoom-in 버튼 클릭 시 scale이 25% 증가한다", async () => {
+    setupRenderAsyncWithPages(1);
+    render(<DocxViewer filePath="/tmp/a.docx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+    expect(screen.getByTestId("docx-scale").textContent).toBe("100%");
+
+    await userEvent.click(screen.getByTestId("docx-zoom-in"));
+    expect(screen.getByTestId("docx-scale").textContent).toBe("125%");
+  });
+
+  it("zoom-out 버튼 클릭 시 scale이 25% 감소한다", async () => {
+    setupRenderAsyncWithPages(1);
+    render(<DocxViewer filePath="/tmp/a.docx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    await userEvent.click(screen.getByTestId("docx-zoom-out"));
+    expect(screen.getByTestId("docx-scale").textContent).toBe("75%");
+  });
+
+  it("scale 변경 시 scroller에 --zoom-scale CSS 변수가 적용된다", async () => {
+    setupRenderAsyncWithPages(1);
+    render(<DocxViewer filePath="/tmp/a.docx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    await userEvent.click(screen.getByTestId("docx-zoom-in"));
+
+    const scroller = screen.getByTestId("docx-scroller");
+    expect(scroller.style.getPropertyValue("--zoom-scale")).toBe("1.25");
+  });
+
+  it("fit 버튼 클릭 시 첫 페이지 width 기준으로 scale 재계산", async () => {
+    const widthSpy = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(1190); // (1190 - 32) / 595 ≈ 1.946 → 약 195%
+
+    try {
+      // section.docx의 style.width를 595px로 설정한 mock
+      renderAsyncMock.mockImplementation(async (_data, container) => {
+        const section = document.createElement("section");
+        section.className = "docx";
+        section.style.width = "595px";
+        container.replaceChildren(section);
+      });
+      render(<DocxViewer filePath="/tmp/a.docx" />);
+
+      await waitFor(() => expect(getPageInput().value).toBe("1"));
+      await userEvent.click(screen.getByTestId("docx-fit"));
+
+      const scaleText = screen.getByTestId("docx-scale").textContent ?? "";
+      expect(scaleText).toMatch(/19[0-5]%/);
+    } finally {
+      widthSpy.mockRestore();
+    }
+  });
 });

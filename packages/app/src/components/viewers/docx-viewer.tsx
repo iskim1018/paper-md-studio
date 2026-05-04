@@ -1,7 +1,5 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
-  type ChangeEvent,
-  type KeyboardEvent,
+  type CSSProperties,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -13,32 +11,57 @@ import {
   preprocessDocxPageFields,
 } from "../../lib/docx-page-fields";
 import { readFileAsBytes } from "../../lib/file-reader";
+import {
+  MAX_SCALE,
+  MIN_SCALE,
+  SCALE_STEP,
+  ViewerToolbar,
+} from "./viewer-toolbar";
 
 interface DocxViewerProps {
   readonly filePath: string;
 }
 
 const DOCX_PAGE_CLASS = "docx";
+const DEFAULT_PAGE_WIDTH = 595;
+const SCROLL_PADDING_PX = 32;
+
+interface LoadResult {
+  readonly pageCount: number;
+  readonly firstPageWidth: number;
+}
+
+/** docx-preview가 section.docx에 인라인 style로 부여한 width 추출. */
+function extractFirstPageWidth(container: HTMLElement): number {
+  const first = container.querySelector<HTMLElement>(
+    `section.${DOCX_PAGE_CLASS}`,
+  );
+  if (!first) return DEFAULT_PAGE_WIDTH;
+  const styleWidth = first.style.width;
+  const match = styleWidth.match(/^([\d.]+)px$/);
+  if (match?.[1]) {
+    return Number(match[1]);
+  }
+  return first.offsetWidth || DEFAULT_PAGE_WIDTH;
+}
 
 async function loadDocxIntoContainer(
   filePath: string,
   container: HTMLElement,
-): Promise<number> {
+): Promise<LoadResult> {
   const bytes = await readFileAsBytes(filePath.normalize("NFC"));
   const rawBuffer = bytes.buffer.slice(
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength,
   ) as ArrayBuffer;
 
-  // PAGE/NUMPAGES 필드를 마커 텍스트 run으로 치환한 docx 바이트
-  // (docx-preview가 fldSimple/복잡 필드를 렌더하지 않는 한계 우회)
   const arrayBuffer = await preprocessDocxPageFields(rawBuffer);
 
   container.innerHTML = "";
 
   const docx = await import("docx-preview");
   await docx.renderAsync(arrayBuffer, container, undefined, {
-    inWrapper: false, // 외곽 wrapper 제거 → flex 레이아웃 직접 적용
+    inWrapper: false,
     breakPages: true,
     ignoreLastRenderedPageBreak: false,
     renderHeaders: true,
@@ -46,7 +69,6 @@ async function loadDocxIntoContainer(
     renderFootnotes: true,
   });
 
-  // 각 페이지에 인덱스 부여
   const pages = container.querySelectorAll<HTMLElement>(
     `section.${DOCX_PAGE_CLASS}`,
   );
@@ -54,28 +76,30 @@ async function loadDocxIntoContainer(
     p.dataset.pageIndex = String(i);
   });
 
-  // 헤더/푸터의 PAGE/NUMPAGES 마커를 실제 번호로 교체
   injectPageNumbers(container, pages.length);
 
-  return pages.length;
+  return {
+    pageCount: pages.length,
+    firstPageWidth: extractFirstPageWidth(container),
+  };
 }
 
 export function DocxViewer({ filePath }: DocxViewerProps) {
   const [pageCount, setPageCount] = useState(0);
+  const [firstPageWidth, setFirstPageWidth] = useState(DEFAULT_PAGE_WIDTH);
+  const [scale, setScale] = useState(1);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageInput, setPageInput] = useState("1");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
     setError(null);
     setCurrentPage(0);
-    setPageInput("1");
+    setScale(1);
     setPageCount(0);
 
     const container = containerRef.current;
@@ -85,12 +109,13 @@ export function DocxViewer({ filePath }: DocxViewerProps) {
     }
 
     loadDocxIntoContainer(filePath, container)
-      .then((count) => {
+      .then(({ pageCount: count, firstPageWidth: width }) => {
         if (cancelled) {
           container.innerHTML = "";
           return;
         }
         setPageCount(count);
+        setFirstPageWidth(width || DEFAULT_PAGE_WIDTH);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -155,17 +180,10 @@ export function DocxViewer({ filePath }: DocxViewerProps) {
     return () => observer.disconnect();
   }, [pageCount]);
 
-  // 스크롤로 currentPage가 바뀌면 입력 필드도 동기화. 입력 중이면 덮어쓰지 않는다.
-  useEffect(() => {
-    if (inputRef.current && document.activeElement === inputRef.current) return;
-    setPageInput(String(currentPage + 1));
-  }, [currentPage]);
-
   const scrollToPage = useCallback(
     (idx: number) => {
       if (!containerRef.current) return;
       const clamped = Math.max(0, Math.min(pageCount - 1, idx));
-      // 즉각 반응을 위해 currentPage를 먼저 갱신.
       setCurrentPage(clamped);
       const pageEl = containerRef.current.querySelector<HTMLElement>(
         `section.${DOCX_PAGE_CLASS}[data-page-index="${clamped}"]`,
@@ -175,57 +193,24 @@ export function DocxViewer({ filePath }: DocxViewerProps) {
     [pageCount],
   );
 
-  const submitPageInput = useCallback(() => {
-    if (pageCount === 0) return;
-    const n = Number.parseInt(pageInput, 10);
-    if (Number.isFinite(n) && n >= 1 && n <= pageCount) {
-      scrollToPage(n - 1);
-    } else {
-      setPageInput(String(currentPage + 1));
-    }
-  }, [pageCount, pageInput, currentPage, scrollToPage]);
-
-  const handleInputChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    if (value === "" || /^\d+$/.test(value)) {
-      setPageInput(value);
-    }
+  const adjustScale = useCallback((delta: number) => {
+    setScale((prev) => Math.max(MIN_SCALE, Math.min(MAX_SCALE, prev + delta)));
   }, []);
 
-  const skipBlurRef = useRef(false);
+  const fitToWidth = useCallback(() => {
+    if (pageCount === 0 || !scrollRef.current || firstPageWidth === 0) return;
+    const containerWidth = scrollRef.current.clientWidth - SCROLL_PADDING_PX;
+    if (containerWidth <= 0) return;
+    const newScale = containerWidth / firstPageWidth;
+    setScale(Math.max(MIN_SCALE, Math.min(MAX_SCALE, newScale)));
+  }, [pageCount, firstPageWidth]);
 
-  const handleInputKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        submitPageInput();
-        skipBlurRef.current = true;
-        inputRef.current?.blur();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        setPageInput(String(currentPage + 1));
-        skipBlurRef.current = true;
-        inputRef.current?.blur();
-      }
-    },
-    [submitPageInput, currentPage],
-  );
-
-  const handleInputBlur = useCallback(() => {
-    if (skipBlurRef.current) {
-      skipBlurRef.current = false;
-      return;
-    }
-    submitPageInput();
-  }, [submitPageInput]);
-
-  const handleInputFocus = useCallback(() => {
-    inputRef.current?.select();
-  }, []);
-
-  const canPrev = currentPage > 0;
-  const canNext = currentPage < pageCount - 1;
   const showHeader = pageCount > 0;
+
+  // CSS 변수로 zoom scale을 전달. 자식 section.docx에 CSS rule로 적용 (styles.css).
+  const scrollerStyle = {
+    "--zoom-scale": scale,
+  } as CSSProperties;
 
   return (
     <div
@@ -243,48 +228,18 @@ export function DocxViewer({ filePath }: DocxViewerProps) {
         </div>
       )}
       {!error && !isLoading && showHeader && (
-        <div className="flex items-center justify-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5 text-xs text-[var(--color-muted)]">
-          <button
-            type="button"
-            onClick={() => scrollToPage(currentPage - 1)}
-            disabled={!canPrev}
-            className="flex items-center hover:text-[var(--color-text)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="이전 페이지"
-            data-testid="docx-prev"
-          >
-            <ChevronLeft size={14} />
-          </button>
-          <span
-            data-testid="docx-page-indicator"
-            className="flex items-center gap-1"
-          >
-            <input
-              ref={inputRef}
-              type="text"
-              inputMode="numeric"
-              value={pageInput}
-              onChange={handleInputChange}
-              onKeyDown={handleInputKeyDown}
-              onBlur={handleInputBlur}
-              onFocus={handleInputFocus}
-              className="w-8 text-center bg-transparent border-b border-[var(--color-border)] focus:outline-none focus:border-[var(--color-accent)]"
-              aria-label="페이지 번호 입력"
-              data-testid="docx-page-input"
-            />
-            <span>/</span>
-            <span data-testid="docx-page-count">{pageCount}</span>
-          </span>
-          <button
-            type="button"
-            onClick={() => scrollToPage(currentPage + 1)}
-            disabled={!canNext}
-            className="flex items-center hover:text-[var(--color-text)] transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-            aria-label="다음 페이지"
-            data-testid="docx-next"
-          >
-            <ChevronRight size={14} />
-          </button>
-        </div>
+        <ViewerToolbar
+          currentPage={currentPage}
+          pageCount={pageCount}
+          scale={scale}
+          testIdPrefix="docx"
+          onPageJump={scrollToPage}
+          onZoomIn={() => adjustScale(SCALE_STEP)}
+          onZoomOut={() => adjustScale(-SCALE_STEP)}
+          onFitToWidth={fitToWidth}
+          canZoomIn={scale < MAX_SCALE}
+          canZoomOut={scale > MIN_SCALE}
+        />
       )}
       {/*
         스크롤 컨테이너: docx-preview 실행 결과 DOM이 살아 있어야 하므로
@@ -296,6 +251,7 @@ export function DocxViewer({ filePath }: DocxViewerProps) {
           showHeader ? "" : "hidden"
         }`}
         data-testid="docx-scroller"
+        style={scrollerStyle}
       >
         <div
           ref={containerRef}

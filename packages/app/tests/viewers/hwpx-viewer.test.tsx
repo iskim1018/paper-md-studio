@@ -275,4 +275,61 @@ describe("HwpxViewer", () => {
 
     expect(input.value).toBe("");
   });
+
+  it("zoom-in 버튼 클릭 시 scale이 25% 증가한다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(1));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+    expect(screen.getByTestId("hwpx-scale").textContent).toBe("100%");
+
+    await userEvent.click(screen.getByTestId("hwpx-zoom-in"));
+    expect(screen.getByTestId("hwpx-scale").textContent).toBe("125%");
+  });
+
+  it("zoom-out 버튼 클릭 시 scale이 25% 감소한다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(1));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    await userEvent.click(screen.getByTestId("hwpx-zoom-out"));
+    expect(screen.getByTestId("hwpx-scale").textContent).toBe("75%");
+  });
+
+  it("scale 변경 시 scroller에 --zoom-scale CSS 변수가 적용된다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(1));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    await userEvent.click(screen.getByTestId("hwpx-zoom-in"));
+
+    const scroller = screen.getByTestId("hwpx-scroller");
+    // CSSStyleDeclaration.getPropertyValue로 CSS 변수 읽기
+    expect(scroller.style.getPropertyValue("--zoom-scale")).toBe("1.25");
+  });
+
+  it("fit 버튼 클릭 시 SVG width 기준으로 scale 재계산", async () => {
+    const widthSpy = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(1190); // (1190 - 32) / 595 ≈ 1.946 → 약 195%
+    try {
+      loadHwpDocumentMock.mockResolvedValue({
+        free: freeMock,
+        pageCount: () => 1,
+        renderPageSvg: () =>
+          '<svg width="595" height="842"><text>page 1</text></svg>',
+      });
+      render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+      await waitFor(() => expect(getPageInput().value).toBe("1"));
+      await userEvent.click(screen.getByTestId("hwpx-fit"));
+
+      const scaleText = screen.getByTestId("hwpx-scale").textContent ?? "";
+      expect(scaleText).toMatch(/19[0-5]%/);
+    } finally {
+      widthSpy.mockRestore();
+    }
+  });
 });

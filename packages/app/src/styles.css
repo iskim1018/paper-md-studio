@@ -211,6 +211,13 @@
 .docx-page-container > section.docx {
   background: #ffffff;
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  /* 부모 (docx-scroller) 의 --zoom-scale 변수를 받아 layout 포함 zoom 적용 */
+  zoom: var(--zoom-scale, 1);
+}
+
+/* HwpxViewer의 SVG 페이지에도 zoom 적용 */
+.hwpx-page {
+  zoom: var(--zoom-scale, 1);
 }
 
 /* DOCX/HWPX HTML 뷰어 기본 스타일 (DocViewer / 레거시 경로) */
