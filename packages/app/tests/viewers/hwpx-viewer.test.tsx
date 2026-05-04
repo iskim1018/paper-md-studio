@@ -113,4 +113,54 @@ describe("HwpxViewer", () => {
     unmount();
     expect(freeMock).toHaveBeenCalled();
   });
+
+  it("가로 overflow가 있을 때 스크롤 위치를 가운데로 맞춘다", async () => {
+    // jsdom은 layout 계산을 하지 않으므로 scrollWidth/clientWidth를 모킹
+    const widthSpy = vi
+      .spyOn(HTMLElement.prototype, "scrollWidth", "get")
+      .mockReturnValue(1200);
+    const clientSpy = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(800);
+
+    try {
+      loadHwpDocumentMock.mockResolvedValue(createDocStub(1));
+      render(<HwpxViewer filePath="/tmp/wide.hwpx" />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("hwpx-page")).toBeTruthy();
+      });
+
+      const scroller = screen.getByTestId("hwpx-scroller");
+      // (1200 - 800) / 2 = 200
+      expect(scroller.scrollLeft).toBe(200);
+    } finally {
+      widthSpy.mockRestore();
+      clientSpy.mockRestore();
+    }
+  });
+
+  it("가로 overflow가 없으면 스크롤 위치를 변경하지 않는다", async () => {
+    const widthSpy = vi
+      .spyOn(HTMLElement.prototype, "scrollWidth", "get")
+      .mockReturnValue(800);
+    const clientSpy = vi
+      .spyOn(HTMLElement.prototype, "clientWidth", "get")
+      .mockReturnValue(800);
+
+    try {
+      loadHwpDocumentMock.mockResolvedValue(createDocStub(1));
+      render(<HwpxViewer filePath="/tmp/narrow.hwpx" />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("hwpx-page")).toBeTruthy();
+      });
+
+      const scroller = screen.getByTestId("hwpx-scroller");
+      expect(scroller.scrollLeft).toBe(0);
+    } finally {
+      widthSpy.mockRestore();
+      clientSpy.mockRestore();
+    }
+  });
 });

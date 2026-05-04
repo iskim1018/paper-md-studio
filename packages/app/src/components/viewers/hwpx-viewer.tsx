@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { type HwpDocument, loadHwpDocument } from "../../lib/rhwp";
 
 interface HwpxViewerProps {
@@ -58,6 +58,16 @@ export function HwpxViewer({ filePath }: HwpxViewerProps) {
       if (loadedDoc) loadedDoc.free();
     };
   }, [filePath]);
+
+  // 첫 렌더 직후 가로 스크롤을 가운데로 맞춘다.
+  // 가로 페이지가 일부 섞여 있는 문서에서 좌우 어느 쪽으로도 치우치지 않게 시작.
+  useLayoutEffect(() => {
+    if (!docState || !scrollRef.current) return;
+    const root = scrollRef.current;
+    if (root.scrollWidth > root.clientWidth) {
+      root.scrollLeft = (root.scrollWidth - root.clientWidth) / 2;
+    }
+  }, [docState]);
 
   useEffect(() => {
     if (!docState || !scrollRef.current) return;
@@ -125,8 +135,9 @@ export function HwpxViewer({ filePath }: HwpxViewerProps) {
       <div
         ref={scrollRef}
         className="flex-1 overflow-auto bg-[var(--color-panel-bg)] p-4"
+        data-testid="hwpx-scroller"
       >
-        <div className="flex flex-col items-center gap-4">
+        <div className="flex flex-col gap-4 min-w-max [align-items:safe_center]">
           {docState.pages.map((svg, i) => (
             <div
               // biome-ignore lint/suspicious/noArrayIndexKey: 페이지 순서는 안정적이고 변하지 않는다
