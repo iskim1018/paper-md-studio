@@ -207,7 +207,13 @@
   }
 }
 
-/* DOCX/HWPX HTML 뷰어 기본 스타일 */
+/* docx-preview가 만든 페이지 (section.docx)에 흰색 배경 + 그림자 */
+.docx-page-container > section.docx {
+  background: #ffffff;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
+/* DOCX/HWPX HTML 뷰어 기본 스타일 (DocViewer / 레거시 경로) */
 .docx-content,
 .hwpx-content {
   line-height: 1.6;
