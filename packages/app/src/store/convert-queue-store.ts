@@ -9,6 +9,26 @@ import { resolveOutputPath } from "../lib/output-path";
 import { useFileStore } from "./file-store";
 import { useSettingsStore } from "./settings-store";
 
+/**
+ * .md 파일은 이미 markdown이므로 CLI 변환을 건너뛰고 원본을 그대로 읽어
+ * result에 적재한다. outputPath는 원본 .md 경로(저장 시 그 위에 덮어쓰기).
+ */
+async function loadMarkdownFile(item: QueueItem): Promise<void> {
+  const { updateFile } = fileStore.getState();
+  const { readTextFile } = await import("@tauri-apps/plugin-fs");
+  const markdown = await readTextFile(item.path);
+  updateFile(item.id, {
+    status: "done",
+    result: {
+      markdown,
+      format: "md",
+      elapsed: 0,
+      imageCount: 0,
+      outputPath: item.path,
+    },
+  });
+}
+
 const DEFAULT_CONCURRENCY = 5;
 
 interface QueueItem {
@@ -27,9 +47,16 @@ interface ConvertQueueStore extends QueueSnapshot {
 const fileStore = useFileStore;
 
 async function runItem(item: QueueItem): Promise<RunOutcome | undefined> {
-  const { updateFile } = fileStore.getState();
+  const { updateFile, files } = fileStore.getState();
   updateFile(item.id, { status: "converting" });
   try {
+    // .md는 변환 단계를 건너뛰고 원본을 그대로 읽어들인다.
+    const file = files.find((f) => f.id === item.id);
+    if (file?.format === "md") {
+      await loadMarkdownFile(item);
+      return;
+    }
+
     const outputDir = useSettingsStore.getState().outputDir;
     const resolved = await resolveOutputPath(item.path, outputDir);
     if (resolved.kind === "skip") {

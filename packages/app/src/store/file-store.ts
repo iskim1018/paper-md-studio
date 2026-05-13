@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type DocumentFormat = "hwp" | "hwpx" | "doc" | "docx" | "pdf";
+export type DocumentFormat = "hwp" | "hwpx" | "doc" | "docx" | "pdf" | "md";
 export type FileStatus = "pending" | "converting" | "done" | "error";
 
 export interface ConvertResult {
@@ -70,6 +70,8 @@ const FORMAT_EXTENSIONS: Record<string, DocumentFormat> = {
   ".doc": "doc",
   ".docx": "docx",
   ".pdf": "pdf",
+  // .md는 변환 단계를 건너뛰고 원본 콘텐츠를 그대로 result에 적재한다.
+  ".md": "md",
 };
 
 const SUPPORTED_EXTENSIONS = new Set(Object.keys(FORMAT_EXTENSIONS));

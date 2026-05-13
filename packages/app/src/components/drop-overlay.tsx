@@ -63,7 +63,9 @@ export function DropOverlay() {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="rounded-2xl border-2 border-dashed border-[var(--color-accent)] bg-[var(--color-bg)]/90 px-12 py-8 text-center">
         <p className="text-lg font-medium">파일을 놓으세요</p>
-        <p className="text-sm text-[var(--color-muted)]">.hwpx, .docx, .pdf</p>
+        <p className="text-sm text-[var(--color-muted)]">
+          .hwpx, .docx, .pdf, .md
+        </p>
       </div>
     </div>
   );

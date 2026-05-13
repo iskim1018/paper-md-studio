@@ -96,6 +96,16 @@ function FileViewer({ format, filePath }: FileViewerProps) {
     case "hwp":
     case "hwpx":
       return <HwpxViewer filePath={filePath} />;
+    case "md":
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[var(--color-muted)]">
+          <FileSearch size={32} />
+          <p className="text-sm">Markdown 원본 파일</p>
+          <p className="text-xs">
+            오른쪽 Markdown 영역에서 콘텐츠를 확인하세요.
+          </p>
+        </div>
+      );
     default:
       return (
         <div className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]">
