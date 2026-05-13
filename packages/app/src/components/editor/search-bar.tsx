@@ -4,6 +4,12 @@ import type { TextSearchState } from "../../hooks/use-text-search";
 
 interface SearchBarProps extends TextSearchState {
   readonly visible: boolean;
+  /**
+   * 외부에서 검색창에 다시 포커스를 요청할 때마다 값을 증가시키는 토큰.
+   * 검색창이 이미 열려 있는 상태에서 Cmd+F를 다시 눌렀을 때 input에
+   * 재포커스시키기 위한 트리거.
+   */
+  readonly focusToken: number;
   readonly onClose: () => void;
 }
 
@@ -16,6 +22,7 @@ interface SearchBarProps extends TextSearchState {
  */
 export function SearchBar({
   visible,
+  focusToken,
   query,
   matches,
   activeIndex,
@@ -28,14 +35,16 @@ export function SearchBar({
 
   useEffect(() => {
     if (visible) {
-      // 다음 paint 후 포커스 (display 전환 직후 포커스 안전)
+      // 다음 paint 후 포커스 (display 전환 직후 포커스 안전).
+      // focusToken deps 덕분에 visible이 이미 true여도 토큰이 바뀌면
+      // 다시 호출되어 검색창에 재포커스된다.
       const id = requestAnimationFrame(() => {
         inputRef.current?.focus();
         inputRef.current?.select();
       });
       return () => cancelAnimationFrame(id);
     }
-  }, [visible]);
+  }, [visible, focusToken]);
 
   if (!visible) return null;
 

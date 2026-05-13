@@ -66,6 +66,9 @@ export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [searchVisible, setSearchVisible] = useState(false);
+  // SearchBar에 매번 input.focus()를 트리거하기 위한 토큰. 검색창이 이미
+  // 열려 있어도 Cmd+F를 다시 누르면 token이 증가해 input이 재포커스된다.
+  const [focusToken, setFocusToken] = useState(0);
   const search = useTextSearch({
     containerRef: contentRef,
     resetKey: markdown,
@@ -89,15 +92,19 @@ export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
       if (!target || !container.contains(target)) return;
       e.preventDefault();
       setSearchVisible(true);
+      setFocusToken((t) => t + 1);
     };
     container.addEventListener("keydown", onKeyDown);
     return () => container.removeEventListener("keydown", onKeyDown);
   }, []);
 
+  // 스크롤은 contentRef(자식)에서 발생시키고, containerRef는 positioned
+  // wrapper로만 둔다. 이렇게 해야 absolute로 띄운 SearchBar가 스크롤과
+  // 함께 움직이지 않고 컨테이너 우상단에 고정된다.
   return (
     <div
       ref={containerRef}
-      className="relative h-full overflow-y-auto"
+      className="relative h-full"
       data-testid="markdown-preview"
       // 키 이벤트를 받기 위해 tabIndex 부여 (preview는 마우스/스크롤 영역이라
       // 기본 포커스 대상이 없으면 keydown이 컨테이너에 도달하지 못함)
@@ -105,6 +112,7 @@ export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
     >
       <SearchBar
         visible={searchVisible}
+        focusToken={focusToken}
         query={search.query}
         matches={search.matches}
         activeIndex={search.activeIndex}
@@ -116,7 +124,7 @@ export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
       />
       <div
         ref={contentRef}
-        className="markdown-body p-4 text-sm leading-relaxed"
+        className="markdown-body h-full overflow-y-auto p-4 text-sm leading-relaxed"
       >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
