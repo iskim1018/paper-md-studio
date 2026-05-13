@@ -126,3 +126,4 @@ Conventional Commits 형식:
 | 2026-04-27 | Node.js 22 LTS 로 통일 (engines + CI + Release) | Node 20 EOL 회피. 번들 사이드카는 Phase 2 에서 별도 검증 후 이동 |
 | 2026-04-27 | REST 서버에서 인증·레이트리밋 제거 (GW 위임) | "기능에 집중, 횡단 관심사는 인프라 레이어" 원칙. SSRF·이미지 HMAC·캐시는 도메인 종속이라 앱에 유지 |
 | 2026-04-29 | Windows sidecar 를 Rust 셰임 PE 바이너리로 전환 (`packages/app/sidecar-shim/`) | `.cmd` 를 `.exe` 이름으로 복사하던 기존 방식이 `CreateProcessW` PE32+ 헤더 검증에 실패해 "64비트 버전 Windows와 호환되지 않습니다" 오류 발생. macOS `.sh` 래퍼는 그대로 유지 (PE 검증 없음). 호출측(`converter.ts`, `hwpx-viewer.tsx`) 변경 0 |
+| 2026-05-13 | HWPX 셀 내부 중첩 표(`<hp:tbl>` in cell)를 `(표 R×C) 행1셀1 \| 행1셀2 / 행2셀1 \| ...` 형식으로 인라인 평탄화 | GFM 표 셀은 블록 요소를 못 담아 부모 표가 깨지고, 그로 인해 한컴 요구사항 정의서 등의 "세부 내용" 셀이 통째로 누락됐음. `[...]`는 turndown이 링크 syntax로 escape하므로 `(...)` 채택. 깊이 제한 5단 |

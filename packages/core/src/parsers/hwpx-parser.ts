@@ -372,39 +372,158 @@ function extractTextFromRuns(
 
 // --- Table parsing ---
 
+// GFM 테이블 셀은 블록 요소(중첩 표/리스트)를 못 담으므로, 셀 안의 표는
+// 인라인 텍스트로 평탄화한다. 원본 구조 추적을 위해 (표 R×C) 메타 prefix를
+// 붙이고, 행 사이는 <br>(GFM 셀 안 줄바꿈), 셀 사이는 " · "로 구분한다.
+// - 대괄호 대신 (...)를 쓰는 이유: turndown이 [...]를 markdown 링크 syntax로
+//   인식해 `\[...\]`로 escape해 출력 가독성이 떨어진다.
+// - 셀 사이를 "|"가 아닌 "·"로 쓰는 이유: 부모 GFM 표 안에 끼워질 때 "|"가
+//   부모 컬럼 구분자로 잘못 해석되어 부모 표 구조가 깨진다.
+// - <br>은 html-to-md의 brInTableCell 규칙으로 셀 안에서 그대로 유지된다.
+// 무한 재귀는 MAX_NEST_DEPTH로 차단.
+const MAX_NEST_DEPTH = 5;
+const NESTED_CELL_SEP = " · ";
+const NESTED_ROW_SEP = "<br>";
+
+function flattenTableToText(
+  tbl: Record<string, unknown>,
+  charStyles: CharStyles,
+  collector: ImageCollector,
+  depth: number,
+): string {
+  const rows = ensureArray(tbl.tr as Array<Record<string, unknown>>);
+  if (rows.length === 0) return "";
+
+  const rowCount = rows.length;
+  const firstRow = rows[0];
+  const colCount = firstRow
+    ? ensureArray(firstRow.tc as Array<Record<string, unknown>>).length
+    : 0;
+  const meta = `(표 ${rowCount}×${colCount})`;
+
+  if (depth >= MAX_NEST_DEPTH) {
+    return `${meta} 깊이 초과 생략`;
+  }
+
+  const rowTexts: Array<string> = [];
+  for (const row of rows) {
+    const cells = ensureArray(row.tc as Array<Record<string, unknown>>);
+    const cellTexts: Array<string> = [];
+    for (const tc of cells) {
+      const cellText = parseCellText(tc, charStyles, collector, depth + 1);
+      cellTexts.push(cellText.trim());
+    }
+    rowTexts.push(cellTexts.join(NESTED_CELL_SEP));
+  }
+
+  return `${meta}${NESTED_ROW_SEP}${rowTexts.join(NESTED_ROW_SEP)}`;
+}
+
+interface CellPart {
+  readonly kind: "text" | "nested-table";
+  readonly value: string;
+}
+
+function collectRunsFromRuns(
+  runs: Array<Record<string, unknown>>,
+  charStyles: CharStyles,
+  collector: ImageCollector,
+  depth: number,
+  imageParts: Array<string>,
+  parts: Array<CellPart>,
+): void {
+  for (const run of runs) {
+    const imgHtml = collectImageFromRun(run, collector);
+    if (imgHtml) imageParts.push(imgHtml);
+
+    const nestedTables = ensureArray(run.tbl as Array<Record<string, unknown>>);
+    for (const nested of nestedTables) {
+      const flat = flattenTableToText(nested, charStyles, collector, depth);
+      if (flat) parts.push({ kind: "nested-table", value: flat });
+    }
+  }
+}
+
+/**
+ * 셀 출력 부분들을 결합한다. 중첩 표 항목은 앞뒤에 <br>을 두어
+ * 텍스트와 시각적으로 분리하고, 일반 텍스트끼리는 공백 또는 " / "로 묶는다.
+ * 한 paragraph 안에 텍스트와 중첩 표가 섞인 드문 케이스는 등장 순서를 보존한다.
+ */
+function joinCellParts(parts: ReadonlyArray<CellPart>): string {
+  if (parts.length === 0) return "";
+
+  const textOnly = parts.filter((p) => p.kind === "text").map((p) => p.value);
+  const hasNestedTable = parts.some((p) => p.kind === "nested-table");
+
+  if (!hasNestedTable) {
+    return textOnly.length <= 2 ? textOnly.join(" ") : textOnly.join(" / ");
+  }
+
+  // 중첩 표가 있으면 등장 순서대로 출력하고, 텍스트 묶음과 표 사이에
+  // <br>로 줄바꿈을 넣어 가독성을 확보한다.
+  const segments: Array<string> = [];
+  let buffer: Array<string> = [];
+  const flushBuffer = () => {
+    if (buffer.length === 0) return;
+    segments.push(buffer.length <= 2 ? buffer.join(" ") : buffer.join(" / "));
+    buffer = [];
+  };
+
+  for (const part of parts) {
+    if (part.kind === "text") {
+      buffer.push(part.value);
+    } else {
+      flushBuffer();
+      segments.push(part.value);
+    }
+  }
+  flushBuffer();
+
+  return segments.join(NESTED_ROW_SEP);
+}
+
+/**
+ * 셀 내부 텍스트의 "|"는 부모 GFM 표의 컬럼 구분자와 충돌해 표를 깨므로
+ * "\|"로 escape한다. HTML 단계에서 turndown은 escape된 "\|"를 그대로
+ * 유지해주므로 GFM 출력에서도 안전하다.
+ */
+function escapePipeInCell(text: string): string {
+  return text.replace(/\|/g, "\\|");
+}
+
 function parseCellText(
   tc: Record<string, unknown>,
   charStyles: CharStyles,
   collector: ImageCollector,
+  depth = 0,
 ): string {
   const subLists = ensureArray(tc.subList as Array<Record<string, unknown>>);
   const imageParts: Array<string> = [];
-  const textParts: Array<string> = [];
+  const parts: Array<CellPart> = [];
 
   for (const sl of subLists) {
     const paras = ensureArray(sl.p as Array<Record<string, unknown>>);
     for (const p of paras) {
       const runs = ensureArray(p.run as Array<Record<string, unknown>>);
 
-      // 셀 내부 run에서 이미지 추출 (표 안의 그림이 누락되지 않도록)
-      for (const run of runs) {
-        const imgHtml = collectImageFromRun(run, collector);
-        if (imgHtml) imageParts.push(imgHtml);
-      }
+      // 셀 내부 run에서 이미지 및 중첩 표 추출
+      collectRunsFromRuns(
+        runs,
+        charStyles,
+        collector,
+        depth,
+        imageParts,
+        parts,
+      );
 
       const t = extractTextFromRuns(runs, charStyles);
-      if (t.trim()) textParts.push(t);
+      // "|"는 push 시점에 한 번만 escape — 중첩 호출에서 이중 escape 방지.
+      if (t.trim()) parts.push({ kind: "text", value: escapePipeInCell(t) });
     }
   }
 
-  // GFM 테이블 셀 내부에 하드 브레이크(`  \n`)가 들어가면 테이블 구조가
-  // 깨지므로, 다중 paragraph는 공백으로 flatten한다. 3개 이상이면 항목
-  // 구분을 위해 "/"를 경계 표시로 사용해 가독성을 유지한다. 이미지는
-  // 텍스트 앞에 공백으로 붙인다.
-  const textJoined =
-    textParts.length <= 2 ? textParts.join(" ") : textParts.join(" / ");
-
-  const allParts = [...imageParts, textJoined].filter((s) => s.length > 0);
+  const joined = joinCellParts(parts);
+  const allParts = [...imageParts, joined].filter((s) => s.length > 0);
   return allParts.join(" ");
 }
 

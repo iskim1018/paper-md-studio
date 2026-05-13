@@ -513,6 +513,64 @@ describe("HWPX 파서 상세 테스트", () => {
       expect(result.markdown).not.toMatch(/첫 항목\s*\n\s*둘째 항목/);
     });
 
+    it("셀 안에 중첩된 표(table-in-cell)를 평탄화하고 [표 R×C] 메타를 붙인다", async () => {
+      // 한컴 HWPX 요구사항 정의서 등에서 흔히 나오는 패턴:
+      // 부모 셀의 paragraph run 안에 <tbl>이 그대로 들어 있다.
+      // 부모 표의 GFM 구조를 깨지 않으면서 중첩 표의 내용을 보존해야 한다.
+      const result = await writeAndConvert(
+        "nested-table.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run>
+      <tbl>
+        <tr>
+          <tc>
+            <subList>
+              <p><run><t>부모셀A</t></run></p>
+            </subList>
+          </tc>
+          <tc>
+            <subList>
+              <p><run><t>설명머리말</t></run></p>
+              <p>
+                <run>
+                  <tbl>
+                    <tr>
+                      <tc><subList><p><run><t>컬럼1</t></run></p></subList></tc>
+                      <tc><subList><p><run><t>컬럼2</t></run></p></subList></tc>
+                    </tr>
+                    <tr>
+                      <tc><subList><p><run><t>값A</t></run></p></subList></tc>
+                      <tc><subList><p><run><t>값B</t></run></p></subList></tc>
+                    </tr>
+                  </tbl>
+                </run>
+              </p>
+              <p><run><t>설명꼬리말</t></run></p>
+            </subList>
+          </tc>
+        </tr>
+      </tbl>
+    </run>
+  </p>
+</sec>`,
+      );
+
+      const md = result.markdown ?? "";
+      // 메타 prefix와 중첩 표 내용이 모두 부모 셀 안에 들어가야 한다
+      expect(md).toContain("(표 2×2)");
+      expect(md).toContain("컬럼1");
+      expect(md).toContain("컬럼2");
+      expect(md).toContain("값A");
+      expect(md).toContain("값B");
+      // 부모 셀의 앞뒤 paragraph 텍스트도 유지
+      expect(md).toContain("설명머리말");
+      expect(md).toContain("설명꼬리말");
+      // GFM 테이블 구조가 깨지지 않도록 셀이 단일 라인에 들어가야 함
+      expect(md).not.toMatch(/설명머리말\s*\n\s*컬럼1/);
+    });
+
     it("colspan/rowspan 셀을 처리한다", async () => {
       const result = await writeAndConvert(
         "table-span.hwpx",

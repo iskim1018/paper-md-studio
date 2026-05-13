@@ -1,7 +1,33 @@
 import { useMemo } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import { resolveLocalAssetUrl } from "../../lib/asset-url";
+
+/**
+ * GitHub 기본 sanitize 스키마에 우리 변환 결과가 사용하는 인라인 HTML을
+ * 추가 허용한다.
+ * - `br`: 표 셀 안 줄바꿈 (HWPX 중첩 표 평탄화에서 사용)
+ * - `td/th`의 `colspan`/`rowspan`: 부모 표 병합 셀 보존
+ */
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames ?? []), "br"],
+  attributes: {
+    ...(defaultSchema.attributes ?? {}),
+    td: [
+      ...((defaultSchema.attributes?.td as Array<unknown>) ?? []),
+      "colspan",
+      "rowspan",
+    ],
+    th: [
+      ...((defaultSchema.attributes?.th as Array<unknown>) ?? []),
+      "colspan",
+      "rowspan",
+    ],
+  },
+};
 
 interface MarkdownPreviewProps {
   readonly markdown: string;
@@ -38,7 +64,11 @@ export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
   return (
     <div className="h-full overflow-y-auto" data-testid="markdown-preview">
       <div className="markdown-body p-4 text-sm leading-relaxed">
-        <ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={urlTransform}>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
+          urlTransform={urlTransform}
+        >
           {markdown}
         </ReactMarkdown>
       </div>
