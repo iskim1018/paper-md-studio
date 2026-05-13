@@ -3,58 +3,58 @@ import { useFileStore } from "../store/file-store";
 
 /**
  * .md 파일은 이미 markdown이므로 변환 큐(CLI 호출)를 거칠 필요가 없다.
- * D&D나 파일 선택으로 등록된 직후 `status: "pending"`이면 즉시 원본을 읽어
- * `status: "done"`으로 마킹한다. 결과적으로 사용자는 변환 버튼을 누르지 않아도
- * 우측 Markdown 영역에 곧바로 콘텐츠를 본다.
+ * 등록 직후 `status: "pending"`이면 즉시 원본을 읽어 `status: "done"`으로
+ * 마킹한다. 사용자가 변환 버튼을 누르지 않아도 우측 Markdown 영역에 곧바로
+ * 콘텐츠가 표시된다.
  *
- * App 루트에서 한 번만 호출하면 진입점(D&D, 다이얼로그)에 무관하게 동작한다.
+ * 구현 노트: useEffect deps에 `files`를 두면 updateFile이 즉시 files를 바꿔
+ * effect가 재실행되고 cleanup이 처리 중인 비동기 작업을 취소해버린다. 그래서
+ * effect는 mount-only(빈 deps)로 두고 zustand의 `subscribe`로 store 변화를
+ * 추적한다. 중복 처리 방지는 `inFlight` 집합으로.
  */
 export function useAutoLoadMarkdown(): void {
-  const files = useFileStore((s) => s.files);
-  const updateFile = useFileStore((s) => s.updateFile);
-
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only by design
   useEffect(() => {
-    const pending = files.filter(
-      (f) => f.format === "md" && f.status === "pending",
-    );
-    if (pending.length === 0) return;
+    const inFlight = new Set<string>();
 
-    let cancelled = false;
-    const ids = pending.map((f) => f.id);
-    // 중복 처리 방지: 즉시 "converting" 상태로 마킹해 후속 effect 재실행에서
-    // 다시 선택되지 않게 한다.
-    for (const id of ids) {
+    const processFile = async (id: string, path: string) => {
+      if (inFlight.has(id)) return;
+      inFlight.add(id);
+      const { updateFile } = useFileStore.getState();
       updateFile(id, { status: "converting" });
-    }
+      try {
+        const { readTextFile } = await import("@tauri-apps/plugin-fs");
+        const markdown = await readTextFile(path);
+        updateFile(id, {
+          status: "done",
+          result: {
+            markdown,
+            format: "md",
+            elapsed: 0,
+            imageCount: 0,
+            outputPath: path,
+          },
+        });
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Markdown 파일 읽기 실패";
+        updateFile(id, { status: "error", error: message });
+      } finally {
+        inFlight.delete(id);
+      }
+    };
 
-    (async () => {
-      const { readTextFile } = await import("@tauri-apps/plugin-fs");
-      for (const file of pending) {
-        if (cancelled) return;
-        try {
-          const markdown = await readTextFile(file.path);
-          if (cancelled) return;
-          updateFile(file.id, {
-            status: "done",
-            result: {
-              markdown,
-              format: "md",
-              elapsed: 0,
-              imageCount: 0,
-              outputPath: file.path,
-            },
-          });
-        } catch (err) {
-          if (cancelled) return;
-          const message =
-            err instanceof Error ? err.message : "Markdown 파일 읽기 실패";
-          updateFile(file.id, { status: "error", error: message });
+    const scan = () => {
+      const { files } = useFileStore.getState();
+      for (const f of files) {
+        if (f.format === "md" && f.status === "pending") {
+          void processFile(f.id, f.path);
         }
       }
-    })();
-
-    return () => {
-      cancelled = true;
     };
-  }, [files, updateFile]);
+
+    scan();
+    const unsubscribe = useFileStore.subscribe(scan);
+    return unsubscribe;
+  }, []);
 }
