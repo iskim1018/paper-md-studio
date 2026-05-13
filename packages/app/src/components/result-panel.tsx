@@ -232,9 +232,12 @@ export function ResultPanel() {
         )}
         {mode === "source" && (
           <SourceEditor
-            // 파일이 바뀌거나 WYSIWYG 편집 후 소스 모드로 돌아올 때
-            // 초기값을 다시 반영하도록 편집 내용 길이를 key에 포함
-            key={`src-${selectedFile.id}-${displayedMarkdown.length}`}
+            // 파일 단위로만 재마운트. mode 전환 시에는 컴포넌트 자체가
+            // unmount/remount되므로 WYSIWYG → source 전환 시 최신값이
+            // 자연히 initialValue로 반영된다. length를 key에 포함하면
+            // 매 키 입력마다 재마운트되어 CodeMirror history가 초기화되고
+            // 입력 도중 일부 키가 누락되는 버그가 발생한다.
+            key={`src-${selectedFile.id}`}
             initialValue={displayedMarkdown}
             onChange={handleEdit}
           />
@@ -247,7 +250,8 @@ export function ResultPanel() {
           >
             <Panel defaultSize={50} minSize={20}>
               <SourceEditor
-                key={`split-src-${selectedFile.id}-${displayedMarkdown.length}`}
+                // length를 key에 포함하지 않는다 (위 source 모드 주석 참조)
+                key={`split-src-${selectedFile.id}`}
                 initialValue={displayedMarkdown}
                 onChange={handleEdit}
               />
