@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
-import { useTextSearch } from "../../hooks/use-text-search";
+import { usePanelSearch } from "../../hooks/use-panel-search";
 import { resolveLocalAssetUrl } from "../../lib/asset-url";
 import { SearchBar } from "./search-bar";
 
@@ -65,38 +65,11 @@ export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
 
   const contentRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [searchVisible, setSearchVisible] = useState(false);
-  // SearchBar에 매번 input.focus()를 트리거하기 위한 토큰. 검색창이 이미
-  // 열려 있어도 Cmd+F를 다시 누르면 token이 증가해 input이 재포커스된다.
-  const [focusToken, setFocusToken] = useState(0);
-  const search = useTextSearch({
-    containerRef: contentRef,
+  const { visible, focusToken, search, close } = usePanelSearch({
+    containerRef,
+    contentRef,
     resetKey: markdown,
   });
-
-  const handleClose = useCallback(() => {
-    setSearchVisible(false);
-    search.clear();
-  }, [search]);
-
-  // 컨테이너 영역에서 발생한 Cmd/Ctrl+F를 가로채 검색바를 토글.
-  // focus가 컨테이너 내부일 때만 동작 (source editor의 Cmd+F와 충돌 회피).
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      const isFind = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f";
-      if (!isFind) return;
-      const target = e.target as Node | null;
-      // 컨테이너 안에서 발생한 이벤트만 처리
-      if (!target || !container.contains(target)) return;
-      e.preventDefault();
-      setSearchVisible(true);
-      setFocusToken((t) => t + 1);
-    };
-    container.addEventListener("keydown", onKeyDown);
-    return () => container.removeEventListener("keydown", onKeyDown);
-  }, []);
 
   // 스크롤은 contentRef(자식)에서 발생시키고, containerRef는 positioned
   // wrapper로만 둔다. 이렇게 해야 absolute로 띄운 SearchBar가 스크롤과
@@ -111,7 +84,7 @@ export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
       tabIndex={-1}
     >
       <SearchBar
-        visible={searchVisible}
+        visible={visible}
         focusToken={focusToken}
         query={search.query}
         matches={search.matches}
@@ -120,7 +93,7 @@ export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
         next={search.next}
         prev={search.prev}
         clear={search.clear}
-        onClose={handleClose}
+        onClose={close}
       />
       <div
         ref={contentRef}

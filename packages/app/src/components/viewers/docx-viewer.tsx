@@ -6,11 +6,13 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePanelSearch } from "../../hooks/use-panel-search";
 import {
   injectPageNumbers,
   preprocessDocxPageFields,
 } from "../../lib/docx-page-fields";
 import { readFileAsBytes } from "../../lib/file-reader";
+import { SearchBar } from "../editor/search-bar";
 import {
   MAX_SCALE,
   MIN_SCALE,
@@ -93,6 +95,18 @@ export function DocxViewer({ filePath }: DocxViewerProps) {
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  // 패널 전체에 Cmd+F 이벤트 경계 + scrollRef를 검색 대상으로 지정
+  const panelRef = useRef<HTMLDivElement>(null);
+  const {
+    visible: searchVisible,
+    focusToken,
+    search,
+    close: closeSearch,
+  } = usePanelSearch({
+    containerRef: panelRef,
+    contentRef: scrollRef,
+    resetKey: pageCount,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -214,8 +228,10 @@ export function DocxViewer({ filePath }: DocxViewerProps) {
 
   return (
     <div
+      ref={panelRef}
       className="flex h-full flex-col overflow-hidden"
       data-testid="docx-viewer"
+      tabIndex={-1}
     >
       {error && (
         <div className="flex h-full items-center justify-center p-4 text-sm text-[var(--color-error)]">
@@ -244,19 +260,34 @@ export function DocxViewer({ filePath }: DocxViewerProps) {
       {/*
         스크롤 컨테이너: docx-preview 실행 결과 DOM이 살아 있어야 하므로
         loading/error 상태에서도 마운트는 유지하고 visually hidden으로만 처리.
+        SearchBar는 scrollable 영역 우상단에 absolute로 고정.
       */}
       <div
-        ref={scrollRef}
-        className={`flex-1 overflow-auto bg-[var(--color-panel-bg)] p-4 ${
-          showHeader ? "" : "hidden"
-        }`}
-        data-testid="docx-scroller"
-        style={scrollerStyle}
+        className={`relative flex-1 overflow-hidden ${showHeader ? "" : "hidden"}`}
       >
-        <div
-          ref={containerRef}
-          className="docx-page-container flex flex-col gap-4 min-w-max [align-items:safe_center]"
+        <SearchBar
+          visible={searchVisible}
+          focusToken={focusToken}
+          query={search.query}
+          matches={search.matches}
+          activeIndex={search.activeIndex}
+          setQuery={search.setQuery}
+          next={search.next}
+          prev={search.prev}
+          clear={search.clear}
+          onClose={closeSearch}
         />
+        <div
+          ref={scrollRef}
+          className="h-full overflow-auto bg-[var(--color-panel-bg)] p-4"
+          data-testid="docx-scroller"
+          style={scrollerStyle}
+        >
+          <div
+            ref={containerRef}
+            className="docx-page-container flex flex-col gap-4 min-w-max [align-items:safe_center]"
+          />
+        </div>
       </div>
     </div>
   );

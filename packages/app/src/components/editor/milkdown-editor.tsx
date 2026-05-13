@@ -4,6 +4,8 @@ import { useEffect, useRef } from "react";
 
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
+import { usePanelSearch } from "../../hooks/use-panel-search";
+import { SearchBar } from "./search-bar";
 
 interface MilkdownEditorProps {
   readonly initialValue: string;
@@ -51,13 +53,41 @@ function MilkdownEditorInner({
 }
 
 export function MilkdownEditor(props: MilkdownEditorProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  // initialValue가 바뀌면 컴포넌트가 재마운트되므로 그 자체가 resetKey 역할
+  const { visible, focusToken, search, close } = usePanelSearch({
+    containerRef,
+    contentRef,
+    resetKey: props.initialValue,
+  });
+
   return (
     <MilkdownProvider>
       <div
-        className="milkdown-container h-full overflow-y-auto"
+        ref={containerRef}
+        className="relative h-full"
         data-testid="milkdown-editor"
+        tabIndex={-1}
       >
-        <MilkdownEditorInner {...props} />
+        <SearchBar
+          visible={visible}
+          focusToken={focusToken}
+          query={search.query}
+          matches={search.matches}
+          activeIndex={search.activeIndex}
+          setQuery={search.setQuery}
+          next={search.next}
+          prev={search.prev}
+          clear={search.clear}
+          onClose={close}
+        />
+        <div
+          ref={contentRef}
+          className="milkdown-container h-full overflow-y-auto"
+        >
+          <MilkdownEditorInner {...props} />
+        </div>
       </div>
     </MilkdownProvider>
   );
