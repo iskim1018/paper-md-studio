@@ -7,6 +7,7 @@ import { PanelToggles } from "./components/panel-toggles";
 import { PreviewPanel } from "./components/preview-panel";
 import { ResultPanel } from "./components/result-panel";
 import { ThemeToggle } from "./components/theme-toggle";
+import { useAutoLoadMarkdown } from "./hooks/use-auto-load-markdown";
 import { usePanelShortcuts } from "./hooks/use-panel-shortcuts";
 import { useLayoutStore } from "./store/layout-store";
 
@@ -20,6 +21,7 @@ interface PanelDef {
 
 export function App() {
   usePanelShortcuts();
+  useAutoLoadMarkdown();
 
   const isFullscreen = useLayoutStore((s) => s.isResultFullscreen);
   const showFileList = useLayoutStore((s) => s.showFileList);
