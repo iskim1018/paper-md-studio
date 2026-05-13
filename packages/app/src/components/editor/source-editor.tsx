@@ -1,5 +1,6 @@
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
+import { search, searchKeymap } from "@codemirror/search";
 import { EditorState } from "@codemirror/state";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorView, keymap, lineNumbers } from "@codemirror/view";
@@ -53,7 +54,10 @@ export function SourceEditor({
       extensions: [
         lineNumbers(),
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        // search() 패널은 Cmd/Ctrl+F로 토글된다. searchKeymap을 keymap의
+        // 앞쪽에 두어 기본 키맵이 같은 키를 가로채지 않게 한다.
+        search({ top: true }),
+        keymap.of([...searchKeymap, ...defaultKeymap, ...historyKeymap]),
         markdown(),
         oneDark,
         fillHeightTheme,

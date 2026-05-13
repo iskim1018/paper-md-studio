@@ -285,3 +285,14 @@ body {
   background-color: var(--color-bg);
   color: var(--color-text);
 }
+
+/* 텍스트 검색 하이라이트 (Markdown preview) */
+.text-search-match {
+  background-color: rgba(255, 213, 0, 0.45);
+  border-radius: 2px;
+}
+.text-search-match-active {
+  background-color: rgba(255, 138, 0, 0.9);
+  color: #000;
+  outline: 1px solid rgba(255, 138, 0, 1);
+}

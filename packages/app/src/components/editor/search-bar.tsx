@@ -1,0 +1,107 @@
+import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
+import { useEffect, useRef } from "react";
+import type { TextSearchState } from "../../hooks/use-text-search";
+
+interface SearchBarProps extends TextSearchState {
+  readonly visible: boolean;
+  readonly onClose: () => void;
+}
+
+/**
+ * 텍스트 검색 바. 컨테이너 상단에 absolute로 띄워 사용한다.
+ * - 표시되면 input에 자동 포커스
+ * - Enter = next, Shift+Enter = prev, Esc = close
+ * - data-search-ui 속성으로 useTextSearch의 TreeWalker가 자기 자신을 검색
+ *   대상에서 제외하게 한다.
+ */
+export function SearchBar({
+  visible,
+  query,
+  matches,
+  activeIndex,
+  setQuery,
+  next,
+  prev,
+  onClose,
+}: SearchBarProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (visible) {
+      // 다음 paint 후 포커스 (display 전환 직후 포커스 안전)
+      const id = requestAnimationFrame(() => {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      });
+      return () => cancelAnimationFrame(id);
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (e.shiftKey) prev();
+      else next();
+    }
+  };
+
+  const counter = matches === 0 ? "0/0" : `${activeIndex + 1}/${matches}`;
+
+  return (
+    <div
+      data-search-ui
+      data-testid="text-search-bar"
+      className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-md border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 shadow-md"
+    >
+      <Search size={14} className="text-[var(--color-muted)]" />
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        placeholder="검색"
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={handleKeyDown}
+        className="w-40 bg-transparent text-sm outline-none placeholder:text-[var(--color-muted)]"
+      />
+      <span className="select-none px-1 text-xs text-[var(--color-muted)]">
+        {counter}
+      </span>
+      <button
+        type="button"
+        onClick={prev}
+        disabled={matches === 0}
+        className="rounded p-0.5 hover:bg-[var(--color-border)] disabled:opacity-30"
+        aria-label="이전 결과"
+        title="이전 결과 (Shift+Enter)"
+      >
+        <ChevronUp size={14} />
+      </button>
+      <button
+        type="button"
+        onClick={next}
+        disabled={matches === 0}
+        className="rounded p-0.5 hover:bg-[var(--color-border)] disabled:opacity-30"
+        aria-label="다음 결과"
+        title="다음 결과 (Enter)"
+      >
+        <ChevronDown size={14} />
+      </button>
+      <button
+        type="button"
+        onClick={onClose}
+        className="rounded p-0.5 hover:bg-[var(--color-border)]"
+        aria-label="검색 닫기"
+        title="닫기 (Esc)"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
