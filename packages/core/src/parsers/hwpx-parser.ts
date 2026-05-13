@@ -527,31 +527,83 @@ function parseCellText(
   return allParts.join(" ");
 }
 
-function buildCellAttrs(tc: Record<string, unknown>): string {
-  const spanNode = tc.cellSpan as Record<string, unknown> | undefined;
-  const colSpan = spanNode ? Number(spanNode["@_colSpan"] ?? 1) : 1;
-  const rowSpan = spanNode ? Number(spanNode["@_rowSpan"] ?? 1) : 1;
-  let attrs = "";
-  if (colSpan > 1) attrs += ` colspan="${colSpan}"`;
-  if (rowSpan > 1) attrs += ` rowspan="${rowSpan}"`;
-  return attrs;
-}
-
-function parseTableRow(
-  tr: Record<string, unknown>,
-  tag: string,
+/**
+ * GFM 표 셀은 colspan/rowspan을 표준 지원하지 않는다. HWPX 표는 colSpan>1로
+ * 가로 병합, rowSpan>1로 세로 병합을 표현하므로, 모든 행의 셀 수가 달라져
+ * GFM separator(첫 행 기준 컬럼 수)와 불일치 → 일부 셀이 잘려 보이는 문제가
+ * 발생한다.
+ *
+ * 해결: 표를 (rows × cols) 균일 grid로 정규화한다.
+ * - colSpan=N 셀은 첫 자리에 값, 이후 N-1자리는 빈 셀로 padding
+ * - rowSpan>1 셀은 후속 행의 해당 col 위치를 reserved로 표시해 빈 셀 padding
+ * - 모든 행을 max(grid width)로 후처리 padding하여 첫 행 separator와 일치
+ */
+function expandTableToGrid(
+  tbl: Record<string, unknown>,
   charStyles: CharStyles,
   collector: ImageCollector,
-): string {
-  const cells = ensureArray(tr.tc as Array<Record<string, unknown>>);
-  let html = "<tr>";
-  for (const tc of cells) {
-    const cellText = parseCellText(tc, charStyles, collector);
-    const attrs = buildCellAttrs(tc);
-    html += `<${tag}${attrs}>${cellText}</${tag}>`;
+): Array<Array<string>> {
+  const rows = ensureArray(tbl.tr as Array<Record<string, unknown>>);
+  if (rows.length === 0) return [];
+
+  // col 위치 → 남은 rowspan 카운트 (다음 행에서 빈 셀로 채워야 함)
+  const reserved = new Map<number, number>();
+  const expanded: Array<Array<string>> = [];
+  let maxCols = 0;
+
+  for (const row of rows) {
+    if (!row) {
+      expanded.push([]);
+      continue;
+    }
+    const tcs = ensureArray(row.tc as Array<Record<string, unknown>>);
+    const cells: Array<string> = [];
+    let col = 0;
+    let tcIdx = 0;
+
+    while (tcIdx < tcs.length || (reserved.get(col) ?? 0) > 0) {
+      const remaining = reserved.get(col) ?? 0;
+      if (remaining > 0) {
+        cells.push("");
+        if (remaining - 1 <= 0) reserved.delete(col);
+        else reserved.set(col, remaining - 1);
+        col += 1;
+        continue;
+      }
+
+      const tc = tcs[tcIdx++];
+      if (!tc) break;
+      const spanNode = tc.cellSpan as Record<string, unknown> | undefined;
+      const colSpan = spanNode ? Number(spanNode["@_colSpan"] ?? 1) : 1;
+      const rowSpan = spanNode ? Number(spanNode["@_rowSpan"] ?? 1) : 1;
+      const text = parseCellText(tc, charStyles, collector);
+
+      cells.push(text);
+      col += 1;
+      // colSpan-1만큼 빈 셀 padding
+      for (let i = 1; i < colSpan; i += 1) {
+        cells.push("");
+        col += 1;
+      }
+      // rowSpan>1이면 그 셀이 점유한 모든 col에 잔여 행수 등록
+      if (rowSpan > 1) {
+        const startCol = col - colSpan;
+        for (let c = startCol; c < col; c += 1) {
+          reserved.set(c, rowSpan - 1);
+        }
+      }
+    }
+
+    expanded.push(cells);
+    maxCols = Math.max(maxCols, cells.length);
   }
-  html += "</tr>\n";
-  return html;
+
+  // 모든 행을 maxCols로 padding
+  for (const cells of expanded) {
+    while (cells.length < maxCols) cells.push("");
+  }
+
+  return expanded;
 }
 
 function parseTable(
@@ -559,14 +611,19 @@ function parseTable(
   charStyles: CharStyles,
   collector: ImageCollector,
 ): string {
-  const rows = ensureArray(tbl.tr as Array<Record<string, unknown>>);
-  if (rows.length === 0) return "";
+  const grid = expandTableToGrid(tbl, charStyles, collector);
+  if (grid.length === 0) return "";
 
   let html = "<table>\n";
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    if (!row) continue;
-    html += parseTableRow(row, i === 0 ? "th" : "td", charStyles, collector);
+  for (let ri = 0; ri < grid.length; ri += 1) {
+    const tag = ri === 0 ? "th" : "td";
+    const cells = grid[ri];
+    if (!cells) continue;
+    html += "<tr>";
+    for (const cellText of cells) {
+      html += `<${tag}>${cellText}</${tag}>`;
+    }
+    html += "</tr>\n";
   }
   html += "</table>\n";
   return html;

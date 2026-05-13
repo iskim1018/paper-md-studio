@@ -571,6 +571,136 @@ describe("HWPX 파서 상세 테스트", () => {
       expect(md).not.toMatch(/설명머리말\s*\n\s*컬럼1/);
     });
 
+    it("가로 병합(colSpan>1)을 빈 셀 padding으로 정규화한다", async () => {
+      // 한컴 양식 패턴: 부모 표가 3-컬럼 grid이고, 일부 행은 colSpan=2로
+      // 첫 셀을 가로 병합해 시각적으로 2-셀로 보인다. GFM separator는 첫
+      // 행 기준 컬럼 수로 결정되므로, 모든 행을 동일 grid 컬럼 수로 펼쳐야
+      // 마지막 셀이 잘리지 않는다.
+      const result = await writeAndConvert(
+        "colspan-normalize.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run>
+      <tbl>
+        <tr>
+          <tc><cellSpan colSpan="2" rowSpan="1" /><subList><p><run><t>제목</t></run></p></subList></tc>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>값1</t></run></p></subList></tc>
+        </tr>
+        <tr>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>A</t></run></p></subList></tc>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>B</t></run></p></subList></tc>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>C</t></run></p></subList></tc>
+        </tr>
+      </tbl>
+    </run>
+  </p>
+</sec>`,
+      );
+
+      const md = result.markdown ?? "";
+      // 마지막 셀(C)이 잘리지 않고 살아남아야 함
+      expect(md).toContain("A");
+      expect(md).toContain("B");
+      expect(md).toContain("C");
+      // 모든 데이터 행의 unescaped "|" 카운트가 같아야 함 (grid 정규화)
+      const dataRows = md
+        .split("\n")
+        .filter((l) => l.startsWith("|") && !l.includes("---"));
+      const pipeCounts = dataRows.map(
+        (l) => (l.match(/(?<!\\)\|/g) ?? []).length,
+      );
+      // 모든 행이 동일 컬럼 수
+      const unique = [...new Set(pipeCounts)];
+      expect(unique).toHaveLength(1);
+    });
+
+    it("세로 병합(rowSpan>1)을 후속 행 빈 셀 padding으로 정규화한다", async () => {
+      const result = await writeAndConvert(
+        "rowspan-normalize.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run>
+      <tbl>
+        <tr>
+          <tc><cellSpan colSpan="1" rowSpan="2" /><subList><p><run><t>고정셀</t></run></p></subList></tc>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>X1</t></run></p></subList></tc>
+        </tr>
+        <tr>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>X2</t></run></p></subList></tc>
+        </tr>
+      </tbl>
+    </run>
+  </p>
+</sec>`,
+      );
+
+      const md = result.markdown ?? "";
+      // 두 행 모두 살아남고 동일 컬럼 수
+      expect(md).toContain("고정셀");
+      expect(md).toContain("X1");
+      expect(md).toContain("X2");
+      const dataRows = md
+        .split("\n")
+        .filter((l) => l.startsWith("|") && !l.includes("---"));
+      const pipeCounts = dataRows.map(
+        (l) => (l.match(/(?<!\\)\|/g) ?? []).length,
+      );
+      const unique = [...new Set(pipeCounts)];
+      expect(unique).toHaveLength(1);
+    });
+
+    it("복합 병합(가로+세로)이 섞인 표도 균일 grid로 정규화한다", async () => {
+      // Row 0: [colSpan=2 rowSpan=2 "큰셀", "X1"]
+      // Row 1: [        (reserved)       "X2"]
+      // Row 2: ["A", "B", "C"]
+      // → 모든 행이 grid 3-cols로 정규화되어야 함
+      const result = await writeAndConvert(
+        "complex-merge.hwpx",
+        `
+<sec>
+  <p styleIDRef="0">
+    <run>
+      <tbl>
+        <tr>
+          <tc><cellSpan colSpan="2" rowSpan="2" /><subList><p><run><t>큰셀</t></run></p></subList></tc>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>X1</t></run></p></subList></tc>
+        </tr>
+        <tr>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>X2</t></run></p></subList></tc>
+        </tr>
+        <tr>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>A</t></run></p></subList></tc>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>B</t></run></p></subList></tc>
+          <tc><cellSpan colSpan="1" rowSpan="1" /><subList><p><run><t>C</t></run></p></subList></tc>
+        </tr>
+      </tbl>
+    </run>
+  </p>
+</sec>`,
+      );
+
+      const md = result.markdown ?? "";
+      expect(md).toContain("큰셀");
+      expect(md).toContain("X1");
+      expect(md).toContain("X2");
+      expect(md).toContain("A");
+      expect(md).toContain("B");
+      expect(md).toContain("C");
+      // 모든 데이터 행 동일 컬럼 수 (3-cols → 4 pipes per row)
+      const dataRows = md
+        .split("\n")
+        .filter((l) => l.startsWith("|") && !l.includes("---"));
+      const pipeCounts = dataRows.map(
+        (l) => (l.match(/(?<!\\)\|/g) ?? []).length,
+      );
+      const unique = [...new Set(pipeCounts)];
+      expect(unique).toHaveLength(1);
+      // 3-cols grid면 한 행에 4개의 unescaped pipe
+      expect(unique[0]).toBe(4);
+    });
+
     it("colspan/rowspan 셀을 처리한다", async () => {
       const result = await writeAndConvert(
         "table-span.hwpx",
