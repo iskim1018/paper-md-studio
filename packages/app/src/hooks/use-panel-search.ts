@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useSearchToggle } from "./use-search-toggle";
 import { type TextSearchState, useTextSearch } from "./use-text-search";
 
 export interface PanelSearchState {
@@ -19,9 +19,8 @@ interface UsePanelSearchOptions {
 }
 
 /**
- * 패널 단위 텍스트 검색 상태를 관리한다.
- * - Cmd/Ctrl+F: 검색바 표시 + input 재포커스 (token 증가)
- * - 검색 결과 하이라이트/이동은 useTextSearch에 위임
+ * DOM 기반 패널 텍스트 검색 상태를 관리한다 (useTextSearch + useSearchToggle 결합).
+ * SVG 기반 HWPX 뷰어는 useHwpxSearch + useSearchToggle을 직접 조합한다.
  *
  * 사용 패턴:
  * ```tsx
@@ -39,37 +38,14 @@ export function usePanelSearch({
   contentRef,
   resetKey,
 }: UsePanelSearchOptions): PanelSearchState {
-  const [visible, setVisible] = useState(false);
-  const [focusToken, setFocusToken] = useState(0);
   const search = useTextSearch({
     containerRef: contentRef ?? containerRef,
     resetKey,
   });
-
-  const open = useCallback(() => {
-    setVisible(true);
-    setFocusToken((t) => t + 1);
-  }, []);
-
-  const close = useCallback(() => {
-    setVisible(false);
-    search.clear();
-  }, [search]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      const isFind = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f";
-      if (!isFind) return;
-      const target = e.target as Node | null;
-      if (!target || !container.contains(target)) return;
-      e.preventDefault();
-      open();
-    };
-    container.addEventListener("keydown", onKeyDown);
-    return () => container.removeEventListener("keydown", onKeyDown);
-  }, [containerRef, open]);
+  const { visible, focusToken, open, close } = useSearchToggle(
+    containerRef,
+    search.clear,
+  );
 
   return { visible, focusToken, search, open, close };
 }
