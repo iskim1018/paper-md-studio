@@ -1,15 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  buildTextIndex,
+  findSegmentMatches,
+  type SegmentMatch,
+} from "../lib/hwpx-text-index";
 import type { HwpDocument } from "../lib/rhwp";
-
-/** rhwp searchText 반환 형식. */
-interface HwpSearchHit {
-  readonly found: boolean;
-  readonly wrapped: boolean;
-  readonly sec: number;
-  readonly para: number;
-  readonly charOffset: number;
-  readonly length: number;
-}
 
 /** rhwp getSelectionRects 배열 원소. 좌표는 페이지 SVG viewBox와 동일 좌표계. */
 export interface HwpHighlightRect {
@@ -43,18 +38,15 @@ export interface HwpxSearchState {
 }
 
 const SEARCH_DEBOUNCE_MS = 200;
-const MAX_MATCHES = 2000;
 
-function isSearchHit(value: unknown): value is HwpSearchHit {
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as Record<string, unknown>;
-  return (
-    typeof v.found === "boolean" &&
-    typeof v.sec === "number" &&
-    typeof v.para === "number" &&
-    typeof v.charOffset === "number" &&
-    typeof v.length === "number"
-  );
+/** 중첩 셀 폴백용: getTableCellBboxesByPath 배열 원소. */
+interface CellBbox {
+  readonly cellIdx: number;
+  readonly pageIndex: number;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
 }
 
 function parseRects(json: string): Array<HwpHighlightRect> {
@@ -88,56 +80,116 @@ function parseRects(json: string): Array<HwpHighlightRect> {
   return rects;
 }
 
-/**
- * 문서 전체에서 query에 매치되는 모든 위치를 rhwp searchText 이터레이터로
- * 수집하고, 각 매치를 getSelectionRects로 페이지 좌표 rect로 변환한다.
- *
- * searchText는 (sec, para, charOffset)부터 다음 매치 하나를 반환하며,
- * 문서 끝까지 가면 wrapped=true로 처음 매치를 다시 반환한다 →
- * wrapped를 만나면 루프를 종료한다.
- */
-function collectMatches(doc: HwpDocument, query: string): Array<HwpMatch> {
-  const matches: Array<HwpMatch> = [];
-  let sec = 0;
-  let para = 0;
-  let charOffset = 0;
-
-  for (let guard = 0; guard < MAX_MATCHES; guard += 1) {
-    let hit: HwpSearchHit;
-    try {
-      const raw = doc.searchText(query, sec, para, charOffset, true, false);
-      const parsed: unknown = JSON.parse(raw);
-      if (!isSearchHit(parsed)) break;
-      hit = parsed;
-    } catch {
-      break;
-    }
-    if (!hit.found) break;
-    // 한 바퀴 돌아 첫 매치로 복귀 → 종료
-    if (hit.wrapped && matches.length > 0) break;
-
-    let rects: Array<HwpHighlightRect> = [];
-    try {
-      const rectsJson = doc.getSelectionRects(
-        hit.sec,
-        hit.para,
-        hit.charOffset,
-        hit.para,
-        hit.charOffset + hit.length,
-      );
-      rects = parseRects(rectsJson);
-    } catch {
-      rects = [];
-    }
-    matches.push({ rects });
-
-    // 다음 검색 시작점 = 이번 매치 끝
-    sec = hit.sec;
-    para = hit.para;
-    charOffset = hit.charOffset + hit.length;
+function parseBboxes(json: string): Array<CellBbox> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
   }
+  if (!Array.isArray(parsed)) return [];
+  const bboxes: Array<CellBbox> = [];
+  for (const item of parsed) {
+    if (typeof item !== "object" || item === null) continue;
+    const b = item as Record<string, unknown>;
+    if (
+      typeof b.cellIdx === "number" &&
+      typeof b.pageIndex === "number" &&
+      typeof b.x === "number" &&
+      typeof b.y === "number" &&
+      typeof b.w === "number" &&
+      typeof b.h === "number"
+    ) {
+      bboxes.push({
+        cellIdx: b.cellIdx,
+        pageIndex: b.pageIndex,
+        x: b.x,
+        y: b.y,
+        w: b.w,
+        h: b.h,
+      });
+    }
+  }
+  return bboxes;
+}
 
-  return matches;
+/**
+ * 매치 하나를 페이지 좌표 rect로 변환한다.
+ * - 본문: getSelectionRects
+ * - 1단계 표 셀: getSelectionRectsInCell (글자 단위 정밀 rect)
+ * - 중첩 표 셀: 정밀 rect API가 없어 getTableCellBboxesByPath로 셀 전체를
+ *   하이라이트한다 (글자 단위보다 거칠지만 위치는 정확).
+ */
+function resolveRects(
+  doc: HwpDocument,
+  match: SegmentMatch,
+): Array<HwpHighlightRect> {
+  const loc = match.locator;
+  const end = match.charOffset + match.length;
+  try {
+    if (loc.kind === "body") {
+      return parseRects(
+        doc.getSelectionRects(
+          loc.sec,
+          loc.para,
+          match.charOffset,
+          loc.para,
+          end,
+        ),
+      );
+    }
+    if (loc.path.length === 1) {
+      const e = loc.path[0];
+      if (!e) return [];
+      return parseRects(
+        doc.getSelectionRectsInCell(
+          loc.sec,
+          loc.parentPara,
+          e.controlIndex,
+          e.cellIndex,
+          e.cellParaIndex,
+          match.charOffset,
+          e.cellParaIndex,
+          end,
+        ),
+      );
+    }
+    const last = loc.path[loc.path.length - 1];
+    if (!last) return [];
+    const bboxes = parseBboxes(
+      doc.getTableCellBboxesByPath(
+        loc.sec,
+        loc.parentPara,
+        JSON.stringify(loc.path),
+      ),
+    );
+    const cell = bboxes.find((b) => b.cellIdx === last.cellIndex);
+    return cell
+      ? [
+          {
+            pageIndex: cell.pageIndex,
+            x: cell.x,
+            y: cell.y,
+            width: cell.w,
+            height: cell.h,
+          },
+        ]
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * 텍스트 인덱스에서 query 매치를 찾고, 각 매치를 페이지 rect로 변환한다.
+ */
+function collectMatches(
+  doc: HwpDocument,
+  segments: ReturnType<typeof buildTextIndex>,
+  query: string,
+): Array<HwpMatch> {
+  const segMatches = findSegmentMatches(segments, query, false);
+  return segMatches.map((m) => ({ rects: resolveRects(doc, m) }));
 }
 
 interface UseHwpxSearchOptions {
@@ -149,8 +201,10 @@ interface UseHwpxSearchOptions {
 
 /**
  * HWPX 뷰어 전용 검색 훅. SVG 기반 뷰어라 DOM 하이라이트(useTextSearch)를
- * 쓸 수 없으므로, rhwp 네이티브 검색 API로 매치 좌표를 받아 뷰어가 오버레이
- * 박스를 그리도록 데이터를 제공한다.
+ * 쓸 수 없으므로, 문서 트리를 직접 순회해 만든 텍스트 인덱스에서 매치를 찾고
+ * rhwp 좌표 API로 rect를 받아 뷰어가 오버레이 박스를 그리도록 데이터를 준다.
+ *
+ * rhwp의 `searchText`는 본문 문단만 검색하므로 표 위주 문서에서는 쓸 수 없다.
  */
 export function useHwpxSearch({
   doc,
@@ -160,6 +214,9 @@ export function useHwpxSearch({
   const [activeIndex, setActiveIndex] = useState(0);
   const [allMatches, setAllMatches] = useState<ReadonlyArray<HwpMatch>>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 문서당 1회 텍스트 인덱스 구축 (본문 + 표 셀 + 중첩 표 셀)
+  const segments = useMemo(() => (doc ? buildTextIndex(doc) : []), [doc]);
 
   // 문서 교체 시 검색 상태 초기화
   // biome-ignore lint/correctness/useExhaustiveDependencies: resetKey가 트리거
@@ -178,7 +235,7 @@ export function useHwpxSearch({
       return;
     }
     debounceRef.current = setTimeout(() => {
-      const collected = collectMatches(doc, query);
+      const collected = collectMatches(doc, segments, query);
       setAllMatches(collected);
       setActiveIndex(0);
     }, SEARCH_DEBOUNCE_MS);
@@ -186,7 +243,7 @@ export function useHwpxSearch({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [doc, query]);
+  }, [doc, segments, query]);
 
   const matches = allMatches.length;
 
