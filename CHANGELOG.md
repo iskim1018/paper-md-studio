@@ -2,6 +2,35 @@
 
 이 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.0.0/) 형식을 따릅니다.
 
+## [0.3.0] - 2026-05-15
+
+### 추가
+
+- **Cmd/Ctrl+F 통합 검색** — 모든 편집/뷰어 영역에서 일관된 단축키
+  - Markdown 소스 편집기 (CodeMirror): 매치 하이라이트 + 다음/이전 이동
+  - WYSIWYG 미리보기 (Milkdown) 및 미리보기 패널: DOM 텍스트 검색
+  - DOCX 원본 뷰어: HTML 텍스트 검색 + 자동 스크롤
+  - HWPX 원본 뷰어: rhwp 문서 트리(본문 + 표 셀 + 중첩 표 셀)를 직접 순회한
+    텍스트 인덱스 기반. SVG 좌표로 하이라이트 오버레이
+  - 검색바는 상단 고정, 재오픈 시 자동 포커스
+
+- **Markdown 파일 직접 등록** — `.md` 파일 D&D 시 변환 큐를 거치지 않고
+  즉시 자동 로드 (변환 skip + 원본 미리보기 placeholder)
+
+### 수정
+
+- HWPX 표 안 표(table-in-cell) 변환 누락 — 셀 내부 중첩 `<hp:tbl>`을
+  인라인 평탄화 (`(표 R×C) 행1셀1 | 행1셀2 / ...` 형식, 깊이 5단)
+- HWPX 표 colSpan/rowSpan 병합 셀 누락 — grid normalize로 빈 셀 padding
+- 소스 편집기 매 키 입력마다 재마운트되어 입력 누락·undo 실패하던 문제
+- `.md` 자동 로드가 spinner에서 멈추던 버그
+- HWPX 뷰어에서 Cmd+F 검색바 미표출 / 스크롤 시 사라짐 / 재오픈 포커스 안 감
+
+### 보안
+
+- pnpm audit 취약점 4건 해결 (`fast-uri`, `fast-xml-builder`, `hono`,
+  `ip-address` — 모두 transitive 의존, `pnpm.overrides`로 패치)
+
 ## [0.2.0] - 2026-04-17
 
 ### 추가

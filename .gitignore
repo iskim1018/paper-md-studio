@@ -58,6 +58,16 @@ packages/core/tests/fixtures/*.md
 packages/core/tests/fixtures/*_images/
 !packages/core/tests/fixtures/README.md
 
+# 루트에서 변환 테스트 시 생기는 임시 산출물 (커밋 금지)
+# 루트 *.md는 README/CHANGELOG와 충돌하므로 *.md 패턴은 넣지 않음
+/*.hwp
+/*.hwpx
+/*.docx
+/*.pdf
+/*_images/
+# 변환 산출 .md는 케이스별로 명시 (루트 *.md를 한꺼번에 막을 수 없어서)
+/nested_tables.md
+
 # TypeScript build info
 *.tsbuildinfo
 
