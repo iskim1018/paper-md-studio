@@ -41,6 +41,8 @@ const EXT_TO_FORMAT: Record<string, DocumentFormat> = {
   ".doc": "doc",
   ".docx": "docx",
   ".pdf": "pdf",
+  ".html": "html",
+  ".htm": "html",
 };
 
 const FORMAT_TO_EXT: Record<DocumentFormat, string> = {
@@ -49,6 +51,7 @@ const FORMAT_TO_EXT: Record<DocumentFormat, string> = {
   doc: ".doc",
   docx: ".docx",
   pdf: ".pdf",
+  html: ".html",
 };
 
 function detectFormat(

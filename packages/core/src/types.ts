@@ -1,5 +1,19 @@
 /** 지원하는 문서 포맷 */
-export type DocumentFormat = "hwp" | "hwpx" | "doc" | "docx" | "pdf";
+export type DocumentFormat = "hwp" | "hwpx" | "doc" | "docx" | "pdf" | "html";
+
+/** HTML 변환 옵션 (로컬 .html 파일 또는 URL) */
+export interface HtmlConvertOptions {
+  /** Readability 기반 본문 추출 여부 — nav/sidebar/footer 제거 (기본: true) */
+  extractContent?: boolean;
+  /** headless 브라우저로 SPA 렌더링 후 변환 — URL 입력 전용 (기본: false) */
+  renderSpa?: boolean;
+  /** 상대 URL 절대화 기준 URL (로컬 파일 변환 시 지정) */
+  baseUrl?: string;
+  /** SPA 렌더링 시 추가로 대기할 CSS 셀렉터 */
+  waitSelector?: string;
+  /** 네트워크 요청·렌더링 시간 제한 (ms, 기본: 30000) */
+  timeoutMs?: number;
+}
 
 /** 변환 시 추출된 이미지 */
 export interface ImageAsset {
@@ -13,12 +27,14 @@ export interface ImageAsset {
 
 /** 변환 옵션 */
 export interface ConvertOptions {
-  /** 입력 파일 경로 */
+  /** 입력 파일 경로 또는 http(s) URL */
   inputPath: string;
   /** 출력 디렉토리 (미지정 시 입력 파일과 같은 디렉토리) */
   outputDir?: string;
   /** 이미지 저장 디렉토리명 (기본: {문서명}_images) */
   imagesDirName?: string;
+  /** HTML 변환 옵션 (html 포맷에서만 사용) */
+  html?: HtmlConvertOptions;
 }
 
 /** 파서가 반환하는 중간 결과 */
@@ -35,6 +51,8 @@ export interface ParseResult {
 export interface ParseOptions {
   /** 이미지 저장 디렉토리명 (MD 내 상대경로 생성용) */
   imagesDirName: string;
+  /** HTML 변환 옵션 (html 포맷에서만 사용) */
+  html?: HtmlConvertOptions;
 }
 
 /** 포맷별 파서 인터페이스 */

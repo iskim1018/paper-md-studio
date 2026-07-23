@@ -57,6 +57,7 @@ pnpm --filter @paper-md-studio/app test:e2e           # Playwright E2E
 - DOCX → Markdown (`mammoth` + `turndown`)
 - PDF → Markdown (`@opendocsg/pdf2md`)
 - HWP (5.0 바이너리) → HWPX → Markdown (`neolord0/hwp2hwpx` Java 툴체인)
+- HTML → Markdown (`@mozilla/readability` + `linkedom` 본문 추출, 로컬 파일·URL·SPA 렌더링)
 
 v2 후순위: DOC(레거시, Phase 8)
 
@@ -128,3 +129,6 @@ Conventional Commits 형식:
 | 2026-04-29 | Windows sidecar 를 Rust 셰임 PE 바이너리로 전환 (`packages/app/sidecar-shim/`) | `.cmd` 를 `.exe` 이름으로 복사하던 기존 방식이 `CreateProcessW` PE32+ 헤더 검증에 실패해 "64비트 버전 Windows와 호환되지 않습니다" 오류 발생. macOS `.sh` 래퍼는 그대로 유지 (PE 검증 없음). 호출측(`converter.ts`, `hwpx-viewer.tsx`) 변경 0 |
 | 2026-05-13 | HWPX 셀 내부 중첩 표(`<hp:tbl>` in cell)를 `(표 R×C) 행1셀1 \| 행1셀2 / 행2셀1 \| ...` 형식으로 인라인 평탄화 | GFM 표 셀은 블록 요소를 못 담아 부모 표가 깨지고, 그로 인해 한컴 요구사항 정의서 등의 "세부 내용" 셀이 통째로 누락됐음. `[...]`는 turndown이 링크 syntax로 escape하므로 `(...)` 채택. 깊이 제한 5단 |
 | 2026-05-13 | HWPX 표 `colSpan`/`rowSpan` 병합 셀을 grid normalize (빈 셀 padding) | GFM 표는 첫 행 separator 기준으로 컬럼 수가 결정되어 후속 행 셀 수가 다르면 잘림. 한컴 양식은 3-컬럼 grid + colSpan=2로 시각 변형하는 패턴이 흔해, 정규화 없이는 마지막 셀(예: APR-001의 "원천 정보시스템 분석")이 누락됨. cellSpan 정보로 rowSpan stack을 유지하며 모든 행을 max(grid) 크기로 빈 셀 padding |
+| 2026-07-23 | HTML→MD 본문 추출: `@mozilla/readability` + `linkedom` | 검증된 휴리스틱 + 경량 DOM(스크립트 미실행). 추출 실패 시 body 전체 폴백, `--no-extract`로 비활성 가능 |
+| 2026-07-23 | `safeFetch`를 server → core `net/`으로 승격 | HTML URL 변환·이미지 다운로드에서 SSRF 가드 재사용 (DRY). server `fetch/safe-fetch.ts`는 re-export 셰임으로 하위호환 유지 |
+| 2026-07-23 | SPA 렌더링: `playwright-core` optionalDependency + 동적 import + 시스템 Chrome 채널 | 브라우저 자동 다운로드·번들 비대화 회피. CLI 번들에서 external 처리, 미설치 시 한국어 안내 에러. 브라우저 sub-resource는 SSRF 가드 불가라 opt-in(`--render`) 유지 |

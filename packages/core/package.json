@@ -15,8 +15,8 @@
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm --dts",
-    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "build": "tsup src/index.ts --format esm --dts --external playwright-core",
+    "dev": "tsup src/index.ts --format esm --dts --watch --external playwright-core",
     "typecheck": "tsc --noEmit"
   },
   "files": [
@@ -27,11 +27,16 @@
     "@types/turndown": "^5.0.6"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "@opendocsg/pdf2md": "^0.2.6",
     "fast-xml-parser": "^5.7.0",
     "fflate": "^0.8.2",
+    "linkedom": "^0.18.13",
     "mammoth": "^1.12.0",
     "turndown": "^7.2.4",
     "turndown-plugin-gfm": "^1.0.2"
+  },
+  "optionalDependencies": {
+    "playwright-core": "^1.61.1"
   }
 }

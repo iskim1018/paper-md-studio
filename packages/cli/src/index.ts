@@ -3,8 +3,14 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { ConvertResult } from "@paper-md-studio/core";
-import { convert, convertToHtml, normalizePath } from "@paper-md-studio/core";
+import type { ConvertResult, HtmlConvertOptions } from "@paper-md-studio/core";
+import {
+  convert,
+  convertToHtml,
+  isHttpUrl,
+  normalizePath,
+  urlToSlug,
+} from "@paper-md-studio/core";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -13,6 +19,10 @@ const { values, positionals } = parseArgs({
     "images-dir": { type: "string" },
     json: { type: "boolean" },
     html: { type: "boolean" },
+    "no-extract": { type: "boolean" },
+    render: { type: "boolean" },
+    "wait-selector": { type: "string" },
+    timeout: { type: "string" },
     help: { type: "boolean", short: "h" },
     version: { type: "boolean", short: "v" },
   },
@@ -23,13 +33,17 @@ function printHelp(): void {
 paper-md-studio - 문서를 Markdown으로 변환
 
 사용법:
-  paper-md-studio <파일경로> [옵션]
+  paper-md-studio <파일경로|URL> [옵션]
 
 옵션:
   -o, --output <경로>       출력 디렉토리 (기본: 입력 파일과 같은 위치)
   --images-dir <이름>       이미지 디렉토리명 (기본: {문서명}_images)
   --json                    JSON 형식으로 결과 출력
   --html                    HTML 형식으로 결과 출력 (뷰어용)
+  --no-extract              HTML 본문 추출 비활성 (페이지 전체 변환)
+  --render                  SPA 렌더링 후 변환 (URL 전용, Chrome 필요)
+  --wait-selector <셀렉터>  SPA 렌더링 시 대기할 CSS 셀렉터
+  --timeout <ms>            네트워크·렌더링 시간 제한 (기본: 30000)
   -h, --help                도움말 표시
   -v, --version             버전 표시
 
@@ -39,11 +53,15 @@ paper-md-studio - 문서를 Markdown으로 변환
   .doc    Word 문서 (레거시, 내부적으로 DOCX로 선변환 — LibreOffice 필요)
   .docx   Word 문서
   .pdf    PDF 문서
+  .html   HTML 문서 (로컬 파일 또는 http(s) URL, 본문 자동 추출)
 
 예시:
   paper-md-studio document.hwpx
   paper-md-studio report.pdf -o ./output
   paper-md-studio presentation.docx --images-dir assets
+  paper-md-studio article.html
+  paper-md-studio https://example.com/post -o ./output
+  paper-md-studio https://spa.example.com/app --render
 `);
 }
 
@@ -58,6 +76,60 @@ function printJsonResult(result: ConvertResult, outputPath: string): void {
   console.log(JSON.stringify(jsonOutput));
 }
 
+function defaultBaseName(resolvedInput: string): string {
+  if (isHttpUrl(resolvedInput)) {
+    return urlToSlug(resolvedInput);
+  }
+  return basename(resolvedInput).replace(/\.[^.]+$/, "");
+}
+
+/** HTML 변환 플래그를 HtmlConvertOptions로 변환한다 */
+function buildHtmlOptions(): HtmlConvertOptions | undefined {
+  const options: HtmlConvertOptions = {};
+  if (values["no-extract"] === true) options.extractContent = false;
+  if (values.render === true) options.renderSpa = true;
+  if (values["wait-selector"]) options.waitSelector = values["wait-selector"];
+  if (values.timeout) {
+    const timeoutMs = Number.parseInt(values.timeout, 10);
+    if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+      throw new Error(`--timeout 값이 올바르지 않습니다: ${values.timeout}`);
+    }
+    options.timeoutMs = timeoutMs;
+  }
+  return Object.keys(options).length > 0 ? options : undefined;
+}
+
+interface OutputTargets {
+  outputDir: string | undefined;
+  outputFileOverride: string | undefined;
+}
+
+// --output은 디렉토리 또는 .md 파일 경로를 모두 받는다.
+// 파일 경로로 주어지면 해당 이름으로 저장(앱에서 "다른 이름으로" 처리).
+function parseOutputOption(): OutputTargets {
+  if (!values.output) {
+    return { outputDir: undefined, outputFileOverride: undefined };
+  }
+  const resolvedOut = normalizePath(resolve(values.output));
+  if (extname(resolvedOut).toLowerCase() === ".md") {
+    return { outputDir: dirname(resolvedOut), outputFileOverride: resolvedOut };
+  }
+  return { outputDir: resolvedOut, outputFileOverride: undefined };
+}
+
+function resolveMdPath(
+  targets: OutputTargets,
+  resolvedInput: string,
+  isUrl: boolean,
+): { outDir: string; mdPath: string } {
+  const outDir =
+    targets.outputDir ?? (isUrl ? process.cwd() : resolve(resolvedInput, ".."));
+  const mdPath =
+    targets.outputFileOverride ??
+    join(outDir, `${defaultBaseName(resolvedInput)}.md`);
+  return { outDir, mdPath };
+}
+
 async function saveImages(
   result: ConvertResult,
   outDir: string,
@@ -66,8 +138,7 @@ async function saveImages(
   if (result.images.length === 0) return;
 
   const imgDirName =
-    values["images-dir"] ??
-    `${basename(resolvedInput).replace(/\.[^.]+$/, "")}_images`;
+    values["images-dir"] ?? `${defaultBaseName(resolvedInput)}_images`;
   const imgDir = join(outDir, imgDirName);
   await mkdir(imgDir, { recursive: true });
 
@@ -95,45 +166,42 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const resolvedInput = normalizePath(resolve(inputPath));
-  // --output은 디렉토리 또는 .md 파일 경로를 모두 받는다.
-  // 파일 경로로 주어지면 해당 이름으로 저장(앱에서 "다른 이름으로" 처리).
-  let outputDir: string | undefined;
-  let outputFileOverride: string | undefined;
-  if (values.output) {
-    const resolvedOut = normalizePath(resolve(values.output));
-    if (extname(resolvedOut).toLowerCase() === ".md") {
-      outputFileOverride = resolvedOut;
-      outputDir = dirname(resolvedOut);
-    } else {
-      outputDir = resolvedOut;
-    }
-  }
+  const isUrl = isHttpUrl(inputPath);
+  const resolvedInput = isUrl ? inputPath : normalizePath(resolve(inputPath));
+  const outputTargets = parseOutputOption();
   const isJson = values.json === true;
   const isHtml = values.html === true;
 
   try {
+    const htmlOptions = buildHtmlOptions();
+
     if (isHtml) {
-      const htmlResult = await convertToHtml({ inputPath: resolvedInput });
+      const htmlResult = await convertToHtml({
+        inputPath: resolvedInput,
+        ...(htmlOptions ? { html: htmlOptions } : {}),
+      });
       console.log(htmlResult.html);
       return;
     }
 
     if (!isJson) {
-      console.log(`변환 중: ${basename(resolvedInput)}`);
+      console.log(
+        `변환 중: ${isUrl ? resolvedInput : basename(resolvedInput)}`,
+      );
     }
 
     const result = await convert({
       inputPath: resolvedInput,
-      outputDir,
+      outputDir: outputTargets.outputDir,
       imagesDirName: values["images-dir"],
+      ...(htmlOptions ? { html: htmlOptions } : {}),
     });
 
-    const outDir = outputDir ?? resolve(resolvedInput, "..");
-    const mdFileName = outputFileOverride
-      ? basename(outputFileOverride)
-      : basename(resolvedInput).replace(/\.[^.]+$/, ".md");
-    const mdPath = outputFileOverride ?? join(outDir, mdFileName);
+    const { outDir, mdPath } = resolveMdPath(
+      outputTargets,
+      resolvedInput,
+      isUrl,
+    );
 
     await mkdir(outDir, { recursive: true });
     await writeFile(mdPath, result.markdown, "utf-8");
