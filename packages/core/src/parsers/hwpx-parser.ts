@@ -13,6 +13,7 @@ import type {
   ParseResult,
   Parser,
 } from "../types.js";
+import { normalizePuaSymbols } from "./pua-symbols.js";
 
 interface HwpxStyle {
   id: string;
@@ -261,7 +262,7 @@ function collectImageFromRun(
 
 function extractRawRunText(run: Record<string, unknown>): string {
   const parts = ensureArray(run.t as Array<unknown>);
-  return parts
+  const text = parts
     .map((t) => {
       if (typeof t === "string") return t;
       if (typeof t === "number") return String(t);
@@ -270,6 +271,7 @@ function extractRawRunText(run: Record<string, unknown>): string {
       return "";
     })
     .join("");
+  return normalizePuaSymbols(text);
 }
 
 interface TagState {
