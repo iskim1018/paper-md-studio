@@ -13,6 +13,19 @@ export interface ExtractedContent {
 /** Readability 결과가 이보다 짧으면 추출 실패로 간주하고 폴백 */
 const MIN_EXTRACTED_TEXT_LENGTH = 80;
 
+/**
+ * Readability보다 먼저 검사하는 본문 컨테이너 힌트 셀렉터.
+ * 위젯(공지·이웃 목록 등)이 본문보다 큰 블로그 플랫폼에서는
+ * Readability 휴리스틱이 오판하기 쉬워, 알려진 본문 컨테이너가
+ * 있으면 그 서브트리를 우선 사용한다.
+ */
+const CONTENT_HINT_SELECTORS: ReadonlyArray<string> = [
+  "[itemprop='articleBody']", // schema.org 표준 마이크로데이터
+  ".se-main-container", // 네이버 SmartEditor ONE (블로그·포스트)
+  "#postViewArea", // 네이버 블로그 구 에디터
+  ".tt_article_useless_p_margin", // 티스토리
+];
+
 type ReadabilityDocument = ConstructorParameters<typeof Readability>[0];
 
 /**
@@ -26,6 +39,11 @@ export function extractContent(
   const source = baseUrl ? injectBaseTag(html, baseUrl) : html;
   const { document } = parseHTML(source);
   const title = document.querySelector("title")?.textContent?.trim() || null;
+
+  const hinted = tryContentHint(document);
+  if (hinted) {
+    return { title, contentHtml: hinted, usedReadability: false };
+  }
 
   // linkedom Document는 Readability가 쓰는 DOM API 부분집합을 구현하므로
   // 구조적으로 호환된다 (nominal 타입만 달라 이중 캐스트 필요)
@@ -46,6 +64,21 @@ export function extractContent(
     contentHtml: body ? body.innerHTML : html,
     usedReadability: false,
   };
+}
+
+/** 알려진 본문 컨테이너가 있고 텍스트가 충분하면 그 innerHTML을 반환 */
+function tryContentHint(
+  document: ReturnType<typeof parseHTML>["document"],
+): string | null {
+  for (const selector of CONTENT_HINT_SELECTORS) {
+    const container = document.querySelector(selector);
+    if (!container) continue;
+    const text = (container.textContent ?? "").trim();
+    if (text.length >= MIN_EXTRACTED_TEXT_LENGTH) {
+      return container.innerHTML;
+    }
+  }
+  return null;
 }
 
 interface ReadabilityArticle {

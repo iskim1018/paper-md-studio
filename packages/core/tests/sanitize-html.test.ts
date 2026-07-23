@@ -80,6 +80,25 @@ describe("sanitizeHtml", () => {
     expect(result).toContain('alt="그림"');
   });
 
+  it("lazy-load 이미지의 원본 URL을 src로 승격한다", () => {
+    const html =
+      '<img src="https://cdn.example.com/blur.png?type=w80_blur" data-lazy-src="https://cdn.example.com/full.png">';
+
+    const result = sanitizeHtml(html);
+
+    expect(result).toContain('src="https://cdn.example.com/full.png"');
+    expect(result).not.toContain("blur.png");
+  });
+
+  it("lazy 속성의 javascript: URI는 승격 후 제거된다", () => {
+    const html =
+      '<img src="https://cdn.example.com/a.png" data-lazy-src="javascript:alert(1)">';
+
+    const result = sanitizeHtml(html);
+
+    expect(result).not.toContain("javascript:");
+  });
+
   it("전체 문서 입력도 body 내용만 반환한다", () => {
     const html =
       "<html><head><title>제목</title><script>x()</script></head>" +

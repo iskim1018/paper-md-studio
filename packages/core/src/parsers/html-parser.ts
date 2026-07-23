@@ -3,6 +3,7 @@ import { decodeHtml } from "../html/decode-html.js";
 import { downloadImages } from "../html/download-images.js";
 import { extractContent } from "../html/extract-content.js";
 import { fetchHtml } from "../html/fetch-html.js";
+import { findMainFrameSrc, MAX_FRAME_DEPTH } from "../html/frame-follow.js";
 import { isHttpUrl } from "../html/is-url.js";
 import { renderSpa } from "../html/render-spa.js";
 import { resolveUrls } from "../html/resolve-urls.js";
@@ -33,7 +34,12 @@ export class HtmlParser implements Parser {
       content = extracted.contentHtml;
     }
 
-    let cleaned = resolveUrls(sanitizeHtml(content), baseUrl);
+    // zero-width space 등 보이지 않는 문자 제거 (네이버 에디터가 빈 줄마다 삽입)
+    let cleaned = resolveUrls(sanitizeHtml(content), baseUrl).replace(
+      // biome-ignore lint/suspicious/noMisleadingCharacterClass: zero-width 문자 제거가 목적
+      /[\u200B\u200C\u200D\uFEFF]/g,
+      "",
+    );
 
     let images: ParseResult["images"] = [];
     if (htmlOptions.downloadImages) {
@@ -58,16 +64,29 @@ async function loadHtml(
 ): Promise<LoadedHtml> {
   if (isHttpUrl(inputPath)) {
     if (options.renderSpa) {
-      const rendered = await renderSpa(inputPath, {
-        ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
-        ...(options.waitSelector ? { waitSelector: options.waitSelector } : {}),
-      });
-      return { html: rendered, baseUrl: inputPath };
+      const render = (url: string) =>
+        renderSpa(url, {
+          ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+          ...(options.waitSelector
+            ? { waitSelector: options.waitSelector }
+            : {}),
+        });
+      const rendered = await render(inputPath);
+      return followFrames(
+        { html: rendered, baseUrl: inputPath },
+        async (u) => ({
+          html: await render(u),
+          baseUrl: u,
+        }),
+      );
     }
-    const fetched = await fetchHtml(inputPath, {
-      ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
-    });
-    return { html: fetched.html, baseUrl: fetched.finalUrl };
+    const fetch = async (url: string): Promise<LoadedHtml> => {
+      const fetched = await fetchHtml(url, {
+        ...(options.timeoutMs ? { timeoutMs: options.timeoutMs } : {}),
+      });
+      return { html: fetched.html, baseUrl: fetched.finalUrl };
+    };
+    return followFrames(await fetch(inputPath), fetch);
   }
 
   if (options.renderSpa) {
@@ -82,6 +101,25 @@ async function loadHtml(
 
   const bytes = await readFile(inputPath);
   return { html: decodeHtml(bytes), baseUrl: options.baseUrl };
+}
+
+/**
+ * 프레임 껍데기 페이지(예: 네이버 블로그)면 본문 프레임을 따라간다.
+ * 각 hop의 fetch/render는 safeFetch·validateFetchUrl로 SSRF 재검증된다.
+ */
+async function followFrames(
+  initial: LoadedHtml,
+  load: (url: string) => Promise<LoadedHtml>,
+): Promise<LoadedHtml> {
+  let current = initial;
+  for (let depth = 0; depth < MAX_FRAME_DEPTH; depth += 1) {
+    const baseUrl = current.baseUrl;
+    if (!baseUrl) break;
+    const frameSrc = findMainFrameSrc(current.html, baseUrl);
+    if (!frameSrc || frameSrc === baseUrl) break;
+    current = await load(frameSrc);
+  }
+  return current;
 }
 
 function escapeHtml(text: string): string {

@@ -18,6 +18,17 @@ const REMOVE_SELECTORS: ReadonlyArray<string> = [
 const URI_ATTRIBUTES: ReadonlyArray<string> = ["href", "src"];
 
 /**
+ * lazy-load 이미지의 원본 URL 속성 (우선순위 순).
+ * 네이버 블로그 등은 src에 저해상도 placeholder를 두고
+ * 원본을 data-lazy-src에 담는다.
+ */
+const LAZY_SRC_ATTRIBUTES: ReadonlyArray<string> = [
+  "data-lazy-src",
+  "data-src",
+  "data-original",
+];
+
+/**
  * HTML에서 스크립트·스타일 등 비콘텐츠 요소와 이벤트 핸들러,
  * javascript: URI를 제거한다. (linkedom은 스크립트를 실행하지 않음)
  */
@@ -36,6 +47,7 @@ export function sanitizeHtml(html: string): string {
         element.removeAttribute(attr.name);
       }
     }
+    promoteLazyImageSrc(element);
     for (const attrName of URI_ATTRIBUTES) {
       const value = element.getAttribute(attrName);
       if (value && isDangerousUri(value)) {
@@ -45,6 +57,27 @@ export function sanitizeHtml(html: string): string {
   }
 
   return bodyHtml(document);
+}
+
+/** img의 lazy-load 원본 속성을 src로 승격한다 (위험 URI는 이후 단계에서 검사) */
+function promoteLazyImageSrc(element: {
+  tagName: string;
+  getAttribute(name: string): string | null;
+  setAttribute(name: string, value: string): void;
+  removeAttribute(name: string): void;
+}): void {
+  if (element.tagName !== "IMG") {
+    return;
+  }
+  let promoted = false;
+  for (const attrName of LAZY_SRC_ATTRIBUTES) {
+    const lazy = element.getAttribute(attrName)?.trim();
+    if (lazy && !promoted) {
+      element.setAttribute("src", lazy);
+      promoted = true;
+    }
+    element.removeAttribute(attrName);
+  }
 }
 
 /**
