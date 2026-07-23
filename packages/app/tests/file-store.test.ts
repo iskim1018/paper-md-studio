@@ -539,3 +539,53 @@ describe("HTML/URL 지원", () => {
     expect(useFileStore.getState().files).toHaveLength(1);
   });
 });
+
+describe("폴더 스캔 추가 및 폴더 단위 체크", () => {
+  beforeEach(() => {
+    useFileStore.setState({
+      files: [],
+      selectedFileId: null,
+      checkedIds: new Set<string>(),
+      lastCheckedId: null,
+    });
+  });
+
+  it("addScannedFiles는 groupDir와 함께 파일을 추가한다", () => {
+    const added = useFileStore.getState().addScannedFiles([
+      { path: "/root/a.hwpx", groupDir: "root" },
+      { path: "/root/sub/b.pdf", groupDir: "root/sub" },
+      { path: "/root/skip.txt", groupDir: "root" },
+    ]);
+
+    expect(added).toBe(2);
+    const files = useFileStore.getState().files;
+    expect(files).toHaveLength(2);
+    expect(files[0]?.groupDir).toBe("root");
+    expect(files[1]?.groupDir).toBe("root/sub");
+  });
+
+  it("addScannedFiles는 이미 추가된 경로를 제외한다", () => {
+    useFileStore.getState().addFiles(["/root/a.hwpx"]);
+
+    const added = useFileStore
+      .getState()
+      .addScannedFiles([{ path: "/root/a.hwpx", groupDir: "root" }]);
+
+    expect(added).toBe(0);
+    expect(useFileStore.getState().files).toHaveLength(1);
+  });
+
+  it("setCheckedMany는 여러 파일을 일괄 체크/해제한다", () => {
+    useFileStore.getState().addScannedFiles([
+      { path: "/r/a.hwpx", groupDir: "r" },
+      { path: "/r/b.hwpx", groupDir: "r" },
+    ]);
+    const ids = useFileStore.getState().files.map((f) => f.id);
+
+    useFileStore.getState().setCheckedMany(ids, true);
+    expect(useFileStore.getState().checkedIds.size).toBe(2);
+
+    useFileStore.getState().setCheckedMany([ids[0] ?? ""], false);
+    expect(useFileStore.getState().checkedIds.size).toBe(1);
+  });
+});

@@ -1,7 +1,9 @@
 {
   "identifier": "default",
   "description": "기본 앱 권한",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     {
@@ -22,9 +24,13 @@
     "fs:allow-write-text-file",
     "fs:allow-exists",
     "fs:default",
+    "fs:allow-read-dir",
+    "dialog:allow-message",
     {
       "identifier": "fs:scope",
-      "allow": ["**"]
+      "allow": [
+        "**"
+      ]
     }
   ]
 }

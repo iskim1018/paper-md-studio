@@ -33,6 +33,8 @@ export interface FileItem {
   readonly isDirty: boolean;
   /** 정리 버튼 등 일괄 변환 직전의 스냅샷 (1-step undo용). 없으면 null. */
   readonly cleanupSnapshot: string | null;
+  /** 폴더 스캔으로 추가된 경우 트리 표시용 그룹 경로 (예: "샘플/하위"). 개별 추가는 null. */
+  readonly groupDir: string | null;
 }
 
 interface FileStore {
@@ -43,8 +45,14 @@ interface FileStore {
   /** Shift+클릭 범위 선택의 anchor. 마지막으로 체크/단일선택된 ID. */
   readonly lastCheckedId: string | null;
   addFiles: (paths: ReadonlyArray<string>) => void;
+  /** 폴더 스캔 결과를 그룹 경로와 함께 추가한다. 추가된 개수를 반환. */
+  addScannedFiles: (
+    items: ReadonlyArray<{ path: string; groupDir: string }>,
+  ) => number;
   /** http(s) URL을 변환 대상(html 포맷)으로 추가한다. 성공 시 true. */
   addUrl: (url: string) => boolean;
+  /** 여러 파일의 체크 상태를 일괄 설정한다 (폴더 단위 체크). */
+  setCheckedMany: (ids: ReadonlyArray<string>, checked: boolean) => void;
   selectFile: (id: string | null) => void;
   updateFile: (
     id: string,
@@ -163,6 +171,7 @@ export const useFileStore = create<FileStore>((set) => ({
         editedMarkdown: null,
         isDirty: false,
         cleanupSnapshot: null,
+        groupDir: null,
       }));
 
       return {
@@ -170,6 +179,42 @@ export const useFileStore = create<FileStore>((set) => ({
         selectedFileId: state.selectedFileId ?? newFiles[0]?.id ?? null,
       };
     });
+  },
+
+  addScannedFiles: (items) => {
+    const valid = items.filter((item) => isSupportedFile(item.path));
+    let added = 0;
+
+    set((state) => {
+      const existingPaths = new Set(state.files.map((f) => f.path));
+      const unique = valid.filter((item) => {
+        if (existingPaths.has(item.path)) return false;
+        existingPaths.add(item.path);
+        return true;
+      });
+      if (unique.length === 0) return state;
+
+      added = unique.length;
+      const newFiles: ReadonlyArray<FileItem> = unique.map(
+        ({ path, groupDir }) => ({
+          id: generateId(),
+          path,
+          name: getFileName(path),
+          format: detectFormat(path),
+          status: "pending" as const,
+          editedMarkdown: null,
+          isDirty: false,
+          cleanupSnapshot: null,
+          groupDir,
+        }),
+      );
+
+      return {
+        files: [...state.files, ...newFiles],
+        selectedFileId: state.selectedFileId ?? newFiles[0]?.id ?? null,
+      };
+    });
+    return added;
   },
 
   addUrl: (url) => {
@@ -189,6 +234,7 @@ export const useFileStore = create<FileStore>((set) => ({
         editedMarkdown: null,
         isDirty: false,
         cleanupSnapshot: null,
+        groupDir: null,
       };
       return {
         files: [...state.files, newFile],
@@ -306,6 +352,19 @@ export const useFileStore = create<FileStore>((set) => ({
       selectedFileId: null,
       checkedIds: new Set<string>(),
       lastCheckedId: null,
+    }),
+
+  setCheckedMany: (ids, checked) =>
+    set((state) => {
+      const nextChecked = new Set(state.checkedIds);
+      for (const id of ids) {
+        if (checked) {
+          nextChecked.add(id);
+        } else {
+          nextChecked.delete(id);
+        }
+      }
+      return { checkedIds: nextChecked };
     }),
 
   toggleCheck: (id) =>
