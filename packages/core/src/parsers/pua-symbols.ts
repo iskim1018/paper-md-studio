@@ -1,3 +1,5 @@
+import { HANCOM_P15_SYMBOL_MAP } from "./pua-symbols-p15.js";
+
 /**
  * HWP/HWPX가 사설영역(PUA, U+F0xx)에 저장하는 심볼 폰트 문자를
  * 표준 유니코드로 정규화한다.
@@ -28,7 +30,16 @@ const PUA_SYMBOL_PATTERN = new RegExp(
   "g",
 );
 
+/** 한컴 보조 평면 PUA-A 대역 (Plane 15) */
+const P15_PUA_PATTERN = /[\u{F0000}-\u{FFFFD}]/gu;
+
 /** 텍스트 내 알려진 PUA 심볼 문자를 표준 유니코드로 치환한다 */
 export function normalizePuaSymbols(text: string): string {
-  return text.replace(PUA_SYMBOL_PATTERN, (ch) => PUA_SYMBOL_MAP[ch] ?? ch);
+  return text
+    .replace(PUA_SYMBOL_PATTERN, (ch) => PUA_SYMBOL_MAP[ch] ?? ch)
+    .replace(P15_PUA_PATTERN, (ch) => {
+      const codePoint = ch.codePointAt(0);
+      if (codePoint === undefined) return ch;
+      return HANCOM_P15_SYMBOL_MAP[codePoint] ?? ch;
+    });
 }

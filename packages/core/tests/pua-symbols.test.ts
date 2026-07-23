@@ -30,3 +30,19 @@ describe("normalizePuaSymbols", () => {
     expect(normalizePuaSymbols(text)).toBe(text);
   });
 });
+
+describe("한컴 보조 평면(P15) 심볼", () => {
+  it("U+F02FC 등 삼각형 불릿을 표준 유니코드로 치환한다", () => {
+    expect(normalizePuaSymbols("\u{F02FC} 항목")).toBe("▶ 항목");
+    expect(normalizePuaSymbols("\u{F02F8}\u{F02FE}\u{F02FF}")).toBe("◀▲▼");
+  });
+
+  it("괄호 조각·음표 등 자동 매핑 항목을 치환한다", () => {
+    expect(normalizePuaSymbols("\u{F000E}")).toBe("⎡");
+    expect(normalizePuaSymbols("\u{F0055}")).toBe("♬");
+  });
+
+  it("매핑에 없는 P15 문자는 원본을 유지한다", () => {
+    expect(normalizePuaSymbols("\u{F1234} 유지")).toBe("\u{F1234} 유지");
+  });
+});
