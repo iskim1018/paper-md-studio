@@ -1,3 +1,8 @@
+export type {
+  DownloadImagesOptions,
+  DownloadImagesResult,
+} from "./html/download-images.js";
+export { downloadImages } from "./html/download-images.js";
 export type { ExtractedContent } from "./html/extract-content.js";
 export { extractContent } from "./html/extract-content.js";
 export type {

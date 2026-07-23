@@ -13,6 +13,8 @@ export interface HtmlConvertOptions {
   waitSelector?: string;
   /** 네트워크 요청·렌더링 시간 제한 (ms, 기본: 30000) */
   timeoutMs?: number;
+  /** 원격 이미지를 다운로드해 {문서명}_images/로 저장 (기본: false — 원격 URL 유지) */
+  downloadImages?: boolean;
 }
 
 /** 변환 시 추출된 이미지 */

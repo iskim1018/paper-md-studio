@@ -496,3 +496,46 @@ describe("useFileStore", () => {
     });
   });
 });
+
+describe("HTML/URL 지원", () => {
+  beforeEach(() => {
+    useFileStore.setState({
+      files: [],
+      selectedFileId: null,
+      checkedIds: new Set<string>(),
+      lastCheckedId: null,
+    });
+  });
+
+  it(".html/.htm 파일을 허용한다", () => {
+    expect(isSupportedFile("/path/to/page.html")).toBe(true);
+    expect(isSupportedFile("/path/to/page.htm")).toBe(true);
+  });
+
+  it("addUrl은 http(s) URL을 html 포맷으로 추가한다", () => {
+    const added = useFileStore.getState().addUrl("https://example.com/post");
+
+    expect(added).toBe(true);
+    const files = useFileStore.getState().files;
+    expect(files).toHaveLength(1);
+    expect(files[0]?.format).toBe("html");
+    expect(files[0]?.path).toBe("https://example.com/post");
+    expect(files[0]?.name).toBe("example.com/post");
+    expect(files[0]?.status).toBe("pending");
+  });
+
+  it("addUrl은 잘못된 URL을 거부한다", () => {
+    expect(useFileStore.getState().addUrl("not-a-url")).toBe(false);
+    expect(useFileStore.getState().addUrl("file:///etc/passwd")).toBe(false);
+    expect(useFileStore.getState().files).toHaveLength(0);
+  });
+
+  it("addUrl은 중복 URL을 거부한다", () => {
+    useFileStore.getState().addUrl("https://example.com/post");
+
+    expect(useFileStore.getState().addUrl("https://example.com/post")).toBe(
+      false,
+    );
+    expect(useFileStore.getState().files).toHaveLength(1);
+  });
+});

@@ -20,6 +20,7 @@ const { values, positionals } = parseArgs({
     json: { type: "boolean" },
     html: { type: "boolean" },
     "no-extract": { type: "boolean" },
+    "download-images": { type: "boolean" },
     render: { type: "boolean" },
     "wait-selector": { type: "string" },
     timeout: { type: "string" },
@@ -41,6 +42,7 @@ paper-md-studio - 문서를 Markdown으로 변환
   --json                    JSON 형식으로 결과 출력
   --html                    HTML 형식으로 결과 출력 (뷰어용)
   --no-extract              HTML 본문 추출 비활성 (페이지 전체 변환)
+  --download-images         HTML 원격 이미지를 {문서명}_images/로 다운로드
   --render                  SPA 렌더링 후 변환 (URL 전용, Chrome 필요)
   --wait-selector <셀렉터>  SPA 렌더링 시 대기할 CSS 셀렉터
   --timeout <ms>            네트워크·렌더링 시간 제한 (기본: 30000)
@@ -87,6 +89,7 @@ function defaultBaseName(resolvedInput: string): string {
 function buildHtmlOptions(): HtmlConvertOptions | undefined {
   const options: HtmlConvertOptions = {};
   if (values["no-extract"] === true) options.extractContent = false;
+  if (values["download-images"] === true) options.downloadImages = true;
   if (values.render === true) options.renderSpa = true;
   if (values["wait-selector"]) options.waitSelector = values["wait-selector"];
   if (values.timeout) {

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { decodeHtml } from "../html/decode-html.js";
+import { downloadImages } from "../html/download-images.js";
 import { extractContent } from "../html/extract-content.js";
 import { fetchHtml } from "../html/fetch-html.js";
 import { isHttpUrl } from "../html/is-url.js";
@@ -33,11 +34,21 @@ export class HtmlParser implements Parser {
     }
 
     let cleaned = resolveUrls(sanitizeHtml(content), baseUrl);
+
+    let images: ParseResult["images"] = [];
+    if (htmlOptions.downloadImages) {
+      const downloaded = await downloadImages(cleaned, options.imagesDirName, {
+        ...(htmlOptions.timeoutMs ? { timeoutMs: htmlOptions.timeoutMs } : {}),
+      });
+      cleaned = downloaded.html;
+      images = downloaded.images;
+    }
+
     if (title && !/<h1[\s>]/i.test(cleaned)) {
       cleaned = `<h1>${escapeHtml(title)}</h1>\n${cleaned}`;
     }
 
-    return { html: cleaned, markdown: null, images: [] };
+    return { html: cleaned, markdown: null, images };
   }
 }
 

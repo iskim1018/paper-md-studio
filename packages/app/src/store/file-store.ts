@@ -1,6 +1,14 @@
 import { create } from "zustand";
+import { isHttpUrl, urlDisplayName } from "../lib/url-input";
 
-export type DocumentFormat = "hwp" | "hwpx" | "doc" | "docx" | "pdf" | "md";
+export type DocumentFormat =
+  | "hwp"
+  | "hwpx"
+  | "doc"
+  | "docx"
+  | "pdf"
+  | "html"
+  | "md";
 export type FileStatus = "pending" | "converting" | "done" | "error";
 
 export interface ConvertResult {
@@ -35,6 +43,8 @@ interface FileStore {
   /** Shift+클릭 범위 선택의 anchor. 마지막으로 체크/단일선택된 ID. */
   readonly lastCheckedId: string | null;
   addFiles: (paths: ReadonlyArray<string>) => void;
+  /** http(s) URL을 변환 대상(html 포맷)으로 추가한다. 성공 시 true. */
+  addUrl: (url: string) => boolean;
   selectFile: (id: string | null) => void;
   updateFile: (
     id: string,
@@ -70,6 +80,8 @@ const FORMAT_EXTENSIONS: Record<string, DocumentFormat> = {
   ".doc": "doc",
   ".docx": "docx",
   ".pdf": "pdf",
+  ".html": "html",
+  ".htm": "html",
   // .md는 변환 단계를 건너뛰고 원본 콘텐츠를 그대로 result에 적재한다.
   ".md": "md",
 };
@@ -158,6 +170,32 @@ export const useFileStore = create<FileStore>((set) => ({
         selectedFileId: state.selectedFileId ?? newFiles[0]?.id ?? null,
       };
     });
+  },
+
+  addUrl: (url) => {
+    const trimmed = url.trim();
+    if (!isHttpUrl(trimmed)) return false;
+
+    let added = false;
+    set((state) => {
+      if (state.files.some((f) => f.path === trimmed)) return state;
+      added = true;
+      const newFile: FileItem = {
+        id: generateId(),
+        path: trimmed,
+        name: urlDisplayName(trimmed),
+        format: "html",
+        status: "pending" as const,
+        editedMarkdown: null,
+        isDirty: false,
+        cleanupSnapshot: null,
+      };
+      return {
+        files: [...state.files, newFile],
+        selectedFileId: state.selectedFileId ?? newFile.id,
+      };
+    });
+    return added;
   },
 
   selectFile: (id) => set({ selectedFileId: id }),

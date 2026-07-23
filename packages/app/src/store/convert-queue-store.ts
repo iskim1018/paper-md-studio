@@ -6,6 +6,7 @@ import {
 } from "../lib/convert-queue";
 import { convertFile } from "../lib/converter";
 import { resolveOutputPath } from "../lib/output-path";
+import { isHttpUrl } from "../lib/url-input";
 import { useFileStore } from "./file-store";
 import { useSettingsStore } from "./settings-store";
 
@@ -38,6 +39,8 @@ async function runItem(item: QueueItem): Promise<RunOutcome | undefined> {
     }
     const result = await convertFile(item.path, {
       outputPath: resolved.outputPath,
+      // URL 변환은 결과 md가 로컬 파일이므로 원격 이미지도 함께 보존한다
+      downloadImages: isHttpUrl(item.path),
     });
     updateFile(item.id, { status: "done", result });
   } catch (err: unknown) {

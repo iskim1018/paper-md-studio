@@ -106,6 +106,17 @@ function FileViewer({ format, filePath }: FileViewerProps) {
           </p>
         </div>
       );
+    case "html":
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[var(--color-muted)]">
+          <FileSearch size={32} />
+          <p className="text-sm">HTML 문서 / 웹 페이지</p>
+          <p className="text-xs break-all px-2">{filePath}</p>
+          <p className="text-xs">
+            변환 후 오른쪽 Markdown 영역에서 본문을 확인하세요.
+          </p>
+        </div>
+      );
     default:
       return (
         <div className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]">

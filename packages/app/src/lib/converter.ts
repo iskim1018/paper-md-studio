@@ -13,6 +13,8 @@ export interface ConvertOptions {
   readonly outputDir?: string | null;
   /** 출력 파일 전체 경로(.md). 지정 시 outputDir보다 우선. */
   readonly outputPath?: string | null;
+  /** HTML 변환 시 원격 이미지를 {문서명}_images/로 다운로드 */
+  readonly downloadImages?: boolean;
 }
 
 /**
@@ -30,6 +32,9 @@ export async function convertFile(
     args.push("--output", options.outputPath);
   } else if (options.outputDir) {
     args.push("--output", options.outputDir);
+  }
+  if (options.downloadImages) {
+    args.push("--download-images");
   }
 
   const command = Command.sidecar("binaries/paper-md-studio-cli", args);
