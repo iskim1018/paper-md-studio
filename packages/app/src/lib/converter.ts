@@ -18,6 +18,28 @@ export interface ConvertOptions {
 }
 
 /**
+ * sidecar CLI의 --html 경로로 뷰어용 HTML을 생성합니다.
+ * HTML 포맷(로컬 .html / URL)은 Readability 본문 추출 + sanitize를
+ * 거친 "변환될 본문"이 반환됩니다.
+ */
+export async function convertFileToHtml(inputPath: string): Promise<string> {
+  const { Command } = await import("@tauri-apps/plugin-shell");
+
+  const command = Command.sidecar("binaries/paper-md-studio-cli", [
+    inputPath,
+    "--html",
+  ]);
+  const output = await command.execute();
+
+  if (output.code !== 0) {
+    throw new Error(
+      output.stderr.trim() || "원본 미리보기 생성 중 오류가 발생했습니다.",
+    );
+  }
+  return output.stdout;
+}
+
+/**
  * sidecar CLI를 호출하여 문서를 변환합니다.
  * CLI는 --json 플래그로 JSON 결과를 stdout에 출력합니다.
  */
