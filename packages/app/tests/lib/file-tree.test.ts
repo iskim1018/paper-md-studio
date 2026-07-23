@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildFileTree, collectFileIds } from "../../src/lib/file-tree";
+import {
+  buildFileTree,
+  collectFileIds,
+  collectFolderPaths,
+} from "../../src/lib/file-tree";
 import type { FileItem } from "../../src/store/file-store";
 
 function makeFile(id: string, path: string, groupDir: string | null): FileItem {
@@ -61,6 +65,22 @@ describe("buildFileTree", () => {
 
     expect(tree.ungrouped.map((f) => f.id)).toEqual(["solo"]);
     expect(tree.roots[0]?.files.map((f) => f.id)).toEqual(["g1"]);
+  });
+});
+
+describe("collectFolderPaths", () => {
+  it("중첩 폴더 경로를 전부 수집한다 — 전체 펼침/닫힘용", () => {
+    const tree = buildFileTree([
+      makeFile("a", "/r/a.hwpx", "루트"),
+      makeFile("b", "/r/s/b.hwpx", "루트/하위"),
+      makeFile("c", "/q/c.hwpx", "다른루트"),
+    ]);
+
+    expect(collectFolderPaths(tree.roots).sort()).toEqual([
+      "다른루트",
+      "루트",
+      "루트/하위",
+    ]);
   });
 });
 

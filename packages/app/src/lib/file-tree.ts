@@ -79,6 +79,18 @@ export function buildFileTree(files: ReadonlyArray<FileItem>): FileTree {
   return { ungrouped, roots };
 }
 
+/** 트리의 모든 폴더 경로를 수집한다 — 전체 펼침/닫힘용 */
+export function collectFolderPaths(
+  folders: ReadonlyArray<FileTreeFolder>,
+): Array<string> {
+  const paths: Array<string> = [];
+  for (const folder of folders) {
+    paths.push(folder.path);
+    paths.push(...collectFolderPaths(folder.folders));
+  }
+  return paths;
+}
+
 /** 폴더 하위(재귀)의 모든 파일 ID를 수집한다 — 폴더 단위 체크용 */
 export function collectFileIds(folder: FileTreeFolder): Array<string> {
   const ids = folder.files.map((f) => f.id);

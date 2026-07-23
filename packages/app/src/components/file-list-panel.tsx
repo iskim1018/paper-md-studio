@@ -2,6 +2,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   FilePlus2,
   FileText,
   FolderOpen,
@@ -13,7 +15,11 @@ import {
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import type { FileTreeFolder } from "../lib/file-tree";
-import { buildFileTree, collectFileIds } from "../lib/file-tree";
+import {
+  buildFileTree,
+  collectFileIds,
+  collectFolderPaths,
+} from "../lib/file-tree";
 import { scanFolderForDocuments } from "../lib/folder-scan";
 import { useConvertQueueStore } from "../store/convert-queue-store";
 import type { FileItem, FileStatus } from "../store/file-store";
@@ -224,12 +230,12 @@ function FileRow({
 function FolderNode({
   folder,
   depth,
-  collapsedDirs,
+  expandedDirs,
   onToggleCollapse,
 }: {
   readonly folder: FileTreeFolder;
   readonly depth: number;
-  readonly collapsedDirs: ReadonlySet<string>;
+  readonly expandedDirs: ReadonlySet<string>;
   readonly onToggleCollapse: (path: string) => void;
 }) {
   const checkedIds = useFileStore((s) => s.checkedIds);
@@ -240,7 +246,7 @@ function FolderNode({
   const allChecked =
     descendantIds.length > 0 && checkedCount === descendantIds.length;
   const someChecked = checkedCount > 0 && !allChecked;
-  const isCollapsed = collapsedDirs.has(folder.path);
+  const isCollapsed = !expandedDirs.has(folder.path);
 
   return (
     <div data-testid={`folder-node-${folder.path}`}>
@@ -290,7 +296,7 @@ function FolderNode({
               key={child.path}
               folder={child}
               depth={depth + 1}
-              collapsedDirs={collapsedDirs}
+              expandedDirs={expandedDirs}
               onToggleCollapse={onToggleCollapse}
             />
           ))}
@@ -314,14 +320,22 @@ export function FileListPanel() {
 
   const addScannedFiles = useFileStore((s) => s.addScannedFiles);
   const [showUrlInput, setShowUrlInput] = useState(false);
-  const [collapsedDirs, setCollapsedDirs] = useState<ReadonlySet<string>>(
+  // 기본은 전부 접힘 — 펼친 폴더만 기록한다
+  const [expandedDirs, setExpandedDirs] = useState<ReadonlySet<string>>(
     new Set(),
   );
 
   const tree = useMemo(() => buildFileTree(files), [files]);
+  const allFolderPaths = useMemo(
+    () => collectFolderPaths(tree.roots),
+    [tree.roots],
+  );
+  const allExpanded =
+    allFolderPaths.length > 0 &&
+    allFolderPaths.every((path) => expandedDirs.has(path));
 
   const handleToggleCollapse = useCallback((path: string) => {
-    setCollapsedDirs((prev) => {
+    setExpandedDirs((prev) => {
       const next = new Set(prev);
       if (next.has(path)) {
         next.delete(path);
@@ -331,6 +345,10 @@ export function FileListPanel() {
       return next;
     });
   }, []);
+
+  const handleToggleExpandAll = useCallback(() => {
+    setExpandedDirs(allExpanded ? new Set() : new Set(allFolderPaths));
+  }, [allExpanded, allFolderPaths]);
 
   const handleOpenFiles = useCallback(async () => {
     const { open } = await import("@tauri-apps/plugin-dialog");
@@ -454,6 +472,22 @@ export function FileListPanel() {
           </span>
         </div>
         <div className="flex gap-1">
+          {allFolderPaths.length > 0 && (
+            <button
+              type="button"
+              onClick={handleToggleExpandAll}
+              data-testid="expand-all-btn"
+              aria-label={allExpanded ? "전체 접기" : "전체 펼치기"}
+              title={allExpanded ? "폴더 전체 접기" : "폴더 전체 펼치기"}
+              className="text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-accent)] transition-colors"
+            >
+              {allExpanded ? (
+                <ChevronsDownUp size={14} />
+              ) : (
+                <ChevronsUpDown size={14} />
+              )}
+            </button>
+          )}
           <button
             type="button"
             onClick={handleOpenFiles}
@@ -548,7 +582,7 @@ export function FileListPanel() {
                 key={folder.path}
                 folder={folder}
                 depth={0}
-                collapsedDirs={collapsedDirs}
+                expandedDirs={expandedDirs}
                 onToggleCollapse={handleToggleCollapse}
               />
             ))}
