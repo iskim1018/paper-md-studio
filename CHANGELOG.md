@@ -2,6 +2,43 @@
 
 이 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.0.0/) 형식을 따릅니다.
 
+## [0.4.0] - 2026-07-23
+
+### 추가
+
+- **HTML → Markdown 변환** — 지원 포맷에 HTML 추가
+  - 로컬 `.html`/`.htm` 파일 및 http(s) URL 입력 지원
+  - `@mozilla/readability` + `linkedom` 기반 본문 추출 (nav·사이드바·푸터·광고
+    제거, 실패 시 전체 폴백, `--no-extract`로 비활성)
+  - SPA 렌더링 (`--render`): 시스템 Chrome으로 JS 렌더링 후 DOM 캡처
+    (`playwright-core` optionalDependency, `--wait-selector`/`--timeout` 지원)
+  - 원격 이미지 다운로드 (`--download-images`): `{문서명}_images/`에 저장,
+    실패 시 원본 URL 유지, 문서당 50개 한도
+  - SSRF 방어: `safeFetch`를 core로 승격해 URL fetch·이미지 다운로드·SPA
+    sub-resource 요청까지 사설 대역 차단
+- **블로그 플랫폼 대응** — 네이버 블로그 등 iframe 껍데기 페이지의 본문
+  프레임 자동 추적, 본문 컨테이너 힌트 셀렉터(SmartEditor·티스토리·
+  `itemprop=articleBody`), lazy-load 이미지 원본 승격, zero-width 문자 제거
+- **앱: URL 변환 + 원본 미리보기** — 파일 목록에 URL 입력(🔗), 변환 전
+  "추출된 본문 미리보기" 표시 (사이드카 `--html` + DOMPurify)
+- **앱: 파일 탐색기·폴더 열기** — 네이티브 다이얼로그로 파일 다중 선택,
+  폴더 선택 시 하위 폴더를 재귀 스캔해 트리로 표시 (기본 접힘, 전체
+  펼침/닫힘 토글, 폴더 체크박스로 하위 전체 일괄 선택)
+
+### 수정
+
+- HWPX 체크박스 등 PUA 심볼 문자(U+F0xx)가 보이지 않던 버그 — Wingdings
+  계열 12개 코드를 유니코드(■ □ ☑ ✓ 등)로 정규화
+- 배포 번들 빌드가 `playwright-core` 포함 시도로 실패하던 문제
+- CLI `--version`이 구버전(v0.1.0)을 출력하던 문제
+
+### 보안
+
+- pnpm audit 취약점 34건 해결 (`undici`, `vite`, `hono`, `dompurify`,
+  `esbuild`, `fast-uri` 등 — `pnpm.overrides`로 패치)
+- HTML sanitize: 제어문자 난독화 `javascript:` URI 우회 차단, `data:`는
+  이미지만 허용
+
 ## [0.3.0] - 2026-05-15
 
 ### 추가
