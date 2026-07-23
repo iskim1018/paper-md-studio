@@ -25,6 +25,7 @@
     "fs:allow-exists",
     "fs:default",
     "fs:allow-read-dir",
+    "fs:allow-stat",
     "dialog:allow-message",
     {
       "identifier": "fs:scope",
