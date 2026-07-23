@@ -11,10 +11,11 @@ export default defineConfig((options) => {
     // 을 유지하기 위해서도 ESM이 필요.
     format: "esm",
     clean: false,
-    noExternal: isBundle ? [/.*/] : undefined,
     // playwright-core는 optionalDependency (SPA 렌더링 전용).
-    // 사이드카 번들 비대화를 막기 위해 항상 external 처리 — 미설치
+    // 사이드카 번들 비대화를 막기 위해 번들에서 제외 — noExternal이
+    // external보다 우선하므로 정규식에서 명시적으로 빼야 한다. 미설치
     // 환경에서는 renderSpa의 동적 import가 한국어 에러로 안내한다.
+    noExternal: isBundle ? [/^(?!playwright-core$).*/] : undefined,
     external: ["playwright-core"],
     minify: isBundle,
     outDir: isBundle ? "dist-bundle" : "dist",
