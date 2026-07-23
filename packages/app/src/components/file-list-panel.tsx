@@ -14,13 +14,13 @@ import {
   XCircle,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
+import { useFilePickers } from "../hooks/use-file-pickers";
 import type { FileTreeFolder } from "../lib/file-tree";
 import {
   buildFileTree,
   collectFileIds,
   collectFolderPaths,
 } from "../lib/file-tree";
-import { scanFolderForDocuments } from "../lib/folder-scan";
 import { useConvertQueueStore } from "../store/convert-queue-store";
 import type { FileItem, FileStatus } from "../store/file-store";
 import { isSupportedFile, useFileStore } from "../store/file-store";
@@ -29,18 +29,6 @@ import { OutputDirSelector } from "./output-dir-selector";
 
 /** 트리 깊이당 들여쓰기(px) */
 const INDENT_PER_DEPTH = 14;
-/** 파일 다이얼로그에서 허용할 확장자 */
-const DIALOG_EXTENSIONS = [
-  "hwp",
-  "hwpx",
-  "doc",
-  "docx",
-  "pdf",
-  "html",
-  "htm",
-  "md",
-];
-
 const STATUS_ICON: Record<FileStatus, React.ReactNode> = {
   pending: <FileText size={14} className="text-[var(--color-muted)]" />,
   converting: (
@@ -309,16 +297,96 @@ function FolderNode({
   );
 }
 
-export function FileListPanel() {
-  const { files, addFiles, clearFiles } = useFileStore();
+/** 헤더의 전체 선택 체크박스 상태·토글 */
+function useSelectAllCheckbox(fileCount: number) {
   const checkedIds = useFileStore((s) => s.checkedIds);
   const checkAll = useFileStore((s) => s.checkAll);
   const clearChecked = useFileStore((s) => s.clearChecked);
+
+  const checkedCount = checkedIds.size;
+  const allChecked = fileCount > 0 && checkedCount === fileCount;
+  const someChecked = checkedCount > 0 && checkedCount < fileCount;
+  const toggle = useCallback(() => {
+    if (allChecked) {
+      clearChecked();
+    } else {
+      checkAll();
+    }
+  }, [allChecked, checkAll, clearChecked]);
+
+  return { allChecked, someChecked, toggle };
+}
+
+/**
+ * 브라우저(DOM) drag-drop 핸들러.
+ * Tauri 환경에서는 네이티브 drag-drop 이벤트(DropOverlay)를 사용하므로
+ * DOM drop을 비활성화하여 중복 등록을 방지한다.
+ */
+function useDomDropHandlers(addFiles: (paths: ReadonlyArray<string>) => void) {
+  const isTauri =
+    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      if (isTauri) return;
+
+      const paths: Array<string> = [];
+      for (const item of Array.from(e.dataTransfer.files)) {
+        if (isSupportedFile(item.name)) {
+          paths.push(item.name);
+        }
+      }
+      if (paths.length > 0) {
+        addFiles(paths);
+      }
+    },
+    [addFiles, isTauri],
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+  }, []);
+
+  return { handleDrop, handleDragOver };
+}
+
+/** 개별 파일(평면) + 폴더 트리 목록 본문 */
+function FileTreeList({
+  tree,
+  expandedDirs,
+  onToggleCollapse,
+}: {
+  readonly tree: ReturnType<typeof buildFileTree>;
+  readonly expandedDirs: ReadonlySet<string>;
+  readonly onToggleCollapse: (path: string) => void;
+}) {
+  return (
+    <>
+      {tree.ungrouped.map((file) => (
+        <FileRow key={file.id} file={file} />
+      ))}
+      {tree.roots.map((folder) => (
+        <FolderNode
+          key={folder.path}
+          folder={folder}
+          depth={0}
+          expandedDirs={expandedDirs}
+          onToggleCollapse={onToggleCollapse}
+        />
+      ))}
+    </>
+  );
+}
+
+export function FileListPanel() {
+  const { files, addFiles, clearFiles } = useFileStore();
+  const checkedIds = useFileStore((s) => s.checkedIds);
   const startBatch = useConvertQueueStore((s) => s.startBatch);
   const retry = useConvertQueueStore((s) => s.retry);
   const resetQueue = useConvertQueueStore((s) => s.reset);
 
-  const addScannedFiles = useFileStore((s) => s.addScannedFiles);
+  const { openFiles, openFolder } = useFilePickers();
   const [showUrlInput, setShowUrlInput] = useState(false);
   // 기본은 전부 접힘 — 펼친 폴더만 기록한다
   const [expandedDirs, setExpandedDirs] = useState<ReadonlySet<string>>(
@@ -350,39 +418,6 @@ export function FileListPanel() {
     setExpandedDirs(allExpanded ? new Set() : new Set(allFolderPaths));
   }, [allExpanded, allFolderPaths]);
 
-  const handleOpenFiles = useCallback(async () => {
-    const { open } = await import("@tauri-apps/plugin-dialog");
-    const picked = await open({
-      multiple: true,
-      title: "변환할 문서 선택",
-      filters: [{ name: "문서", extensions: DIALOG_EXTENSIONS }],
-    });
-    if (!picked) return;
-    addFiles(Array.isArray(picked) ? picked : [picked]);
-  }, [addFiles]);
-
-  const handleOpenFolder = useCallback(async () => {
-    const { open, message } = await import("@tauri-apps/plugin-dialog");
-    const dir = await open({ directory: true, title: "변환할 폴더 선택" });
-    if (typeof dir !== "string") return;
-    try {
-      const scanned = await scanFolderForDocuments(dir);
-      const added = addScannedFiles(scanned);
-      if (added === 0) {
-        await message(
-          "선택한 폴더에서 지원하는 문서를 찾지 못했습니다.\n(지원: .hwp, .hwpx, .doc, .docx, .pdf, .html, .md)",
-          { title: "폴더 열기", kind: "info" },
-        );
-      }
-    } catch (err: unknown) {
-      const detail = err instanceof Error ? err.message : String(err);
-      await message(`폴더를 읽는 중 오류가 발생했습니다.\n${detail}`, {
-        title: "폴더 열기",
-        kind: "error",
-      });
-    }
-  }, [addScannedFiles]);
-
   const handleClear = useCallback(() => {
     resetQueue();
     clearFiles();
@@ -406,39 +441,13 @@ export function FileListPanel() {
     }
   }, [files, retry]);
 
-  const allChecked = files.length > 0 && checkedCount === files.length;
-  const someChecked = checkedCount > 0 && checkedCount < files.length;
-  const handleHeaderCheckChange = useCallback(() => {
-    if (allChecked) clearChecked();
-    else checkAll();
-  }, [allChecked, checkAll, clearChecked]);
+  const {
+    allChecked,
+    someChecked,
+    toggle: handleHeaderCheckChange,
+  } = useSelectAllCheckbox(files.length);
 
-  // Tauri 환경에서는 네이티브 drag-drop 이벤트(DropOverlay)를 사용하므로
-  // React DOM drop 핸들러를 비활성화하여 중복 등록을 방지합니다.
-  const isTauri =
-    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      if (isTauri) return;
-
-      const paths: Array<string> = [];
-      for (const item of Array.from(e.dataTransfer.files)) {
-        if (isSupportedFile(item.name)) {
-          paths.push(item.name);
-        }
-      }
-      if (paths.length > 0) {
-        addFiles(paths);
-      }
-    },
-    [addFiles, isTauri],
-  );
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-  }, []);
+  const { handleDrop, handleDragOver } = useDomDropHandlers(addFiles);
 
   const hasPending = files.some((f) => f.status === "pending");
   const failedCount = files.filter((f) => f.status === "error").length;
@@ -490,7 +499,7 @@ export function FileListPanel() {
           )}
           <button
             type="button"
-            onClick={handleOpenFiles}
+            onClick={openFiles}
             data-testid="open-files-btn"
             aria-label="파일 열기"
             title="파일 탐색기에서 문서 선택"
@@ -500,7 +509,7 @@ export function FileListPanel() {
           </button>
           <button
             type="button"
-            onClick={handleOpenFolder}
+            onClick={openFolder}
             data-testid="open-folder-btn"
             aria-label="폴더 열기"
             title="폴더를 선택해 하위 문서를 트리로 추가"
@@ -573,20 +582,11 @@ export function FileListPanel() {
             <p className="text-xs">.hwp, .hwpx, .docx, .pdf, .html, .md</p>
           </div>
         ) : (
-          <>
-            {tree.ungrouped.map((file) => (
-              <FileRow key={file.id} file={file} />
-            ))}
-            {tree.roots.map((folder) => (
-              <FolderNode
-                key={folder.path}
-                folder={folder}
-                depth={0}
-                expandedDirs={expandedDirs}
-                onToggleCollapse={handleToggleCollapse}
-              />
-            ))}
-          </>
+          <FileTreeList
+            tree={tree}
+            expandedDirs={expandedDirs}
+            onToggleCollapse={handleToggleCollapse}
+          />
         )}
       </div>
     </section>
