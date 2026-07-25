@@ -149,7 +149,11 @@ test.describe("테마 토글", () => {
   test("헤더에 테마 토글 버튼이 노출된다", async ({ page }) => {
     const toggle = page.locator('[data-testid="theme-toggle"]');
     await expect(toggle).toBeVisible();
-    await expect(toggle).toContainText("시스템");
+    // 아이콘 전용 버튼 — 현재 테마는 aria-label로 노출
+    await expect(toggle).toHaveAttribute(
+      "aria-label",
+      "테마 전환 (현재: 시스템)",
+    );
   });
 
   test("클릭 시 system → light → dark → system 순으로 순환한다", async ({
@@ -158,15 +162,24 @@ test.describe("테마 토글", () => {
     const toggle = page.locator('[data-testid="theme-toggle"]');
 
     await toggle.click();
-    await expect(toggle).toContainText("라이트");
+    await expect(toggle).toHaveAttribute(
+      "aria-label",
+      "테마 전환 (현재: 라이트)",
+    );
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 
     await toggle.click();
-    await expect(toggle).toContainText("다크");
+    await expect(toggle).toHaveAttribute(
+      "aria-label",
+      "테마 전환 (현재: 다크)",
+    );
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
 
     await toggle.click();
-    await expect(toggle).toContainText("시스템");
+    await expect(toggle).toHaveAttribute(
+      "aria-label",
+      "테마 전환 (현재: 시스템)",
+    );
     await expect(page.locator("html")).not.toHaveAttribute(
       "data-theme",
       "dark",

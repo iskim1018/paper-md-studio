@@ -20,8 +20,8 @@ test.describe("앱 레이아웃", () => {
   test("파일 목록 패널에 빈 상태 메시지가 표시된다", async ({ page }) => {
     const emptyState = page.locator('[data-testid="empty-state"]');
     await expect(emptyState).toBeVisible();
-    await expect(emptyState).toContainText("파일을 여기에 드래그");
-    await expect(emptyState).toContainText(".hwpx, .docx, .pdf");
+    await expect(emptyState).toContainText("문서를 여기에");
+    await expect(emptyState).toContainText("hwp hwpx docx pdf html md");
   });
 
   test("미리보기 패널에 빈 상태 메시지가 표시된다", async ({ page }) => {

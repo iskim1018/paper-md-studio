@@ -24,7 +24,7 @@ test.describe("파일 상호작용", () => {
 
   test("초기 상태에서 파일 수가 0이다", async ({ page }) => {
     const fileCount = page.locator('[data-testid="file-list-panel"]');
-    await expect(fileCount).toContainText("파일 (0)");
+    await expect(fileCount).toContainText("파일 · 0");
   });
 
   test("초기 상태에서 변환 버튼이 없다", async ({ page }) => {
@@ -41,7 +41,7 @@ test.describe("파일 상호작용", () => {
     await addFilesViaStore(page, ["/tmp/test/문서.hwpx"]);
 
     const panel = page.locator('[data-testid="file-list-panel"]');
-    await expect(panel).toContainText("파일 (1)");
+    await expect(panel).toContainText("파일 · 1");
     await expect(panel).toContainText("문서.hwpx");
   });
 
@@ -54,21 +54,21 @@ test.describe("파일 상호작용", () => {
     ]);
 
     const panel = page.locator('[data-testid="file-list-panel"]');
-    await expect(panel).toContainText("파일 (4)");
-    await expect(panel).toContainText("HWP");
-    await expect(panel).toContainText("HWPX");
-    await expect(panel).toContainText("DOCX");
-    await expect(panel).toContainText("PDF");
+    await expect(panel).toContainText("파일 · 4");
+    await expect(panel).toContainText("hwp");
+    await expect(panel).toContainText("hwpx");
+    await expect(panel).toContainText("docx");
+    await expect(panel).toContainText("pdf");
   });
 
   test(".hwp 파일도 목록에 추가되고 HWP 배지로 표시된다", async ({ page }) => {
     await addFilesViaStore(page, ["/tmp/test/한글문서.hwp"]);
 
     const panel = page.locator('[data-testid="file-list-panel"]');
-    await expect(panel).toContainText("파일 (1)");
+    await expect(panel).toContainText("파일 · 1");
     await expect(panel).toContainText("한글문서.hwp");
     // HWPX는 'HWPX', HWP는 'HWP'로만 표시되는지 확인
-    await expect(panel.locator("text=HWP").first()).toBeVisible();
+    await expect(panel.locator("text=hwp").first()).toBeVisible();
   });
 
   test(".hwp 파일을 선택하면 원본 미리보기 패널이 열린다", async ({ page }) => {
@@ -87,7 +87,7 @@ test.describe("파일 상호작용", () => {
     await toggle.click();
 
     const preview = page.locator('[data-testid="preview-panel"]');
-    await expect(preview).toContainText("HWP");
+    await expect(preview).toContainText("hwp");
     await expect(preview).toContainText("pending");
   });
 
@@ -96,7 +96,7 @@ test.describe("파일 상호작용", () => {
     await addFilesViaStore(page, ["/tmp/test/문서.hwpx"]);
 
     const panel = page.locator('[data-testid="file-list-panel"]');
-    await expect(panel).toContainText("파일 (1)");
+    await expect(panel).toContainText("파일 · 1");
   });
 
   test("파일 추가 후 변환/초기화 버튼이 표시된다", async ({ page }) => {
@@ -127,7 +127,7 @@ test.describe("파일 상호작용", () => {
     // 토글 클릭 → 메타데이터 표시
     await toggle.click();
     const preview = page.locator('[data-testid="preview-panel"]');
-    await expect(preview).toContainText("DOCX");
+    await expect(preview).toContainText("docx");
     await expect(preview).toContainText("pending");
 
     // 다시 클릭 → 숨김
@@ -142,7 +142,7 @@ test.describe("파일 상호작용", () => {
     await page.locator('[data-testid="clear-files-btn"]').click();
 
     const panel = page.locator('[data-testid="file-list-panel"]');
-    await expect(panel).toContainText("파일 (0)");
+    await expect(panel).toContainText("파일 · 0");
     await expect(page.locator('[data-testid="empty-state"]')).toBeVisible();
   });
 });
