@@ -1,11 +1,7 @@
 import {
   Check,
-  Code,
-  Columns2,
   Copy,
-  Edit3,
   Eraser,
-  Eye,
   FileCode2,
   FolderOpen,
   Save,
@@ -17,10 +13,12 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { useSaveShortcut } from "../hooks/use-save-shortcut";
 import { saveMarkdownAs, saveMarkdownTo } from "../lib/file-writer";
 import { removeEmptyTableRows } from "../lib/md-cleanup";
+import { shortcutLabel } from "../lib/shortcuts";
 import { useFileStore } from "../store/file-store";
 import { MarkdownPreview } from "./editor/markdown-preview";
 import { MilkdownEditor } from "./editor/milkdown-editor";
 import { SourceEditor } from "./editor/source-editor";
+import { Tooltip } from "./ui/tooltip";
 
 type ViewMode = "preview" | "edit" | "source" | "split";
 
@@ -113,84 +111,93 @@ export function ResultPanel() {
         className="flex h-full flex-col items-center justify-center gap-2 text-[var(--color-muted)]"
         data-testid="result-empty"
       >
-        <FileCode2 size={32} />
-        <p className="text-sm">변환 결과가 여기에 표시됩니다</p>
+        <FileCode2
+          size={28}
+          strokeWidth={1.5}
+          className="text-[var(--color-dot-pending)]"
+        />
+        <p className="text-[13px]">변환 결과 Markdown이 여기에 표시됩니다</p>
       </div>
     );
   }
 
   return (
     <div className="flex h-full flex-col" data-testid="result-panel">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-y-1 border-b border-[var(--color-border)] px-3 py-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide whitespace-nowrap">
-            Markdown
-          </span>
-          {selectedFile.isDirty && (
-            <span
-              className="text-xs text-[var(--color-accent,#3b82f6)]"
-              title="저장되지 않은 편집 있음"
-              data-testid="dirty-indicator"
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-y-1 border-b border-[var(--color-border)] px-[18px] py-2.5">
+        <ModeToggle mode={mode} onChange={setMode} />
+        <div className="flex flex-wrap items-center gap-0.5">
+          <Tooltip content="편집 내용 저장" shortcut={shortcutLabel("save")}>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={!selectedFile.isDirty}
+              className={`flex items-center rounded-[6px] p-1.5 transition-colors disabled:opacity-35 disabled:cursor-not-allowed ${
+                selectedFile.isDirty
+                  ? "text-[var(--color-accent)] hover:bg-[var(--color-chip-bg)]"
+                  : "text-[var(--color-muted)]"
+              }`}
+              aria-label="저장"
+              data-testid="save-btn"
             >
-              ●
-            </span>
-          )}
-          <ModeToggle mode={mode} onChange={setMode} />
-        </div>
-        <div className="flex flex-wrap items-center gap-1">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!selectedFile.isDirty}
-            className="flex items-center gap-1 whitespace-nowrap text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            title="저장 (Cmd/Ctrl+S)"
-            data-testid="save-btn"
+              <Save size={14} />
+            </button>
+          </Tooltip>
+          <Tooltip
+            content="다른 이름으로 저장"
+            shortcut={shortcutLabel("save-as")}
           >
-            <Save size={12} />
-            저장
-          </button>
-          <button
-            type="button"
-            onClick={handleSaveAs}
-            className="flex items-center gap-1 whitespace-nowrap text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
-            title="다른 이름으로 저장 (Cmd/Ctrl+Shift+S)"
-            data-testid="save-as-btn"
-          >
-            <SaveAll size={12} />
-            다른 이름
-          </button>
-          <button
-            type="button"
-            onClick={handleRemoveEmptyRows}
-            className="flex items-center gap-1 whitespace-nowrap text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
-            title="테이블에서 내용이 빈 행을 일괄 제거 (Cmd/Ctrl+Z로 되돌리기 가능)"
-            data-testid="remove-empty-rows-btn"
-          >
-            <Eraser size={12} />빈 행 정리
-          </button>
-          <button
-            type="button"
-            onClick={handleOpenFolder}
-            className="flex items-center gap-1 whitespace-nowrap text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
-            title={selectedFile.result.outputPath}
-            data-testid="open-folder-btn"
-          >
-            <FolderOpen size={12} />
-            폴더 열기
-          </button>
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="flex items-center gap-1 whitespace-nowrap text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
-          >
-            {copied ? <Check size={12} /> : <Copy size={12} />}
-            {copied ? "복사됨" : "복사"}
-          </button>
+            <button
+              type="button"
+              onClick={handleSaveAs}
+              className="flex items-center rounded-[6px] p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-chip-bg)] hover:text-[var(--color-text)] transition-colors"
+              aria-label="다른 이름으로 저장"
+              data-testid="save-as-btn"
+            >
+              <SaveAll size={14} />
+            </button>
+          </Tooltip>
+          <Tooltip content="표에서 내용이 빈 행을 일괄 제거">
+            <button
+              type="button"
+              onClick={handleRemoveEmptyRows}
+              className="flex items-center rounded-[6px] p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-chip-bg)] hover:text-[var(--color-text)] transition-colors"
+              aria-label="빈 행 정리"
+              data-testid="remove-empty-rows-btn"
+            >
+              <Eraser size={14} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Markdown 전체를 클립보드에 복사">
+            <button
+              type="button"
+              onClick={handleCopy}
+              className={`flex items-center rounded-[6px] p-1.5 transition-colors ${
+                copied
+                  ? "text-[var(--color-success)]"
+                  : "text-[var(--color-muted)] hover:bg-[var(--color-chip-bg)] hover:text-[var(--color-text)]"
+              }`}
+              aria-label={copied ? "복사됨" : "복사"}
+              data-testid="copy-btn"
+            >
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </Tooltip>
+          <Tooltip content="저장 폴더를 탐색기에서 열기">
+            <button
+              type="button"
+              onClick={handleOpenFolder}
+              className="flex items-center rounded-[6px] p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-chip-bg)] hover:text-[var(--color-text)] transition-colors"
+              aria-label="폴더 열기"
+              data-testid="open-folder-btn"
+            >
+              <FolderOpen size={14} />
+            </button>
+          </Tooltip>
         </div>
       </div>
       {saveError && (
         <div
-          className="shrink-0 border-b border-[var(--color-error)] bg-[var(--color-error)]/10 px-3 py-1.5 text-xs text-[var(--color-error)]"
+          className="shrink-0 border-b border-[var(--color-border)] bg-[var(--color-error)]/10 px-[18px] py-1.5 text-xs text-[var(--color-error)]"
           data-testid="save-error"
         >
           저장 오류: {saveError}
@@ -198,7 +205,7 @@ export function ResultPanel() {
       )}
       {selectedFile.cleanupSnapshot !== null && (
         <div
-          className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-panel-bg)] px-3 py-1.5 text-xs"
+          className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-accent)]/8 px-[18px] py-1.5 text-xs"
           data-testid="cleanup-banner"
         >
           <span className="text-[var(--color-muted)]">
@@ -207,7 +214,7 @@ export function ResultPanel() {
           <button
             type="button"
             onClick={handleUndoCleanup}
-            className="flex items-center gap-1 rounded px-2 py-0.5 text-[var(--color-accent,#3b82f6)] hover:underline"
+            className="flex items-center gap-1 rounded px-2 py-0.5 text-[var(--color-accent)] hover:underline"
             data-testid="undo-cleanup-btn"
           >
             <Undo2 size={11} />
@@ -271,14 +278,31 @@ export function ResultPanel() {
           </PanelGroup>
         )}
       </div>
-      <div className="shrink-0 border-t border-[var(--color-border)] px-3 py-1.5">
+      <div className="flex shrink-0 items-center gap-1.5 border-t border-[var(--color-border)] px-[18px] py-[9px] text-[11.5px] text-[var(--color-muted)]">
+        {selectedFile.isDirty && (
+          <span
+            className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-accent)]"
+            title="저장되지 않은 편집 있음"
+            data-testid="dirty-indicator"
+            aria-hidden
+          />
+        )}
         <p
-          className="text-xs text-[var(--color-muted)] truncate"
+          className="flex-1 truncate"
           title={selectedFile.result.outputPath}
           data-testid="output-path"
         >
-          저장: {selectedFile.result.outputPath}
+          {selectedFile.isDirty ? "저장되지 않음 · " : "저장: "}
+          {selectedFile.result.outputPath}
         </p>
+        <button
+          type="button"
+          onClick={handleOpenFolder}
+          className="shrink-0 text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
+          data-testid="footer-open-folder-btn"
+        >
+          폴더 열기
+        </button>
       </div>
     </div>
   );
@@ -289,41 +313,39 @@ interface ModeToggleProps {
   readonly onChange: (mode: ViewMode) => void;
 }
 
+/** 모드 전환 필 세그먼트 — 아이콘 없이 텍스트만 (시안 2a) */
 function ModeToggle({ mode, onChange }: ModeToggleProps) {
   const buttons: ReadonlyArray<{
     readonly value: ViewMode;
     readonly label: string;
-    readonly Icon: typeof Eye;
     readonly testId: string;
   }> = [
-    { value: "preview", label: "보기", Icon: Eye, testId: "mode-preview" },
-    { value: "edit", label: "편집", Icon: Edit3, testId: "mode-edit" },
-    { value: "source", label: "소스", Icon: Code, testId: "mode-source" },
-    { value: "split", label: "분할", Icon: Columns2, testId: "mode-split" },
+    { value: "preview", label: "보기", testId: "mode-preview" },
+    { value: "edit", label: "편집", testId: "mode-edit" },
+    { value: "source", label: "소스", testId: "mode-source" },
+    { value: "split", label: "분할", testId: "mode-split" },
   ];
 
   return (
     <div
-      className="flex items-center rounded border border-[var(--color-border)] text-xs"
+      className="flex items-center rounded-full bg-[var(--color-seg-bg)] p-[3px] text-[12.5px]"
       data-testid="mode-toggle"
     >
-      {buttons.map(({ value, label, Icon, testId }, i) => {
+      {buttons.map(({ value, label, testId }) => {
         const isActive = mode === value;
-        const radius =
-          i === 0 ? "rounded-l" : i === buttons.length - 1 ? "rounded-r" : "";
         return (
           <button
             key={value}
             type="button"
             onClick={() => onChange(value)}
-            className={`flex items-center gap-1 whitespace-nowrap px-2 py-0.5 ${radius} transition-colors ${
+            aria-pressed={isActive}
+            className={`whitespace-nowrap rounded-full px-3.5 py-1 transition-colors ${
               isActive
-                ? "bg-[var(--color-border)] text-[var(--color-text)]"
+                ? "seg-active font-semibold text-[var(--color-text)]"
                 : "text-[var(--color-muted)] hover:text-[var(--color-text)]"
             }`}
             data-testid={testId}
           >
-            <Icon size={11} />
             {label}
           </button>
         );

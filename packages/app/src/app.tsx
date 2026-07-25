@@ -3,10 +3,12 @@ import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
 import { DropOverlay } from "./components/drop-overlay";
 import { FileListPanel } from "./components/file-list-panel";
 import { FullscreenToggle } from "./components/fullscreen-toggle";
+import { HelpModal } from "./components/help-modal";
 import { PanelToggles } from "./components/panel-toggles";
 import { PreviewPanel } from "./components/preview-panel";
 import { ResultPanel } from "./components/result-panel";
 import { ThemeToggle } from "./components/theme-toggle";
+import { LogoSymbol } from "./components/ui/logo-symbol";
 import { useAutoLoadMarkdown } from "./hooks/use-auto-load-markdown";
 import { usePanelShortcuts } from "./hooks/use-panel-shortcuts";
 import { useLayoutStore } from "./store/layout-store";
@@ -32,15 +34,28 @@ export function App() {
     <div className="flex h-screen flex-col" data-testid="app-root">
       <DropOverlay />
       <header
-        className="flex h-12 shrink-0 items-center justify-between border-b border-[var(--color-border)] px-4"
+        className="flex h-[52px] shrink-0 items-center justify-between border-b border-[var(--color-border)] px-[18px]"
         data-testid="app-header"
       >
-        <h1 className="text-sm font-semibold">Paper MD Studio</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-[9px]">
+          <LogoSymbol size={26} />
+          <h1 className="text-sm font-normal tracking-[-0.01em]">
+            <span className="font-bold">Paper</span>{" "}
+            <span className="font-extrabold text-[var(--color-success)]">
+              MD
+            </span>{" "}
+            <span className="text-[var(--color-muted)]">Studio</span>
+          </h1>
+        </div>
+        <div className="flex items-center gap-1">
           <PanelToggles />
-          <span className="h-4 w-px bg-[var(--color-border)]" aria-hidden />
+          <span
+            className="mx-1.5 h-4 w-px bg-[var(--color-border)]"
+            aria-hidden
+          />
           <FullscreenToggle />
           <ThemeToggle />
+          <HelpModal />
         </div>
       </header>
       {isFullscreen ? (

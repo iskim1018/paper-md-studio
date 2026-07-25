@@ -89,7 +89,7 @@ function HwpxPage({ index, svg, highlights }: HwpxPageProps) {
   return (
     <div
       data-page-index={index}
-      className="hwpx-page relative bg-white shadow-sm"
+      className="hwpx-page relative bg-white border border-[var(--color-border)]"
       data-testid="hwpx-page"
     >
       <SvgContent svg={svg} />
@@ -294,19 +294,20 @@ export function HwpxViewer({ filePath }: HwpxViewerProps) {
       data-testid="hwpx-viewer"
       tabIndex={-1}
     >
-      <ViewerToolbar
-        currentPage={currentPage}
-        pageCount={docState.pageCount}
-        scale={scale}
-        testIdPrefix="hwpx"
-        onPageJump={scrollToPage}
-        onZoomIn={() => adjustScale(SCALE_STEP)}
-        onZoomOut={() => adjustScale(-SCALE_STEP)}
-        onFitToWidth={fitToWidth}
-        canZoomIn={scale < MAX_SCALE}
-        canZoomOut={scale > MIN_SCALE}
-      />
       <div className="relative flex-1 overflow-hidden">
+        <ViewerToolbar
+          currentPage={currentPage}
+          pageCount={docState.pageCount}
+          scale={scale}
+          testIdPrefix="hwpx"
+          scrollRef={scrollRef}
+          onPageJump={scrollToPage}
+          onZoomIn={() => adjustScale(SCALE_STEP)}
+          onZoomOut={() => adjustScale(-SCALE_STEP)}
+          onFitToWidth={fitToWidth}
+          canZoomIn={scale < MAX_SCALE}
+          canZoomOut={scale > MIN_SCALE}
+        />
         <SearchBar
           visible={searchVisible}
           focusToken={focusToken}

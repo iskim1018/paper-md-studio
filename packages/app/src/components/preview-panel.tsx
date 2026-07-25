@@ -15,30 +15,34 @@ export function PreviewPanel() {
   if (!selectedFile) {
     return (
       <div
-        className="flex h-full flex-col items-center justify-center gap-2 text-[var(--color-muted)]"
+        className="flex h-full flex-col items-center justify-center gap-2 bg-[var(--color-panel-bg)] text-[var(--color-muted)]"
         data-testid="preview-empty"
       >
-        <FileSearch size={32} />
-        <p className="text-sm">파일을 선택하세요</p>
+        <FileSearch
+          size={28}
+          strokeWidth={1.5}
+          className="text-[var(--color-dot-pending)]"
+        />
+        <p className="text-[13px]">파일을 선택하면 원본이 표시됩니다</p>
       </div>
     );
   }
 
   return (
     <div className="flex h-full flex-col" data-testid="preview-panel">
-      <div className="flex items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
-        <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
+      <div className="flex items-center justify-between px-[18px] pt-3.5 pb-2.5">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-muted)]">
           원본 미리보기
         </span>
         <span
-          className="text-xs text-[var(--color-muted)] truncate max-w-[60%]"
+          className="max-w-[65%] truncate text-xs text-[var(--color-muted)]"
           title={selectedFile.name}
         >
           {selectedFile.name}
         </span>
       </div>
 
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden border-t border-[var(--color-border)]">
         <FileViewer format={selectedFile.format} filePath={selectedFile.path} />
       </div>
 
@@ -46,7 +50,7 @@ export function PreviewPanel() {
         <button
           type="button"
           onClick={() => setShowMeta((prev) => !prev)}
-          className="flex w-full items-center gap-1 px-3 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+          className="flex w-full items-center gap-1 px-[18px] py-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
           data-testid="meta-toggle"
         >
           {showMeta ? <ChevronDown size={12} /> : <ChevronRight size={12} />}

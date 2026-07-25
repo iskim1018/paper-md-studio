@@ -243,28 +243,29 @@ export function DocxViewer({ filePath }: DocxViewerProps) {
           DOCX 로딩 중...
         </div>
       )}
-      {!error && !isLoading && showHeader && (
-        <ViewerToolbar
-          currentPage={currentPage}
-          pageCount={pageCount}
-          scale={scale}
-          testIdPrefix="docx"
-          onPageJump={scrollToPage}
-          onZoomIn={() => adjustScale(SCALE_STEP)}
-          onZoomOut={() => adjustScale(-SCALE_STEP)}
-          onFitToWidth={fitToWidth}
-          canZoomIn={scale < MAX_SCALE}
-          canZoomOut={scale > MIN_SCALE}
-        />
-      )}
       {/*
         스크롤 컨테이너: docx-preview 실행 결과 DOM이 살아 있어야 하므로
         loading/error 상태에서도 마운트는 유지하고 visually hidden으로만 처리.
-        SearchBar는 scrollable 영역 우상단에 absolute로 고정.
+        SearchBar는 scrollable 영역 우상단에, 플로팅 컨트롤은 하단 중앙에 absolute 고정.
       */}
       <div
         className={`relative flex-1 overflow-hidden ${showHeader ? "" : "hidden"}`}
       >
+        {!error && !isLoading && showHeader && (
+          <ViewerToolbar
+            currentPage={currentPage}
+            pageCount={pageCount}
+            scale={scale}
+            testIdPrefix="docx"
+            scrollRef={scrollRef}
+            onPageJump={scrollToPage}
+            onZoomIn={() => adjustScale(SCALE_STEP)}
+            onZoomOut={() => adjustScale(-SCALE_STEP)}
+            onFitToWidth={fitToWidth}
+            canZoomIn={scale < MAX_SCALE}
+            canZoomOut={scale > MIN_SCALE}
+          />
+        )}
         <SearchBar
           visible={searchVisible}
           focusToken={focusToken}

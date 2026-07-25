@@ -309,50 +309,53 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
       className="flex h-full flex-col overflow-hidden"
       data-testid="pdf-viewer"
     >
-      <ViewerToolbar
-        currentPage={currentPage}
-        pageCount={pageInfos.length}
-        scale={scale}
-        testIdPrefix="pdf"
-        onPageJump={scrollToPage}
-        onZoomIn={() => adjustScale(SCALE_STEP)}
-        onZoomOut={() => adjustScale(-SCALE_STEP)}
-        onFitToWidth={fitToWidth}
-        canZoomIn={scale < MAX_SCALE}
-        canZoomOut={scale > MIN_SCALE}
-      />
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-auto bg-[var(--color-panel-bg)] p-4"
-        data-testid="pdf-scroller"
-      >
-        <div className="flex flex-col gap-4 min-w-max [align-items:safe_center]">
-          {pageInfos.map((info, i) => {
-            const cssWidth = info.width * scale;
-            const cssHeight = info.height * scale;
-            return (
-              <div
-                // biome-ignore lint/suspicious/noArrayIndexKey: 페이지 순서는 안정적이고 변하지 않는다
-                key={i}
-                data-page-index={i}
-                className="bg-white shadow-sm"
-                data-testid="pdf-page"
-                style={{
-                  width: `${cssWidth}px`,
-                  height: `${cssHeight}px`,
-                  contentVisibility: "auto",
-                  containIntrinsicSize: `${cssWidth}px ${cssHeight}px`,
-                }}
-              >
-                <canvas
-                  ref={(el) => {
-                    if (el) canvasRefsMap.current.set(i, el);
-                    else canvasRefsMap.current.delete(i);
+      <div className="relative flex-1 overflow-hidden">
+        <ViewerToolbar
+          currentPage={currentPage}
+          pageCount={pageInfos.length}
+          scale={scale}
+          testIdPrefix="pdf"
+          scrollRef={scrollRef}
+          onPageJump={scrollToPage}
+          onZoomIn={() => adjustScale(SCALE_STEP)}
+          onZoomOut={() => adjustScale(-SCALE_STEP)}
+          onFitToWidth={fitToWidth}
+          canZoomIn={scale < MAX_SCALE}
+          canZoomOut={scale > MIN_SCALE}
+        />
+        <div
+          ref={scrollRef}
+          className="h-full overflow-auto bg-[var(--color-panel-bg)] p-4"
+          data-testid="pdf-scroller"
+        >
+          <div className="flex flex-col gap-4 min-w-max [align-items:safe_center]">
+            {pageInfos.map((info, i) => {
+              const cssWidth = info.width * scale;
+              const cssHeight = info.height * scale;
+              return (
+                <div
+                  // biome-ignore lint/suspicious/noArrayIndexKey: 페이지 순서는 안정적이고 변하지 않는다
+                  key={i}
+                  data-page-index={i}
+                  className="bg-white border border-[var(--color-border)]"
+                  data-testid="pdf-page"
+                  style={{
+                    width: `${cssWidth}px`,
+                    height: `${cssHeight}px`,
+                    contentVisibility: "auto",
+                    containIntrinsicSize: `${cssWidth}px ${cssHeight}px`,
                   }}
-                />
-              </div>
-            );
-          })}
+                >
+                  <canvas
+                    ref={(el) => {
+                      if (el) canvasRefsMap.current.set(i, el);
+                      else canvasRefsMap.current.delete(i);
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

@@ -97,7 +97,7 @@ export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
       />
       <div
         ref={contentRef}
-        className="markdown-body h-full overflow-y-auto p-4 text-sm leading-relaxed"
+        className="markdown-body h-full overflow-y-auto px-[26px] py-[22px] text-sm leading-relaxed"
       >
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}

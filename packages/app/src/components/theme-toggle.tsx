@@ -1,5 +1,6 @@
 import { Monitor, Moon, Sun } from "lucide-react";
 import { type Theme, useTheme } from "../hooks/use-theme";
+import { Tooltip } from "./ui/tooltip";
 
 const LABELS: Record<Theme, string> = {
   system: "시스템",
@@ -12,15 +13,16 @@ export function ThemeToggle() {
   const Icon = theme === "dark" ? Moon : theme === "light" ? Sun : Monitor;
 
   return (
-    <button
-      type="button"
-      onClick={cycleTheme}
-      className="flex items-center gap-1 rounded px-2 py-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
-      title={`테마: ${LABELS[theme]} (클릭하여 전환)`}
-      data-testid="theme-toggle"
-    >
-      <Icon size={14} />
-      <span>{LABELS[theme]}</span>
-    </button>
+    <Tooltip content={`테마: ${LABELS[theme]} (클릭하여 전환)`}>
+      <button
+        type="button"
+        onClick={cycleTheme}
+        aria-label={`테마 전환 (현재: ${LABELS[theme]})`}
+        className="flex items-center rounded-[6px] p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-chip-bg)] hover:text-[var(--color-text)] transition-colors"
+        data-testid="theme-toggle"
+      >
+        <Icon size={14} />
+      </button>
+    </Tooltip>
   );
 }

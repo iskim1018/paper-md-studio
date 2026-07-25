@@ -1,4 +1,4 @@
-import { FolderOutput, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { useCallback } from "react";
 import { useSettingsStore } from "../store/settings-store";
 
@@ -13,6 +13,7 @@ async function pickDirectory(): Promise<string | null> {
   return picked;
 }
 
+/** 패널 하단 고정 출력 폴더 행 — `출력 <경로> 변경` (시안 2a) */
 export function OutputDirSelector() {
   const outputDir = useSettingsStore((s) => s.outputDir);
   const setOutputDir = useSettingsStore((s) => s.setOutputDir);
@@ -36,20 +37,17 @@ export function OutputDirSelector() {
 
   return (
     <div
-      className="flex items-center gap-1 border-b border-[var(--color-border)] px-3 py-1.5 text-xs"
+      className="flex shrink-0 items-center gap-1.5 border-t border-[var(--color-border)] px-[18px] py-2.5 text-[11.5px] text-[var(--color-muted)]"
       data-testid="output-dir-selector"
     >
-      <FolderOutput size={12} className="text-[var(--color-muted)]" />
-      <span className="text-[var(--color-muted)]">출력:</span>
-      <button
-        type="button"
-        onClick={handlePick}
-        className="flex-1 truncate text-left text-[var(--color-text)] hover:text-[var(--color-accent)] transition-colors"
+      <span>출력</span>
+      <span
+        className="flex-1 truncate text-[var(--color-text-secondary)]"
         title={label}
-        data-testid="output-dir-pick-btn"
+        data-testid="output-dir-label"
       >
         {truncated}
-      </button>
+      </span>
       {outputDir !== null && (
         <button
           type="button"
@@ -61,6 +59,14 @@ export function OutputDirSelector() {
           <RotateCcw size={11} />
         </button>
       )}
+      <button
+        type="button"
+        onClick={handlePick}
+        className="text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition-colors"
+        data-testid="output-dir-pick-btn"
+      >
+        변경
+      </button>
     </div>
   );
 }

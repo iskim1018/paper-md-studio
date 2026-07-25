@@ -21,7 +21,7 @@ describe("PreviewPanel", () => {
   it("파일 미선택 시 빈 상태를 표시한다", () => {
     render(<PreviewPanel />);
     expect(screen.getByTestId("preview-empty")).toBeTruthy();
-    expect(screen.getByText("파일을 선택하세요")).toBeTruthy();
+    expect(screen.getByText("파일을 선택하면 원본이 표시됩니다")).toBeTruthy();
   });
 
   it("PDF 파일 선택 시 PdfViewer를 렌더링한다", () => {

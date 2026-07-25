@@ -27,13 +27,15 @@ test.describe("앱 레이아웃", () => {
   test("미리보기 패널에 빈 상태 메시지가 표시된다", async ({ page }) => {
     const preview = page.locator('[data-testid="preview-empty"]');
     await expect(preview).toBeVisible();
-    await expect(preview).toContainText("파일을 선택하세요");
+    await expect(preview).toContainText("파일을 선택하면 원본이 표시됩니다");
   });
 
   test("결과 패널에 빈 상태 메시지가 표시된다", async ({ page }) => {
     const result = page.locator('[data-testid="result-empty"]');
     await expect(result).toBeVisible();
-    await expect(result).toContainText("변환 결과가 여기에 표시됩니다");
+    await expect(result).toContainText(
+      "변환 결과 Markdown이 여기에 표시됩니다",
+    );
   });
 
   test("패널 리사이즈 핸들이 존재한다", async ({ page }) => {

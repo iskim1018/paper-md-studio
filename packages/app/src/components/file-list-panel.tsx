@@ -1,17 +1,13 @@
 import {
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
   FilePlus2,
-  FileText,
   FolderOpen,
   Link2,
-  Loader2,
   RotateCw,
   Trash2,
-  XCircle,
 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useFilePickers } from "../hooks/use-file-pickers";
@@ -26,24 +22,20 @@ import type { FileItem, FileStatus } from "../store/file-store";
 import { isSupportedFile, useFileStore } from "../store/file-store";
 import { BatchProgress } from "./batch-progress";
 import { OutputDirSelector } from "./output-dir-selector";
+import { LogoSymbol } from "./ui/logo-symbol";
+import { Tooltip } from "./ui/tooltip";
 
 /** 트리 깊이당 들여쓰기(px) */
 const INDENT_PER_DEPTH = 14;
-const STATUS_ICON: Record<FileStatus, React.ReactNode> = {
-  pending: <FileText size={14} className="text-[var(--color-muted)]" />,
-  converting: (
-    <Loader2 size={14} className="animate-spin text-[var(--color-accent)]" />
-  ),
-  done: <CheckCircle2 size={14} className="text-[var(--color-success)]" />,
-  error: <XCircle size={14} className="text-[var(--color-error)]" />,
-};
+/** 폴더 하위 파일 행의 기본 좌측 패딩(px) — 시안 기준 */
+const CHILD_ROW_BASE_PADDING = 24;
 
-const FORMAT_BADGE_COLOR: Record<string, string> = {
-  hwpx: "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300",
-  doc: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  docx: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  pdf: "bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300",
-  html: "bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300",
+/** 상태 점 6px — 기존 lucide 상태 아이콘 대체 (시안: 플랫 미니멀) */
+const STATUS_DOT_CLASS: Record<FileStatus, string> = {
+  pending: "bg-[var(--color-dot-pending)]",
+  converting: "bg-[var(--color-accent)] status-dot-converting",
+  done: "bg-[var(--color-success)]",
+  error: "bg-[var(--color-error)]",
 };
 
 /** URL 입력 인라인 폼 — Enter 또는 추가 버튼으로 확정 */
@@ -64,7 +56,7 @@ function UrlInputForm({ onClose }: { readonly onClose: () => void }) {
   }, [addUrl, value, onClose]);
 
   return (
-    <div className="flex flex-col gap-1 border-b border-[var(--color-border)] px-3 py-2">
+    <div className="flex flex-col gap-1 px-[18px] pb-2">
       <div className="flex items-center gap-1">
         <input
           type="url"
@@ -82,13 +74,13 @@ function UrlInputForm({ onClose }: { readonly onClose: () => void }) {
           data-testid="url-input"
           // biome-ignore lint/a11y/noAutofocus: 폼을 연 직후 바로 입력하는 UX 의도
           autoFocus
-          className="flex-1 min-w-0 rounded border border-[var(--color-border)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--color-accent)]"
+          className="flex-1 min-w-0 rounded-[6px] border border-[var(--color-border)] bg-transparent px-2 py-1 text-xs outline-none focus:border-[var(--color-accent)]"
         />
         <button
           type="button"
           onClick={submit}
           data-testid="url-add-btn"
-          className="text-xs px-2 py-1 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
+          className="h-7 rounded-[6px] bg-[var(--color-accent)] px-3 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] transition-colors"
         >
           추가
         </button>
@@ -131,6 +123,9 @@ function FileRow({
     }
   };
 
+  const paddingLeft =
+    depth > 0 ? CHILD_ROW_BASE_PADDING + (depth - 1) * INDENT_PER_DEPTH : 8;
+
   return (
     // biome-ignore lint/a11y/useSemanticElements: <button>은 interactive children(checkbox, retry/delete buttons)을 포함할 수 없으므로 의도적으로 <div role="button"> 사용
     <div
@@ -139,16 +134,12 @@ function FileRow({
       data-testid={`file-row-${file.id}`}
       data-status={file.status}
       data-checked={isChecked ? "true" : "false"}
-      className={`flex w-full items-center gap-2 px-3 py-2 cursor-pointer border-b border-[var(--color-border)] transition-colors text-left ${
-        isChecked
-          ? "bg-[var(--color-accent)]/15"
-          : isSelected
-            ? "bg-[var(--color-accent)]/10"
-            : "hover:bg-[var(--color-panel-bg)]"
+      className={`group/row flex w-full items-center gap-2 rounded-[6px] py-[7px] pr-2 cursor-pointer transition-colors text-left ${
+        isChecked || isSelected
+          ? "bg-[var(--color-row-selected)]"
+          : "hover:bg-[var(--color-row-hover)]"
       }`}
-      style={
-        depth > 0 ? { paddingLeft: 12 + depth * INDENT_PER_DEPTH } : undefined
-      }
+      style={{ paddingLeft }}
       onClick={handleRowClick}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -164,31 +155,40 @@ function FileRow({
         onChange={() => toggleCheck(file.id)}
         aria-label={`${file.name} 선택`}
         data-testid={`check-${file.id}`}
-        className="cursor-pointer"
+        className={`cursor-pointer transition-opacity ${
+          isChecked
+            ? "opacity-100"
+            : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100"
+        }`}
       />
-      {STATUS_ICON[file.status]}
+      <span
+        className={`h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT_CLASS[file.status]}`}
+        data-testid={`status-dot-${file.id}`}
+        aria-hidden
+      />
       <div className="flex-1 min-w-0">
-        <p className="text-sm truncate">{file.name}</p>
-        {file.status === "done" && file.result && (
-          <p className="text-xs text-[var(--color-muted)]">
-            {file.result.elapsed.toFixed(0)}ms
-          </p>
-        )}
+        <p
+          className={`truncate text-[12.5px] ${
+            isChecked || isSelected
+              ? "text-[var(--color-text)]"
+              : "text-[var(--color-text-secondary)]"
+          }`}
+        >
+          {file.name}
+        </p>
         {file.status === "error" && file.error && (
-          <p className="text-xs text-[var(--color-error)] truncate">
+          <p className="truncate text-[11px] text-[var(--color-error)]">
             {file.error}
           </p>
         )}
       </div>
-      <span
-        className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${FORMAT_BADGE_COLOR[file.format] ?? ""}`}
-      >
-        {file.format.toUpperCase()}
+      <span className="shrink-0 font-mono text-[10px] font-semibold uppercase tracking-[0.05em] text-[var(--color-faint)]">
+        {file.format}
       </span>
       {file.status === "error" && (
         <button
           type="button"
-          className="hover:text-[var(--color-accent)] transition-opacity p-1"
+          className="p-1 opacity-0 group-hover/row:opacity-100 hover:text-[var(--color-accent)] transition-opacity"
           onClick={(e) => {
             e.stopPropagation();
             retry({ id: file.id, path: file.path });
@@ -201,7 +201,7 @@ function FileRow({
       )}
       <button
         type="button"
-        className="opacity-0 group-hover:opacity-100 hover:text-[var(--color-error)] transition-opacity p-1"
+        className="p-1 opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100 hover:text-[var(--color-error)] transition-opacity"
         onClick={(e) => {
           e.stopPropagation();
           removeFile(file.id);
@@ -239,8 +239,8 @@ function FolderNode({
   return (
     <div data-testid={`folder-node-${folder.path}`}>
       <div
-        className="flex w-full items-center gap-1.5 py-1.5 pr-3 border-b border-[var(--color-border)] bg-[var(--color-panel-bg)]/50"
-        style={{ paddingLeft: 12 + depth * INDENT_PER_DEPTH }}
+        className="group/folder flex w-full items-center gap-[7px] rounded-[6px] py-1.5 pr-2 hover:bg-[var(--color-row-hover)] transition-colors"
+        style={{ paddingLeft: 8 + depth * INDENT_PER_DEPTH }}
       >
         <input
           type="checkbox"
@@ -251,7 +251,11 @@ function FolderNode({
           onChange={() => setCheckedMany(descendantIds, !allChecked)}
           aria-label={`${folder.name} 폴더 전체 선택`}
           data-testid={`folder-check-${folder.path}`}
-          className="cursor-pointer"
+          className={`cursor-pointer transition-opacity ${
+            allChecked || someChecked
+              ? "opacity-100"
+              : "opacity-0 group-hover/folder:opacity-100 focus-visible:opacity-100"
+          }`}
         />
         <button
           type="button"
@@ -259,21 +263,25 @@ function FolderNode({
           aria-label={`${folder.name} ${isCollapsed ? "펼치기" : "접기"}`}
           aria-expanded={!isCollapsed}
           data-testid={`folder-toggle-${folder.path}`}
-          className="flex flex-1 min-w-0 items-center gap-1 text-left cursor-pointer hover:text-[var(--color-accent)] transition-colors"
+          className="flex flex-1 min-w-0 items-center gap-[7px] text-left cursor-pointer text-[var(--color-text)] transition-colors"
         >
           {isCollapsed ? (
-            <ChevronRight size={14} className="shrink-0" />
+            <ChevronRight
+              size={13}
+              className="shrink-0 text-[var(--color-muted)]"
+            />
           ) : (
-            <ChevronDown size={14} className="shrink-0" />
+            <ChevronDown
+              size={13}
+              className="shrink-0 text-[var(--color-muted)]"
+            />
           )}
-          <FolderOpen
-            size={14}
-            className="shrink-0 text-[var(--color-accent)]"
-          />
-          <span className="text-sm font-medium truncate">{folder.name}</span>
-          <span className="text-xs text-[var(--color-muted)] shrink-0">
-            ({checkedCount > 0 ? `${checkedCount}/` : ""}
-            {folder.totalCount})
+          <span className="flex-1 truncate text-[12.5px] font-semibold">
+            {folder.name}
+          </span>
+          <span className="shrink-0 text-[11px] text-[var(--color-faint)]">
+            {checkedCount > 0 ? `${checkedCount}/` : ""}
+            {folder.totalCount}
           </span>
         </button>
       </div>
@@ -379,6 +387,98 @@ function FileTreeList({
   );
 }
 
+/** 첫 실행 빈 상태 — 드롭존 카드 + 추가 방법 링크 (시안 2a-빈상태) */
+function EmptyState({
+  onOpenFiles,
+  onOpenFolder,
+  onOpenUrl,
+}: {
+  readonly onOpenFiles: () => void;
+  readonly onOpenFolder: () => void;
+  readonly onOpenUrl: () => void;
+}) {
+  return (
+    <div
+      className="flex h-full flex-col items-center justify-center gap-3.5 p-6"
+      data-testid="empty-state"
+    >
+      <div className="flex w-[190px] flex-col items-center gap-2.5 rounded-xl border-[1.5px] border-dashed border-[var(--color-table-header-border)] px-[18px] py-[22px]">
+        <LogoSymbol size={40} className="opacity-90" />
+        <p className="text-center text-[13px] leading-normal text-[var(--color-text-secondary)]">
+          문서를 여기에
+          <br />
+          드래그 앤 드롭
+        </p>
+        <p className="text-center font-mono text-[11px] text-[var(--color-faint)]">
+          hwp hwpx docx pdf html md
+        </p>
+      </div>
+      <span className="text-xs text-[var(--color-muted)]">
+        또는{" "}
+        <button
+          type="button"
+          onClick={onOpenFiles}
+          className="font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
+          data-testid="empty-open-files-btn"
+        >
+          파일 선택
+        </button>
+        {" · "}
+        <button
+          type="button"
+          onClick={onOpenFolder}
+          className="font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
+          data-testid="empty-open-folder-btn"
+        >
+          폴더
+        </button>
+        {" · "}
+        <button
+          type="button"
+          onClick={onOpenUrl}
+          className="font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
+          data-testid="empty-url-btn"
+        >
+          URL
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/** 섹션 라벨 우측의 아이콘 전용 추가 버튼 */
+function IconButton({
+  label,
+  testId,
+  active,
+  onClick,
+  children,
+}: {
+  readonly label: string;
+  readonly testId: string;
+  readonly active?: boolean;
+  readonly onClick: () => void;
+  readonly children: React.ReactNode;
+}) {
+  return (
+    <Tooltip content={label}>
+      <button
+        type="button"
+        onClick={onClick}
+        data-testid={testId}
+        aria-label={label}
+        className={`rounded-[6px] p-[5px] transition-colors ${
+          active
+            ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)]"
+            : "text-[var(--color-muted)] hover:bg-[var(--color-chip-bg)] hover:text-[var(--color-text)]"
+        }`}
+      >
+        {children}
+      </button>
+    </Tooltip>
+  );
+}
+
 export function FileListPanel() {
   const { files, addFiles, clearFiles } = useFileStore();
   const checkedIds = useFileStore((s) => s.checkedIds);
@@ -451,6 +551,7 @@ export function FileListPanel() {
 
   const hasPending = files.some((f) => f.status === "pending");
   const failedCount = files.filter((f) => f.status === "error").length;
+  const showActionRow = hasPending || failedCount > 0 || files.length > 0;
 
   return (
     <section
@@ -460,7 +561,8 @@ export function FileListPanel() {
       aria-label="파일 목록"
       data-testid="file-list-panel"
     >
-      <div className="flex shrink-0 items-center justify-between border-b border-[var(--color-border)] px-3 py-2">
+      {/* 섹션 라벨 행 */}
+      <div className="flex shrink-0 items-center justify-between px-[18px] pt-3.5 pb-1.5">
         <div className="flex items-center gap-2">
           {files.length > 0 && (
             <input
@@ -475,68 +577,64 @@ export function FileListPanel() {
               className="cursor-pointer"
             />
           )}
-          <span className="text-xs font-medium text-[var(--color-muted)] uppercase tracking-wide">
-            파일 ({files.length}
-            {checkedCount > 0 && ` · 선택 ${checkedCount}`})
+          <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--color-muted)]">
+            파일 · {files.length}
+            {checkedCount > 0 && (
+              <span className="text-[var(--color-accent)]">
+                {" "}
+                선택 {checkedCount}
+              </span>
+            )}
           </span>
         </div>
-        <div className="flex gap-1">
+        <div className="flex gap-0.5">
           {allFolderPaths.length > 0 && (
-            <button
-              type="button"
+            <IconButton
+              label={allExpanded ? "폴더 전체 접기" : "폴더 전체 펼치기"}
+              testId="expand-all-btn"
               onClick={handleToggleExpandAll}
-              data-testid="expand-all-btn"
-              aria-label={allExpanded ? "전체 접기" : "전체 펼치기"}
-              title={allExpanded ? "폴더 전체 접기" : "폴더 전체 펼치기"}
-              className="text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-accent)] transition-colors"
             >
               {allExpanded ? (
                 <ChevronsDownUp size={14} />
               ) : (
                 <ChevronsUpDown size={14} />
               )}
-            </button>
+            </IconButton>
           )}
-          <button
-            type="button"
+          <IconButton
+            label="파일 탐색기에서 문서 선택"
+            testId="open-files-btn"
             onClick={openFiles}
-            data-testid="open-files-btn"
-            aria-label="파일 열기"
-            title="파일 탐색기에서 문서 선택"
-            className="text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-accent)] transition-colors"
           >
             <FilePlus2 size={14} />
-          </button>
-          <button
-            type="button"
+          </IconButton>
+          <IconButton
+            label="폴더를 선택해 하위 문서를 트리로 추가"
+            testId="open-folder-btn"
             onClick={openFolder}
-            data-testid="open-folder-btn"
-            aria-label="폴더 열기"
-            title="폴더를 선택해 하위 문서를 트리로 추가"
-            className="text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-accent)] transition-colors"
           >
             <FolderOpen size={14} />
-          </button>
-          <button
-            type="button"
+          </IconButton>
+          <IconButton
+            label="웹 페이지 URL을 Markdown으로 변환"
+            testId="url-toggle-btn"
+            active={showUrlInput}
             onClick={() => setShowUrlInput((v) => !v)}
-            data-testid="url-toggle-btn"
-            aria-label="URL 추가"
-            title="웹 페이지 URL을 Markdown으로 변환"
-            className={`text-xs px-2 py-1 rounded transition-colors ${
-              showUrlInput
-                ? "bg-[var(--color-accent)]/15 text-[var(--color-accent)]"
-                : "text-[var(--color-muted)] hover:text-[var(--color-accent)]"
-            }`}
           >
             <Link2 size={14} />
-          </button>
+          </IconButton>
+        </div>
+      </div>
+
+      {/* 액션 행 — 변환/재시도/초기화 */}
+      {showActionRow && (
+        <div className="flex shrink-0 items-center gap-2 px-[18px] pt-1.5 pb-2.5">
           {hasPending && (
             <button
               type="button"
               onClick={handleConvert}
               data-testid="convert-all-btn"
-              className="text-xs px-2 py-1 rounded bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-hover)] transition-colors"
+              className="flex h-7 items-center gap-1.5 rounded-[6px] bg-[var(--color-accent)] px-3 text-xs font-semibold text-white hover:bg-[var(--color-accent-hover)] transition-colors"
             >
               {checkedCount > 0 ? `선택 ${checkedCount}개 변환` : "변환"}
             </button>
@@ -546,7 +644,7 @@ export function FileListPanel() {
               type="button"
               onClick={handleRetryFailed}
               data-testid="retry-failed-btn"
-              className="text-xs px-2 py-1 rounded text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition-colors"
+              className="text-xs text-[var(--color-error)] hover:underline transition-colors"
             >
               실패 {failedCount}개 재시도
             </button>
@@ -556,31 +654,25 @@ export function FileListPanel() {
               type="button"
               onClick={handleClear}
               data-testid="clear-files-btn"
-              className="text-xs px-2 py-1 rounded text-[var(--color-muted)] hover:text-[var(--color-error)] transition-colors"
+              className="text-xs text-[var(--color-muted)] hover:text-[var(--color-error)] transition-colors"
             >
               초기화
             </button>
           )}
         </div>
-      </div>
-      {showUrlInput && <UrlInputForm onClose={() => setShowUrlInput(false)} />}
-      <OutputDirSelector />
-      <BatchProgress />
+      )}
 
-      <div className="flex-1 overflow-y-auto">
+      {showUrlInput && <UrlInputForm onClose={() => setShowUrlInput(false)} />}
+      <BatchProgress />
+      <div className="shrink-0 border-b border-[var(--color-border)]" />
+
+      <div className="flex-1 overflow-y-auto px-2.5 py-1.5">
         {files.length === 0 ? (
-          <div
-            className="flex h-full flex-col items-center justify-center gap-2 p-4 text-[var(--color-muted)]"
-            data-testid="empty-state"
-          >
-            <FileText size={32} />
-            <p className="text-sm text-center">
-              파일을 여기에 드래그하거나
-              <br />
-              상단 버튼(파일·폴더·URL)으로 추가하세요
-            </p>
-            <p className="text-xs">.hwp, .hwpx, .docx, .pdf, .html, .md</p>
-          </div>
+          <EmptyState
+            onOpenFiles={openFiles}
+            onOpenFolder={openFolder}
+            onOpenUrl={() => setShowUrlInput(true)}
+          />
         ) : (
           <FileTreeList
             tree={tree}
@@ -589,6 +681,8 @@ export function FileListPanel() {
           />
         )}
       </div>
+
+      <OutputDirSelector />
     </section>
   );
 }

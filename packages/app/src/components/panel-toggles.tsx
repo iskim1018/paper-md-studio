@@ -1,9 +1,7 @@
 import { PanelLeft, PanelRight, Square } from "lucide-react";
+import { shortcutLabel } from "../lib/shortcuts";
 import { useLayoutStore } from "../store/layout-store";
-
-const SHORTCUT_LEFT = "Cmd/Ctrl+B";
-const SHORTCUT_CENTER = "Cmd/Ctrl+Shift+P";
-const SHORTCUT_RIGHT = "Cmd/Ctrl+Shift+R";
+import { Tooltip } from "./ui/tooltip";
 
 interface ToggleButtonProps {
   readonly active: boolean;
@@ -25,21 +23,23 @@ function ToggleButton({
   children,
 }: ToggleButtonProps) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-pressed={active}
-      title={`${label} (${shortcut})`}
-      data-testid={testId}
-      className={`flex items-center rounded p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-20 ${
-        active
-          ? "bg-[var(--color-border)] text-[var(--color-text)]"
-          : "text-[var(--color-muted)] hover:bg-[var(--color-border)]/50 hover:text-[var(--color-text)]"
-      }`}
-    >
-      {children}
-    </button>
+    <Tooltip content={label} shortcut={shortcut}>
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={disabled}
+        aria-pressed={active}
+        aria-label={label}
+        data-testid={testId}
+        className={`flex items-center rounded-[6px] p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+          active
+            ? "bg-[var(--color-chip-bg)] text-[var(--color-text)]"
+            : "text-[var(--color-muted)] hover:bg-[var(--color-chip-bg)] hover:text-[var(--color-text)]"
+        }`}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 }
 
@@ -79,7 +79,7 @@ export function PanelToggles() {
         active={showFileList}
         disabled={disableLeft}
         label="좌측 패널 (파일 목록)"
-        shortcut={SHORTCUT_LEFT}
+        shortcut={shortcutLabel("panel-filelist")}
         testId="toggle-filelist"
         onClick={toggleFileList}
       >
@@ -89,7 +89,7 @@ export function PanelToggles() {
         active={showPreview}
         disabled={disableCenter}
         label="중앙 패널 (원본 미리보기)"
-        shortcut={SHORTCUT_CENTER}
+        shortcut={shortcutLabel("panel-preview")}
         testId="toggle-preview"
         onClick={togglePreview}
       >
@@ -99,7 +99,7 @@ export function PanelToggles() {
         active={showResult}
         disabled={disableRight}
         label="우측 패널 (변환 결과)"
-        shortcut={SHORTCUT_RIGHT}
+        shortcut={shortcutLabel("panel-result")}
         testId="toggle-result"
         onClick={toggleResult}
       >
