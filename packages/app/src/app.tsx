@@ -9,6 +9,7 @@ import { PreviewPanel } from "./components/preview-panel";
 import { ResultPanel } from "./components/result-panel";
 import { ThemeToggle } from "./components/theme-toggle";
 import { LogoSymbol } from "./components/ui/logo-symbol";
+import { UpdateBanner } from "./components/update-banner";
 import { useAutoLoadMarkdown } from "./hooks/use-auto-load-markdown";
 import { usePanelShortcuts } from "./hooks/use-panel-shortcuts";
 import { useLayoutStore } from "./store/layout-store";
@@ -58,6 +59,7 @@ export function App() {
           <HelpModal />
         </div>
       </header>
+      <UpdateBanner />
       {isFullscreen ? (
         <div
           className="min-h-0 flex-1 overflow-hidden"

@@ -17,7 +17,7 @@
 
 | 패키지 | 설명 | 배포 형태 |
 |--------|------|-----------|
-| [`@paper-md-studio/app`](packages/app) | Tauri 2.x 데스크톱 앱 — 드래그 앤 드롭 변환 + 내장 MD 에디터 + 배치 처리 | macOS DMG / Windows NSIS·MSI |
+| [`@paper-md-studio/app`](packages/app) | Tauri 2.x 데스크톱 앱 — 드래그 앤 드롭 변환 + 내장 MD 에디터 + 배치 처리 | macOS DMG / Windows NSIS |
 | [`@paper-md-studio/cli`](packages/cli) | 커맨드라인 변환기 | Node 런타임 + 단일 파일 번들 |
 | [`@paper-md-studio/server`](packages/server) | REST API 서버 (베타) · content-hash 캐시 · OpenAPI | Node 프로세스 · Fastify |
 | [`@paper-md-studio/mcp`](packages/mcp) | MCP 서버 (베타) · Claude Desktop / Antigravity · 3툴 (convert / outline / chunk) | Node stdio 서버 |
@@ -30,8 +30,12 @@
 
 | 플랫폼 | 파일 |
 |--------|------|
-| macOS (Apple Silicon) | `Paper MD Studio_0.1.1_aarch64.dmg` |
-| Windows (x64) | `Paper MD Studio_0.1.1_x64-setup.exe` 또는 `.msi` |
+| macOS (Apple Silicon) | `Paper MD Studio_<버전>_aarch64.dmg` |
+| Windows (x64) | `Paper MD Studio_<버전>_x64-setup.exe` |
+
+v0.5.2부터는 **최초 설치 이후 자동 업데이트**를 지원합니다. 새 버전이
+나오면 앱 시작 시 배너로 알리고, 눌러서 설치하면 자동으로 재시작합니다.
+(수동으로 다시 받아 설치할 필요가 없습니다.)
 
 ### macOS 설치 안내
 

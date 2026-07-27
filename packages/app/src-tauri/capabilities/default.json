@@ -32,6 +32,8 @@
       "allow": [
         "**"
       ]
-    }
+    },
+    "updater:default",
+    "process:allow-restart"
   ]
 }

@@ -132,6 +132,7 @@ Conventional Commits 형식:
 | 2026-07-23 | HWPX PUA 심볼 문자(U+F0xx)를 유니코드로 정규화 (`parsers/pua-symbols.ts`) | 한글이 체크박스 등 기호를 Wingdings 코드+0xF000 PUA로 저장 (F06E=■, F0A8=□, F0FE=☑ 등). 문서에 Wingdings 폰트 참조가 없어 폰트 기반 판별 불가 → 잘 알려진 12개 코드만 보수적 매핑, 미지 코드는 원본 유지. 정부 조사서 양식의 체크 여부가 전부 안 보이던 버그 수정 |
 | 2026-07-23 | HTML→MD 본문 추출: `@mozilla/readability` + `linkedom` | 검증된 휴리스틱 + 경량 DOM(스크립트 미실행). 추출 실패 시 body 전체 폴백, `--no-extract`로 비활성 가능 |
 | 2026-07-23 | `safeFetch`를 server → core `net/`으로 승격 | HTML URL 변환·이미지 다운로드에서 SSRF 가드 재사용 (DRY). server `fetch/safe-fetch.ts`는 re-export 셰임으로 하위호환 유지 |
+| 2026-07-27 | Tauri 자동 업데이터 도입 + Windows `.msi` 배포 중단 (`bundle.targets: ["app","dmg","nsis"]`) | 매 릴리스 수동 재설치가 번거로웠음. NSIS는 관리자 권한 없이 설치되고 업데이터 페이로드로도 쓰여 msi와 중복 → 하나로 정리. macOS `.app.tar.gz`는 중복이 아니라 업데이트 페이로드라 유지. 엔드포인트는 `releases/latest/download/latest.json` (published 릴리스만 조회하므로 draft 해제 필수). 상세는 `docs/RELEASE.md` |
 | 2026-07-27 | HWPX 뷰어 페이지 가상화 (보이는 구간 ±2쪽만 렌더, ±6쪽 밖은 SVG 폐기) | 기존 `renderAllPages`가 전 페이지 SVG를 한 번에 생성·주입 → 29쪽 샘플에서도 SVG 4.2MB/요소 1.5만 개. 수백 쪽 문서는 수백 MB·수십만 DOM 노드로 앱은 물론 시스템 전체가 멈췄음. 자리표시자 크기는 `getPageInfo`(실제 SVG와 오차 0.02px)로 잡아 스크롤바·점프 정확도 유지 |
 | 2026-07-27 | HWPX 검색 인덱스를 첫 검색어 입력 시점에 프레임 단위(12ms)로 구축 | `buildTextIndex`가 render 단계 `useMemo`에서 문서 전체를 동기 순회 — 검색하지 않는 사용자도 문서를 열 때마다 비용을 지불. 재귀를 명시적 작업 스택으로 바꿔 셀 문단 단위로 중단·재개 가능하게 함 (거대 표 하나가 통째로 블로킹되던 문제도 해소) |
 | 2026-07-27 | 로딩 표시를 transform 기반 스피너로 통일 (`ui/spinner.tsx`) | 정적 텍스트는 메인 스레드가 막히면 "작업 중"과 "죽음"이 구분되지 않음. transform 애니메이션은 컴포지터 스레드에서 돌아 동기 작업 중에도 계속 회전 |

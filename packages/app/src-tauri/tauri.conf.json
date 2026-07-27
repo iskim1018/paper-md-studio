@@ -24,13 +24,19 @@
       "csp": null,
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       }
     }
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "app",
+      "dmg",
+      "nsis"
+    ],
     "category": "Productivity",
     "copyright": "Copyright (c) 2026 Insung Kim",
     "shortDescription": "HWP/HWPX/DOCX/PDF를 Markdown으로 변환·편집",
@@ -58,11 +64,18 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
-    }
+    },
+    "createUpdaterArtifacts": true
   },
   "plugins": {
     "shell": {
       "open": true
+    },
+    "updater": {
+      "pubkey": "REPLACE_WITH_TAURI_SIGNER_PUBLIC_KEY",
+      "endpoints": [
+        "https://github.com/iskim1018/paper-md-studio/releases/latest/download/latest.json"
+      ]
     }
   }
 }
