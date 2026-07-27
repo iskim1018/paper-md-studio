@@ -158,7 +158,7 @@ async function main(): Promise<void> {
   }
 
   if (values.version) {
-    console.log("paper-md-studio v0.5.0");
+    console.log("paper-md-studio v0.5.1");
     return;
   }
 
