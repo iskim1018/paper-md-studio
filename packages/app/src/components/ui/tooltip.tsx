@@ -1,4 +1,10 @@
-import { type ReactNode, useCallback, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 
 interface TooltipProps {
@@ -11,12 +17,13 @@ interface TooltipProps {
   readonly children: ReactNode;
 }
 
-interface TooltipPosition {
-  readonly x: number;
+/** 트리거 기준 위치. 말풍선의 최종 left는 폭을 재고 나서 정한다. */
+interface TooltipAnchor {
+  readonly centerX: number;
   readonly y: number;
 }
 
-/** 툴팁 중심점이 뷰포트 밖으로 나가지 않도록 여백 확보(px) */
+/** 말풍선 전체가 뷰포트 안에 들어오도록 확보하는 여백(px) */
 const VIEWPORT_MARGIN = 8;
 /** 트리거와 툴팁 사이 간격(px) */
 const OFFSET = 6;
@@ -36,22 +43,37 @@ export function Tooltip({
   children,
 }: TooltipProps) {
   const wrapperRef = useRef<HTMLSpanElement>(null);
-  const [position, setPosition] = useState<TooltipPosition | null>(null);
+  const bubbleRef = useRef<HTMLSpanElement>(null);
+  const [anchor, setAnchor] = useState<TooltipAnchor | null>(null);
+  const [left, setLeft] = useState<number | null>(null);
 
   const show = useCallback(() => {
     const el = wrapperRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const x = Math.min(
-      Math.max(centerX, VIEWPORT_MARGIN),
-      window.innerWidth - VIEWPORT_MARGIN,
-    );
-    const y = side === "bottom" ? rect.bottom + OFFSET : rect.top - OFFSET;
-    setPosition({ x, y });
+    setAnchor({
+      centerX: rect.left + rect.width / 2,
+      y: side === "bottom" ? rect.bottom + OFFSET : rect.top - OFFSET,
+    });
+    setLeft(null); // 위치가 바뀌었으니 폭을 다시 재서 정한다
   }, [side]);
 
-  const hide = useCallback(() => setPosition(null), []);
+  const hide = useCallback(() => {
+    setAnchor(null);
+    setLeft(null);
+  }, []);
+
+  // 말풍선 '전체'가 화면 안에 들어오도록 실제 폭을 재서 left를 정한다.
+  // 중심점만 clamp하면 폭의 절반이 화면 밖으로 나가 잘린다(기존 버그).
+  // paint 전에 실행되므로 위치가 튀어 보이지 않는다.
+  useLayoutEffect(() => {
+    const bubble = bubbleRef.current;
+    if (!anchor || !bubble) return;
+    const width = bubble.offsetWidth;
+    const maxLeft = window.innerWidth - VIEWPORT_MARGIN - width;
+    const desired = anchor.centerX - width / 2;
+    setLeft(Math.max(VIEWPORT_MARGIN, Math.min(desired, maxLeft)));
+  }, [anchor]);
 
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: 시각적 hover 힌트 전용 래퍼. 실제 상호작용·포커스는 자식 버튼이 담당하며 focus/blur는 자식에서 버블된 이벤트만 사용
@@ -64,18 +86,22 @@ export function Tooltip({
       onBlur={hide}
     >
       {children}
-      {position &&
+      {anchor &&
         createPortal(
           <span
+            ref={bubbleRef}
             role="presentation"
             aria-hidden="true"
             data-testid="tooltip"
             className={`tooltip-bubble pointer-events-none fixed z-[90] whitespace-nowrap rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-xs text-[var(--color-text)] shadow-md ${
-              side === "bottom"
-                ? "-translate-x-1/2"
-                : "-translate-x-1/2 -translate-y-full"
+              side === "bottom" ? "" : "-translate-y-full"
             }`}
-            style={{ left: position.x, top: position.y }}
+            style={{
+              // left가 정해지기 전(폭 측정용 1회)에는 그리지 않는다
+              left: left ?? anchor.centerX,
+              top: anchor.y,
+              visibility: left === null ? "hidden" : "visible",
+            }}
           >
             {content}
             {shortcut && (
