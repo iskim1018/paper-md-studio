@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { scheduleFrame } from "../lib/frame";
 import {
-  buildTextIndex,
+  createTextIndexBuilder,
   findSegmentMatches,
   type SegmentMatch,
+  type TextSegment,
 } from "../lib/hwpx-text-index";
 import type { HwpDocument } from "../lib/rhwp";
 
@@ -35,9 +37,13 @@ export interface HwpxSearchState {
   >;
   /** 현재 active 매치가 위치한 페이지 (스크롤 대상). 없으면 null. */
   readonly activePageIndex: number | null;
+  /** 검색용 텍스트 인덱스를 만드는 중이면 true. */
+  readonly indexing: boolean;
 }
 
 const SEARCH_DEBOUNCE_MS = 200;
+/** 한 프레임에 인덱싱에 쓸 시간 예산. 이 시간을 넘기면 다음 프레임으로 넘긴다. */
+const INDEX_SLICE_MS = 12;
 
 /** 중첩 셀 폴백용: getTableCellBboxesByPath 배열 원소. */
 interface CellBbox {
@@ -185,7 +191,7 @@ function resolveRects(
  */
 function collectMatches(
   doc: HwpDocument,
-  segments: ReturnType<typeof buildTextIndex>,
+  segments: ReadonlyArray<TextSegment>,
   query: string,
 ): Array<HwpMatch> {
   const segMatches = findSegmentMatches(segments, query, false);
@@ -213,10 +219,20 @@ export function useHwpxSearch({
   const [query, setQueryState] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [allMatches, setAllMatches] = useState<ReadonlyArray<HwpMatch>>([]);
+  const [segments, setSegments] = useState<ReadonlyArray<TextSegment> | null>(
+    null,
+  );
+  const [indexing, setIndexing] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 문서당 1회 텍스트 인덱스 구축 (본문 + 표 셀 + 중첩 표 셀)
-  const segments = useMemo(() => (doc ? buildTextIndex(doc) : []), [doc]);
+  // 문서 교체 시 인덱스 폐기. 인덱스 구축은 문서 로드 시점이 아니라
+  // 사용자가 실제로 검색어를 입력한 시점에 시작한다 — 표가 많은 대용량
+  // 문서에서 인덱싱은 수 초가 걸리는데, 검색하지 않으면 필요 없는 비용이다.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: doc 교체가 트리거
+  useEffect(() => {
+    setSegments(null);
+    setIndexing(false);
+  }, [doc]);
 
   // 문서 교체 시 검색 상태 초기화
   // biome-ignore lint/correctness/useExhaustiveDependencies: resetKey가 트리거
@@ -226,10 +242,36 @@ export function useHwpxSearch({
     setAllMatches([]);
   }, [resetKey]);
 
-  // query(debounced) 변경 시 매치 재수집
+  // 첫 검색어 입력 시 인덱스를 프레임 단위로 나눠 구축한다 (UI 블로킹 방지)
+  useEffect(() => {
+    if (!doc || segments !== null || query.length === 0) return;
+
+    let cancelled = false;
+    let cancelPending: (() => void) | null = null;
+    const builder = createTextIndexBuilder(doc);
+    setIndexing(true);
+
+    const pump = (): void => {
+      if (cancelled) return;
+      if (builder.step(INDEX_SLICE_MS)) {
+        setSegments(builder.snapshot());
+        setIndexing(false);
+        return;
+      }
+      cancelPending = scheduleFrame(pump);
+    };
+    cancelPending = scheduleFrame(pump);
+
+    return () => {
+      cancelled = true;
+      cancelPending?.();
+    };
+  }, [doc, segments, query]);
+
+  // query(debounced) 변경 시 매치 재수집. 인덱스가 준비되면 자동 재실행된다.
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!doc || !query) {
+    if (!doc || !query || segments === null) {
       setAllMatches([]);
       setActiveIndex(0);
       return;
@@ -300,5 +342,6 @@ export function useHwpxSearch({
     clear,
     highlightsByPage,
     activePageIndex,
+    indexing,
   };
 }

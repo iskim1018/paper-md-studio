@@ -7,6 +7,8 @@ const freeMock = vi.fn();
 const pageCountMock = vi.fn();
 const renderPageSvgMock = vi.fn();
 const loadHwpDocumentMock = vi.fn();
+/** 텍스트 인덱스 순회의 진입점 — 인덱싱이 언제 시작되는지 관찰하는 데 쓴다. */
+const getSectionCountMock = vi.fn(() => 0);
 
 vi.mock("../../src/lib/rhwp", () => ({
   loadHwpDocument: (path: string) => loadHwpDocumentMock(path),
@@ -25,6 +27,7 @@ function createDocStub(pageCount: number) {
       renderPageSvgMock(page);
       return `<svg data-page="${page}"><text>page ${page + 1}</text></svg>`;
     },
+    getSectionCount: () => getSectionCountMock(),
   };
 }
 
@@ -41,6 +44,7 @@ beforeEach(() => {
   freeMock.mockClear();
   pageCountMock.mockClear();
   renderPageSvgMock.mockClear();
+  getSectionCountMock.mockClear();
   loadHwpDocumentMock.mockReset();
   // jsdom은 IntersectionObserver를 제공하지 않는다
   (globalThis as { IntersectionObserver?: unknown }).IntersectionObserver =
@@ -65,7 +69,7 @@ describe("HwpxViewer", () => {
     expect(screen.getByText("HWP 로딩 중...")).toBeTruthy();
   });
 
-  it("로드 성공 시 모든 페이지의 SVG를 한 번에 렌더링한다", async () => {
+  it("첫 페이지는 즉시, 나머지는 프레임을 나눠 렌더링한다", async () => {
     loadHwpDocumentMock.mockResolvedValue(createDocStub(3));
     render(<HwpxViewer filePath="/tmp/a.hwpx" />);
 
@@ -73,12 +77,34 @@ describe("HwpxViewer", () => {
       expect(getPageInput().value).toBe("1");
     });
 
+    // 문서를 여는 시점에는 첫 페이지만 렌더된다
     expect(screen.getByTestId("hwpx-page-count").textContent).toBe("3");
-    expect(renderPageSvgMock).toHaveBeenCalledTimes(3);
     expect(screen.getAllByTestId("hwpx-page")).toHaveLength(3);
+    expect(renderPageSvgMock).toHaveBeenCalledTimes(1);
     expect(screen.getByText("page 1")).toBeTruthy();
+
+    await waitFor(() => {
+      expect(screen.getByText("page 3")).toBeTruthy();
+    });
     expect(screen.getByText("page 2")).toBeTruthy();
-    expect(screen.getByText("page 3")).toBeTruthy();
+    expect(renderPageSvgMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("페이지가 많으면 보이는 구간 주변만 렌더하고 나머지는 자리표시자로 둔다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(50));
+    render(<HwpxViewer filePath="/tmp/big.hwpx" />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("hwpx-page")).toHaveLength(50);
+    });
+    await waitFor(() => {
+      expect(screen.getByText("page 3")).toBeTruthy();
+    });
+
+    // RENDER_AHEAD=2 → 0~2 페이지만 렌더, 나머지 47장은 자리표시자
+    expect(renderPageSvgMock).toHaveBeenCalledTimes(3);
+    expect(screen.queryByText("page 4")).toBeNull();
+    expect(screen.getAllByTestId("hwpx-page-placeholder")).toHaveLength(47);
   });
 
   it("페이지가 모두 IntersectionObserver에 등록된다", async () => {
@@ -97,6 +123,29 @@ describe("HwpxViewer", () => {
     await waitFor(() => {
       expect(observeSpy).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it("문서를 여는 시점에는 검색 인덱스를 만들지 않는다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(3));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+    await waitFor(() => expect(screen.getByText("page 3")).toBeTruthy());
+
+    expect(getSectionCountMock).not.toHaveBeenCalled();
+  });
+
+  it("검색어를 입력하면 그때 인덱스를 만든다", async () => {
+    loadHwpDocumentMock.mockResolvedValue(createDocStub(1));
+    render(<HwpxViewer filePath="/tmp/a.hwpx" />);
+
+    await waitFor(() => expect(getPageInput().value).toBe("1"));
+
+    screen.getByTestId("hwpx-viewer").focus();
+    await userEvent.keyboard("{Meta>}f{/Meta}");
+    await userEvent.type(screen.getByPlaceholderText("검색"), "설계");
+
+    await waitFor(() => expect(getSectionCountMock).toHaveBeenCalled());
   });
 
   it("로드 실패 시 오류 메시지를 표시한다", async () => {

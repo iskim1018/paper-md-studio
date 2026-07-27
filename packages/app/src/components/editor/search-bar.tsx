@@ -1,6 +1,7 @@
 import { ChevronDown, ChevronUp, Search, X } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { TextSearchState } from "../../hooks/use-text-search";
+import { Spinner } from "../ui/spinner";
 
 interface SearchBarProps extends TextSearchState {
   readonly visible: boolean;
@@ -11,6 +12,11 @@ interface SearchBarProps extends TextSearchState {
    */
   readonly focusToken: number;
   readonly onClose: () => void;
+  /**
+   * 검색용 인덱스를 준비하는 중이면 true. HWPX 뷰어처럼 첫 검색 시점에
+   * 인덱스를 만드는 경우, 결과 0건과 "아직 준비 중"을 구분해 보여준다.
+   */
+  readonly indexing?: boolean;
 }
 
 /**
@@ -30,6 +36,7 @@ export function SearchBar({
   next,
   prev,
   onClose,
+  indexing = false,
 }: SearchBarProps) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -79,8 +86,18 @@ export function SearchBar({
         onKeyDown={handleKeyDown}
         className="w-40 bg-transparent text-sm outline-none placeholder:text-[var(--color-muted)]"
       />
-      <span className="select-none px-1 text-xs text-[var(--color-muted)]">
-        {counter}
+      <span
+        className="flex select-none items-center gap-1 px-1 text-xs text-[var(--color-muted)]"
+        data-testid="text-search-counter"
+      >
+        {indexing ? (
+          <>
+            <Spinner size={11} />
+            준비 중
+          </>
+        ) : (
+          counter
+        )}
       </span>
       <button
         type="button"

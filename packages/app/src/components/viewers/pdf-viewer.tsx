@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { readFileAsBytes } from "../../lib/file-reader";
+import { ViewerLoading } from "../ui/spinner";
 import {
   MAX_SCALE,
   MIN_SCALE,
@@ -297,11 +298,7 @@ export function PdfViewer({ filePath }: PdfViewerProps) {
   }
 
   if (isLoading || pageInfos.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]">
-        PDF 로딩 중...
-      </div>
-    );
+    return <ViewerLoading label="PDF 로딩 중..." />;
   }
 
   return (

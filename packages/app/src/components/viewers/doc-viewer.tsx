@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { sanitizeViewerHtml } from "../../lib/sanitize";
+import { ViewerLoading } from "../ui/spinner";
 
 interface DocViewerProps {
   readonly filePath: string;
@@ -58,11 +59,7 @@ export function DocViewer({ filePath }: DocViewerProps) {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]">
-        DOC 로딩 중...
-      </div>
-    );
+    return <ViewerLoading label="DOC 로딩 중..." />;
   }
 
   return (

@@ -13,6 +13,7 @@ import {
 } from "../../lib/docx-page-fields";
 import { readFileAsBytes } from "../../lib/file-reader";
 import { SearchBar } from "../editor/search-bar";
+import { ViewerLoading } from "../ui/spinner";
 import {
   MAX_SCALE,
   MIN_SCALE,
@@ -238,11 +239,7 @@ export function DocxViewer({ filePath }: DocxViewerProps) {
           {error}
         </div>
       )}
-      {!error && isLoading && (
-        <div className="flex h-full items-center justify-center text-sm text-[var(--color-muted)]">
-          DOCX 로딩 중...
-        </div>
-      )}
+      {!error && isLoading && <ViewerLoading label="DOCX 로딩 중..." />}
       {/*
         스크롤 컨테이너: docx-preview 실행 결과 DOM이 살아 있어야 하므로
         loading/error 상태에서도 마운트는 유지하고 visually hidden으로만 처리.

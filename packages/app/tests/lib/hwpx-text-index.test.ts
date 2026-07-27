@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildTextIndex,
   type CellPathEntry,
+  createTextIndexBuilder,
   findSegmentMatches,
 } from "../../src/lib/hwpx-text-index";
 import type { HwpDocument } from "../../src/lib/rhwp";
@@ -198,6 +199,50 @@ describe("buildTextIndex", () => {
     const doc = createFakeDoc([{ text: "", controls: [t] }]);
 
     expect(buildTextIndex(doc)).toEqual([]);
+  });
+});
+
+describe("createTextIndexBuilder", () => {
+  it("예산을 잘게 쪼개 여러 번 실행해도 한 번에 만든 결과와 같다", () => {
+    const nested: FakeTable = {
+      rowCount: 1,
+      colCount: 1,
+      cells: [{ paras: [{ text: "중첩 설계", controls: [] }] }],
+    };
+    const t1: FakeTable = {
+      rowCount: 1,
+      colCount: 2,
+      cells: [
+        { paras: [{ text: "셀 설계 A", controls: [] }] },
+        {
+          paras: [
+            { text: "", controls: [nested] },
+            { text: "셀1 텍스트", controls: [] },
+          ],
+        },
+      ],
+    };
+    const doc = createFakeDoc([
+      { text: "본문 설계", controls: [] },
+      { text: "", controls: [null, t1] },
+    ]);
+
+    // 예산 0ms = 작업 한 단위마다 중단 → 여러 번 나눠 실행된다
+    const builder = createTextIndexBuilder(doc);
+    let steps = 0;
+    while (!builder.step(0)) {
+      steps += 1;
+      if (steps > 1000) throw new Error("빌더가 끝나지 않음");
+    }
+
+    expect(steps).toBeGreaterThan(1);
+    expect(builder.snapshot()).toEqual(buildTextIndex(doc));
+  });
+
+  it("빈 문서는 첫 step에서 완료된다", () => {
+    const builder = createTextIndexBuilder(createFakeDoc([]));
+    expect(builder.step(0)).toBe(true);
+    expect(builder.snapshot()).toEqual([]);
   });
 });
 
