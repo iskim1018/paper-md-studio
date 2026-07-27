@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from "react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Panel, PanelGroup } from "react-resizable-panels";
 import { DropOverlay } from "./components/drop-overlay";
 import { FileListPanel } from "./components/file-list-panel";
 import { FullscreenToggle } from "./components/fullscreen-toggle";
@@ -9,6 +9,7 @@ import { PreviewPanel } from "./components/preview-panel";
 import { ResultPanel } from "./components/result-panel";
 import { ThemeToggle } from "./components/theme-toggle";
 import { LogoSymbol } from "./components/ui/logo-symbol";
+import { ResizeHandle } from "./components/ui/resize-handle";
 import { UpdateBanner } from "./components/update-banner";
 import { useAutoLoadMarkdown } from "./hooks/use-auto-load-markdown";
 import { usePanelShortcuts } from "./hooks/use-panel-shortcuts";
@@ -135,9 +136,7 @@ function ResizableLayout({
     >
       {panels.map((panel, idx) => (
         <Fragment key={panel.id}>
-          {idx > 0 && (
-            <PanelResizeHandle className="w-1 bg-[var(--color-border)] hover:bg-[var(--color-accent)] transition-colors" />
-          )}
+          {idx > 0 && <ResizeHandle />}
           <Panel
             id={panel.id}
             order={panel.order}
