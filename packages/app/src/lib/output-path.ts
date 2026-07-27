@@ -32,6 +32,30 @@ export function computeDefaultOutputPath(
   return `${trimmed}${sep}${mdFileName}`;
 }
 
+/**
+ * '폴더 열기'로 실제로 열어야 할 디렉토리를 정한다.
+ *
+ * 출력 폴더가 지정돼 있으면 그곳을, "원본 폴더" 모드면 선택된 파일이
+ * 놓인 디렉토리를 연다 — 그게 결과물이 실제로 저장되는 위치이기 때문이다.
+ * 선택된 항목이 없거나 URL 입력이면 열 곳을 특정할 수 없어 null을 반환한다.
+ */
+export function resolveRevealDir(
+  outputDir: string | null | undefined,
+  selectedInputPath: string | null | undefined,
+): string | null {
+  if (outputDir) return outputDir;
+  if (!selectedInputPath || isHttpUrl(selectedInputPath)) return null;
+
+  const sep =
+    selectedInputPath.includes("\\") && !selectedInputPath.includes("/")
+      ? "\\"
+      : "/";
+  const idx = selectedInputPath.lastIndexOf(sep);
+  if (idx < 0) return null; // 디렉토리 정보가 없는 경로
+  if (idx === 0) return sep; // 루트 직하 (예: /문서.hwpx)
+  return selectedInputPath.slice(0, idx);
+}
+
 export type ResolveOutcome =
   | { readonly kind: "proceed"; readonly outputPath: string }
   | { readonly kind: "skip" };

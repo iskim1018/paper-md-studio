@@ -16,7 +16,6 @@
         }
       ]
     },
-    "shell:allow-open",
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-ask",
@@ -34,6 +33,15 @@
       ]
     },
     "updater:default",
-    "process:allow-restart"
+    "process:allow-restart",
+    "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "**"
+        }
+      ]
+    }
   ]
 }

@@ -9,24 +9,20 @@ import {
   Undo2,
 } from "lucide-react";
 import { useCallback, useState } from "react";
-import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
+import { Panel, PanelGroup } from "react-resizable-panels";
 import { useSaveShortcut } from "../hooks/use-save-shortcut";
 import { saveMarkdownAs, saveMarkdownTo } from "../lib/file-writer";
 import { removeEmptyTableRows } from "../lib/md-cleanup";
+import { fileManagerName, revealFile } from "../lib/reveal";
 import { shortcutLabel } from "../lib/shortcuts";
 import { useFileStore } from "../store/file-store";
 import { MarkdownPreview } from "./editor/markdown-preview";
 import { MilkdownEditor } from "./editor/milkdown-editor";
 import { SourceEditor } from "./editor/source-editor";
+import { ResizeHandle } from "./ui/resize-handle";
 import { Tooltip } from "./ui/tooltip";
 
 type ViewMode = "preview" | "edit" | "source" | "split";
-
-async function openFolder(filePath: string): Promise<void> {
-  const { open } = await import("@tauri-apps/plugin-shell");
-  const folderPath = filePath.substring(0, filePath.lastIndexOf("/"));
-  await open(folderPath);
-}
 
 export function ResultPanel() {
   const { files, selectedFileId } = useFileStore();
@@ -50,8 +46,15 @@ export function ResultPanel() {
   }, [displayedMarkdown]);
 
   const handleOpenFolder = useCallback(async () => {
-    if (!selectedFile?.result?.outputPath) return;
-    await openFolder(selectedFile.result.outputPath);
+    const outputPath = selectedFile?.result?.outputPath;
+    if (!outputPath) return;
+    try {
+      await revealFile(outputPath);
+    } catch (err: unknown) {
+      // 조용히 삼키면 "눌러도 아무 일 없는" 버튼이 된다 (이전 구현의 문제)
+      const message = err instanceof Error ? err.message : "알 수 없는 오류";
+      setSaveError(`폴더를 열 수 없습니다 — ${message}`);
+    }
   }, [selectedFile]);
 
   const handleEdit = useCallback(
@@ -182,7 +185,7 @@ export function ResultPanel() {
               {copied ? <Check size={14} /> : <Copy size={14} />}
             </button>
           </Tooltip>
-          <Tooltip content="저장 폴더를 탐색기에서 열기">
+          <Tooltip content={`${fileManagerName()}에서 결과 파일 보기`}>
             <button
               type="button"
               onClick={handleOpenFolder}
@@ -263,7 +266,7 @@ export function ResultPanel() {
                 onChange={handleEdit}
               />
             </Panel>
-            <PanelResizeHandle className="w-px bg-[var(--color-border)] hover:bg-[var(--color-accent,#3b82f6)] transition-colors" />
+            <ResizeHandle />
             <Panel defaultSize={50} minSize={20}>
               <div
                 className="h-full border-l border-[var(--color-border)]"
