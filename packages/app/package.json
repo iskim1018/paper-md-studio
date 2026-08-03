@@ -32,7 +32,7 @@
     "@milkdown/preset-gfm": "^7.20.0",
     "@milkdown/react": "^7.20.0",
     "@milkdown/theme-nord": "^7.20.0",
-    "@rhwp/core": "^0.7.9",
+    "@rhwp/core": "0.8.2",
     "@tauri-apps/api": "^2.5.0",
     "@tauri-apps/plugin-dialog": "^2.2.1",
     "@tauri-apps/plugin-fs": "^2.5.0",

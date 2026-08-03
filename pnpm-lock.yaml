@@ -91,8 +91,8 @@ importers:
         specifier: ^7.20.0
         version: 7.20.0
       '@rhwp/core':
-        specifier: ^0.7.9
-        version: 0.7.9
+        specifier: 0.8.2
+        version: 0.8.2
       '@tauri-apps/api':
         specifier: ^2.5.0
         version: 2.10.1
@@ -1092,8 +1092,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  '@rhwp/core@0.7.9':
-    resolution: {integrity: sha512-J7sKdTNECC2Sl4WErLDONynSF3UAlAzWaJ67T7xFjBxL1eS2yooT3CB8yNfrDOTlUZVtakZSd7LsYzinL/bj1A==}
+  '@rhwp/core@0.8.2':
+    resolution: {integrity: sha512-TjAw6qk1PcWo9Revat4va7wbDGsV7qBq8JnFxB2/JgUeJaxUsq3xIwuUoBUU8IDJ5CYx66JVfwhxlO416osrgA==}
 
   '@rolldown/binding-android-arm64@1.1.5':
     resolution: {integrity: sha512-lZg8fqIv2v7FF237bwMgzGZEJvGL79/s5knJ/i6FmsGF4XXlzccZ4jb+TrFIxtSSxFtIpdsgrPZeMk1I9AFcyQ==}
@@ -4840,7 +4840,7 @@ snapshots:
     dependencies:
       playwright: 1.59.1
 
-  '@rhwp/core@0.7.9': {}
+  '@rhwp/core@0.8.2': {}
 
   '@rolldown/binding-android-arm64@1.1.5':
     optional: true
