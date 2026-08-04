@@ -2,7 +2,12 @@
 
 이 파일은 [Keep a Changelog](https://keepachangelog.com/ko/1.0.0/) 형식을 따릅니다.
 
-## [Unreleased]
+## [0.5.4] - 2026-08-04
+
+### 변경
+
+- **macOS 앱이 Apple 정식 서명·공증(notarization)을 받는다** — 설치 후
+  "확인되지 않은 개발자" 경고나 `xattr -cr` 우회 없이 바로 실행된다
 
 ### 수정
 
