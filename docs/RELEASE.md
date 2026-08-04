@@ -19,26 +19,36 @@
 > 용량·대역폭 제한 대상이 아니며(파일당 2 GiB, 릴리스당 1,000개만 제한),
 > 회귀 발생 시 롤백과 버그 재현에 필요합니다.
 
-## macOS 서명 현황
+## macOS 서명·공증 (2026-08-04 도입)
 
-Apple Developer 인증서가 없어 **번들 수준 코드 서명을 하지 않습니다.**
-링커가 자동으로 붙이는 ad-hoc 서명만 있어 `_CodeSignature`가 없고,
-`codesign -v`는 "code has no resources but signature indicates they must be
-present"를 냅니다. dmg 원본과 자동 업데이트본이 동일한 상태이며(2026-07-27
-실측), 실행에는 지장이 없습니다.
+`Developer ID Application: Prompt Technology, Co., Ltd. (P4S6KATL7C)` 로
+번들을 서명하고(hardened runtime 포함) Apple notary 서비스에 공증합니다.
+tauri-action이 `APPLE_*` 환경변수만 있으면 인증서 임포트 → 서명 → 공증
+제출 → 스테이플까지 자동 처리하므로 워크플로에 별도 스텝이 없습니다
+(App Store Connect API 키 파일 쓰기 스텝 제외).
 
-두 경로의 Gatekeeper 동작이 다릅니다.
+브라우저로 받은 dmg도 Gatekeeper를 그대로 통과하므로 과거의
+`xattr -cr` 우회 안내는 필요 없습니다 (v0.5.3 이전 릴리스에만 해당).
 
-| 경로 | 격리 속성 | 결과 |
-|------|-----------|------|
-| 브라우저로 dmg 다운로드 | 붙음 | `xattr -cr` 또는 우클릭 열기 필요 |
-| 앱 내 자동 업데이트 | **안 붙음** | 그대로 실행됨 |
+필요한 GitHub Secrets:
 
-업데이터는 자체 HTTP 클라이언트로 받아 직접 압축을 풀기 때문에
-`com.apple.quarantine`이 설정되지 않습니다. 따라서 최초 설치 안내는
-계속 필요하지만, 업데이트는 사용자가 아무것도 하지 않아도 됩니다.
+| Secret | 내용 |
+|--------|------|
+| `APPLE_CERTIFICATE` | Developer ID Application 인증서 `.p12`의 base64 |
+| `APPLE_CERTIFICATE_PASSWORD` | `.p12` 내보내기 비밀번호 |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Prompt Technology, Co., Ltd. (P4S6KATL7C)` |
+| `APPLE_API_KEY` | App Store Connect API Key ID (10자리) |
+| `APPLE_API_ISSUER` | App Store Connect API Issuer ID (UUID) |
+| `APPLE_API_KEY_CONTENT` | API 키 `.p8` 파일 내용 (공증 인증용) |
 
-정식 서명·공증을 도입하면 위 표의 첫 줄과 이 절 전체가 사라집니다.
+- 인증서 유효기간은 **5년**. 만료 전 재발급 후 `.p12`를 다시 내보내
+  `APPLE_CERTIFICATE`/`APPLE_CERTIFICATE_PASSWORD`만 교체하면 됩니다.
+- 인증서를 포털에서 폐기(revoke)하면 기존 배포본의 Gatekeeper 통과에
+  영향이 갈 수 있으니 재발급을 남발하지 않습니다.
+- 로컬 서명 빌드: `APPLE_SIGNING_IDENTITY="Developer ID Application: ..." pnpm tauri build`
+  (공증 없이 서명만 하며, `TAURI_SIGNING_PRIVATE_KEY`가 없어 마지막
+  업데이터 아카이브 서명 단계에서 실패하지만 `.app`/`.dmg`는 생성됨).
+- 로컬 공증 확인: `xcrun notarytool submit <dmg> --key <p8> --key-id <ID> --issuer <UUID> --wait`
 
 ## 서명 키 (최초 1회)
 

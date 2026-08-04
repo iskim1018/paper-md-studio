@@ -140,3 +140,4 @@ Conventional Commits 형식:
 | 2026-08-03 | **MD → HWPX 역방향 변환 보류** (`archive/md-to-hwpx` 태그로 보존 후 브랜치 파기) | 표 처리가 현실적 장벽. rhwp 0.8.2 의 표 API 위에 병합·열너비를 얹어도 한컴 양식의 중첩·병합 구조를 감당하지 못했음. MD 변환 품질 개선에 집중하기로 전환. 재개 시 `git checkout archive/md-to-hwpx` |
 | 2026-08-03 | PDF 보정을 pdf2md **앞뒤 두 지점**에 배치 (`pdf-text-runs.ts` / `pdf-postprocess.ts`) | 한글 워드프로세서가 굵은 글씨를 "같은 텍스트 0.1pt 씩 밀어 23번 겹쳐 그리기"로 표현해 `제안요청서`가 23번 반복됐고, pdf2md `LineConverter`가 숫자 경계마다 런을 끊어 공백으로 재결합해 `제21조`→`제 21 조`가 됐음. 둘 다 텍스트 런 단계에서만 고칠 수 있어 `pageParsed` 콜백으로 개입. 목차 오인식·점선 리더는 줄 단위 판단이라 출력 후처리로 분리 |
 | 2026-08-03 | 겹침 판정 허용오차에 **절대 하한 2pt** 부여 | 공백 글리프는 `height` 가 0이라 비율(25%)만 쓰면 허용오차가 0이 되어 중복 공백 런이 살아남고, 그게 pdf2md 의 각주 판정(`y > firstY`)에 걸려 `^` 가 새로 생겼음 |
+| 2026-08-04 | macOS Developer ID 서명 + 공증 도입 (tauri-action `APPLE_*` 시크릿, 법인 계정 P4S6KATL7C) | Gatekeeper `xattr -cr` 우회 안내 제거. 번들된 Node(OpenJS 서명)·JRE(tar.gz 내부)는 재서명 없이 공증 통과 확인 (2026-08-04 로컬 실측). 시크릿 목록·갱신 절차는 `docs/RELEASE.md` |

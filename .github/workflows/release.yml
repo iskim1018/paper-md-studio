@@ -102,6 +102,11 @@ jobs:
       - name: Install sidecar wrapper
         run: pnpm --filter @paper-md-studio/app sidecar:install
 
+      - name: Write App Store Connect API key
+        if: matrix.label == 'macOS'
+        shell: bash
+        run: printf '%s' "${{ secrets.APPLE_API_KEY_CONTENT }}" > "$RUNNER_TEMP/AuthKey.p8"
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -110,18 +115,20 @@ jobs:
           # 이 키가 없으면 createUpdaterArtifacts 빌드가 실패한다.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS Developer ID 서명 + 공증 (Windows 잡에서는 무시됨).
+          # 시크릿 목록과 갱신 절차는 docs/RELEASE.md 참고.
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
         with:
           projectPath: packages/app
           tagName: v__VERSION__
           releaseName: Paper MD Studio v__VERSION__
           releaseBody: |
             Paper MD Studio v__VERSION__ 릴리스
-
-            설치 후 macOS에서 Gatekeeper 경고가 표시되면:
-            ```
-            xattr -cr "/Applications/Paper MD Studio.app"
-            ```
-            실행 후 앱을 열어주세요.
           releaseDraft: true
           prerelease: false
           # Windows 업데이트 페이로드로 NSIS(.exe)를 쓴다 (msi 미배포)
