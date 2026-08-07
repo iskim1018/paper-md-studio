@@ -6,6 +6,8 @@ interface CliOutput {
   readonly elapsed: number;
   readonly imageCount: number;
   readonly outputPath: string;
+  /** 변환은 됐지만 사용자가 알아야 할 사항 (예: 텍스트 없는 스캔 PDF) */
+  readonly warnings?: Array<string>;
 }
 
 export interface ConvertOptions {
@@ -86,5 +88,6 @@ export async function convertFile(
     elapsed: result.elapsed,
     imageCount: result.imageCount,
     outputPath: result.outputPath,
+    ...(result.warnings?.length ? { warnings: result.warnings } : {}),
   };
 }

@@ -70,6 +70,13 @@ paper-md-studio - 문서를 Markdown으로 변환
 `);
 }
 
+/** 변환은 됐지만 사용자가 알아야 할 사항을 알립니다 (예: 텍스트 없는 스캔 PDF) */
+function printWarnings(result: ConvertResult): void {
+  for (const warning of result.warnings ?? []) {
+    console.warn(`  경고: ${warning}`);
+  }
+}
+
 function printJsonResult(result: ConvertResult, outputPath: string): void {
   const jsonOutput = {
     markdown: result.markdown,
@@ -77,6 +84,7 @@ function printJsonResult(result: ConvertResult, outputPath: string): void {
     elapsed: result.elapsed,
     imageCount: result.images.length,
     outputPath,
+    ...(result.warnings?.length ? { warnings: result.warnings } : {}),
   };
   console.log(JSON.stringify(jsonOutput));
 }
@@ -219,6 +227,7 @@ async function main(): Promise<void> {
     }
 
     console.log(`  완료: ${mdPath} (${Math.round(result.elapsed)}ms)`);
+    printWarnings(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (isJson) {

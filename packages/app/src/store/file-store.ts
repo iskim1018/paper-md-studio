@@ -19,6 +19,8 @@ export interface ConvertResult {
   elapsed: number;
   imageCount: number;
   outputPath: string;
+  /** 변환은 됐지만 사용자가 알아야 할 사항 (예: 텍스트 없는 스캔 PDF) */
+  warnings?: Array<string>;
 }
 
 export interface FileItem {

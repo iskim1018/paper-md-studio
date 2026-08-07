@@ -92,8 +92,13 @@ function overlaps(a: PdfTextRun, b: PdfTextRun): boolean {
  * `2 천 8 백여종` 으로 벌어진다. 미리 하나의 런으로 합쳐두면 끊길 경계 자체가
  * 사라진다.
  *
- * 글꼴·글자 크기·베이스라인이 모두 같고 가로 간격이 1pt 이내인 런만 합친다.
+ * 글자 크기·베이스라인이 같고 가로 간격이 1pt 이내인 런만 합친다.
  * 실제 띄어쓰기는 높이 0의 공백 런으로 들어오므로 경계 역할을 해 보존된다.
+ *
+ * 글꼴은 같지 않아도 된다. Chrome·Word 가 만든 PDF 는 한 문장 안의 한글과 숫자를
+ * 서로 다른 글꼴에 임베드하므로(`제`=g_d0_f3 / `21`=g_d0_f2), 글꼴 일치를 요구하면
+ * 정작 고치려던 `제 21 조` 가 그대로 남는다. 빈틈없이 이어지는 글자는 글꼴이
+ * 달라도 눈에는 한 낱말이다.
  */
 export function mergeAdjacentRuns<T extends PdfTextRun>(
   runs: ReadonlyArray<T>,
@@ -120,7 +125,7 @@ export function mergeAdjacentRuns<T extends PdfTextRun>(
 
 /** 두 런이 같은 줄에서 빈틈없이 이어지는지 판정합니다. */
 function isDirectlyAdjacent(previous: PdfTextRun, next: PdfTextRun): boolean {
-  if (previous.font !== next.font || previous.height !== next.height) {
+  if (previous.height !== next.height) {
     return false;
   }
   if (Math.abs(previous.y - next.y) > SAME_BASELINE_TOLERANCE) {

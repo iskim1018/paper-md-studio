@@ -133,16 +133,44 @@ describe("mergeAdjacentRuns", () => {
     expect(mergeAdjacentRuns(runs)).toHaveLength(2);
   });
 
-  it("글꼴이나 크기가 다르면 합치지 않는다", () => {
+  it("글자 크기가 다르면 합치지 않는다", () => {
     // Arrange
     const runs = [
-      run({ text: "본문", x: 0, width: 20, font: "f1" }),
-      run({ text: "각주", x: 20, width: 20, font: "f2" }),
-      run({ text: "큰글", x: 40, width: 20, font: "f2", height: 20 }),
+      run({ text: "본문", x: 0, width: 20 }),
+      run({ text: "큰글", x: 20, width: 20, height: 20 }),
     ];
 
     // Act & Assert
-    expect(mergeAdjacentRuns(runs)).toHaveLength(3);
+    expect(mergeAdjacentRuns(runs)).toHaveLength(2);
+  });
+
+  it("글꼴이 달라도 붙어 있으면 합친다 (한글·숫자를 다른 글꼴로 임베드한 PDF)", () => {
+    // Arrange — Chrome·Word 가 만든 PDF 는 한글(g_d0_f3)과 숫자(g_d0_f2)를
+    // 서로 다른 글꼴에 임베드한다. 글꼴이 같아야만 합치면 `제 21 조` 가 남는다.
+    const runs = [
+      run({ text: "제", x: 184, width: 14, font: "g_d0_f3" }),
+      run({ text: "21", x: 198, width: 14, font: "g_d0_f2" }),
+      run({ text: "조", x: 212, width: 14, font: "g_d0_f3" }),
+    ];
+
+    // Act
+    const merged = mergeAdjacentRuns(runs);
+
+    // Assert
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.text).toBe("제21조");
+  });
+
+  it("글꼴이 달라도 간격이 없으면 합친다 — 밀착한 표 셀도 합쳐지는 트레이드오프", () => {
+    // Arrange — 글꼴 조건을 뺀 대가. 같은 줄·같은 크기에 간격이 1pt 이내면
+    // 서로 다른 칸이라도 한 낱말로 본다. 실제 표는 셀 여백이 있어 이보다 벌어진다.
+    const runs = [
+      run({ text: "구분", x: 72, width: 34, font: "f1" }),
+      run({ text: "내용", x: 106.5, width: 34, font: "f2" }),
+    ];
+
+    // Act & Assert
+    expect(mergeAdjacentRuns(runs).map((r) => r.text)).toEqual(["구분내용"]);
   });
 
   it("줄이 다르면 합치지 않는다", () => {

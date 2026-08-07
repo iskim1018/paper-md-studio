@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { ParseOptions, ParseResult, Parser } from "../types.js";
-import { cleanupPdfMarkdown } from "./pdf-postprocess.js";
+import { cleanupPdfMarkdown, hasExtractableText } from "./pdf-postprocess.js";
 import {
   dedupeOverlappingRuns,
   mergeAdjacentRuns,
@@ -16,6 +16,15 @@ import {
 interface ParsedPage {
   items?: Array<PdfTextRun>;
 }
+
+/**
+ * 텍스트 레이어가 없는 PDF 안내.
+ *
+ * 이 경우 변환은 "성공"하지만 결과가 비어 있다. 경고가 없으면 사용자는 왜 빈
+ * 파일이 나왔는지 알 수 없다.
+ */
+const NO_TEXT_WARNING =
+  "PDF에서 추출할 텍스트를 찾지 못했습니다. 스캔한 문서라면 글자를 추출하는 데 문자 인식(OCR)이 필요합니다.";
 
 export class PdfParser implements Parser {
   /**
@@ -52,10 +61,13 @@ export class PdfParser implements Parser {
         preprocessPages(pages as unknown as Array<ParsedPage>),
     });
 
+    const cleaned = cleanupPdfMarkdown(markdown);
+
     return {
       html: null,
-      markdown: cleanupPdfMarkdown(markdown),
+      markdown: cleaned,
       images: [],
+      ...(hasExtractableText(cleaned) ? {} : { warnings: [NO_TEXT_WARNING] }),
     };
   }
 }

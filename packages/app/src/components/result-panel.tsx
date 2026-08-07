@@ -6,6 +6,7 @@ import {
   FolderOpen,
   Save,
   SaveAll,
+  TriangleAlert,
   Undo2,
 } from "lucide-react";
 import { useCallback, useState } from "react";
@@ -23,6 +24,39 @@ import { ResizeHandle } from "./ui/resize-handle";
 import { Tooltip } from "./ui/tooltip";
 
 type ViewMode = "preview" | "edit" | "source" | "split";
+
+interface ConversionWarningsProps {
+  readonly warnings?: ReadonlyArray<string>;
+}
+
+/**
+ * 변환은 성공했지만 결과가 기대와 다를 수 있을 때 그 이유를 알립니다.
+ *
+ * 텍스트 레이어가 없는 스캔 PDF 처럼 "성공했는데 내용이 비어 있는" 경우,
+ * 알림이 없으면 사용자는 앱이 고장 난 것으로 오해한다.
+ */
+function ConversionWarnings({ warnings }: ConversionWarningsProps) {
+  if (!warnings?.length) {
+    return null;
+  }
+
+  return (
+    <div
+      className="flex shrink-0 items-start gap-2 border-b border-[var(--color-border)] bg-[var(--color-chip-bg)] px-[18px] py-2 text-xs text-[var(--color-muted)]"
+      data-testid="conversion-warnings"
+    >
+      <TriangleAlert
+        size={14}
+        className="mt-px shrink-0 text-[var(--color-accent)]"
+      />
+      <ul className="space-y-1">
+        {warnings.map((warning) => (
+          <li key={warning}>{warning}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function ResultPanel() {
   const { files, selectedFileId } = useFileStore();
@@ -126,6 +160,7 @@ export function ResultPanel() {
 
   return (
     <div className="flex h-full flex-col" data-testid="result-panel">
+      <ConversionWarnings warnings={selectedFile.result?.warnings} />
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-y-1 border-b border-[var(--color-border)] px-[18px] py-2.5">
         <ModeToggle mode={mode} onChange={setMode} />
         <div className="flex flex-wrap items-center gap-0.5">
