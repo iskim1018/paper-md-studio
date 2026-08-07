@@ -288,10 +288,12 @@ curl -X POST http://localhost:3000/v1/convert \
 | 형식 | 확장자 | 비고 |
 |------|--------|------|
 | 한글 (HWP 5.0 바이너리) | `.hwp` | Java 11+ 필요 (hwp2hwpx 경유) |
+| 한글 (HWP 3.x · HWPML) | `.hwp` | 매직바이트 자동 판별, Java 불필요 (kordoc) |
 | 한글 (HWPX) | `.hwpx` | 표 셀 내부 이미지까지 추출 |
 | Word | `.docx` | mammoth + turndown |
 | Word (레거시) | `.doc` | LibreOffice 필요 (macOS fallback: textutil) |
 | PDF | `.pdf` | 텍스트 추출 (이미지 미지원) |
+| Excel | `.xlsx` `.xls` | 시트별 표 변환 (kordoc) |
 
 ## HWP 변환 툴체인 재빌드 (개발자용)
 
@@ -309,6 +311,7 @@ pnpm build:hwp-tool   # Maven + JitPack (초기 수 분)
 - **Milkdown** (WYSIWYG) + **CodeMirror 6** (소스) + **react-resizable-panels** (분할)
 - **Fastify 5** + **Zod** + **@fastify/swagger** (REST API 서버)
 - **Java 11+** / Maven / `neolord0/hwp2hwpx` (HWP 선변환)
+- **kordoc** (XLSX·XLS·HWP3·HWPML 변환 — 통합 로드맵: [`docs/kordoc-integration.md`](docs/kordoc-integration.md))
 
 ## 로드맵
 
@@ -324,3 +327,11 @@ pnpm build:hwp-tool   # Maven + JitPack (초기 수 분)
 MIT License — [`LICENSE`](LICENSE) 참고.
 
 번들된 의존성의 라이선스는 [`THIRD_PARTY_LICENSES.md`](THIRD_PARTY_LICENSES.md) 에 정리돼 있습니다.
+
+### 감사의 글
+
+이 프로젝트의 한글 문서 처리는 훌륭한 오픈소스들 위에 서 있습니다. 특히
+[kordoc](https://github.com/chrisryugj/kordoc) (한국 행정문서 파서),
+[rhwp](https://github.com/edwardkim/rhwp) (HWPX 렌더링),
+[hwp2hwpx](https://github.com/neolord0/hwp2hwpx) (HWP→HWPX 변환)를
+공개해주신 개발자분들께 감사드립니다.

@@ -63,6 +63,21 @@ Paper MD Studio는 다음 오픈소스 라이브러리 및 런타임을 사용�
 - 저장소: https://github.com/codemirror/dev
 - 라이선스: MIT
 
+### kordoc
+
+- 용도: XLSX·XLS·HWP 3.x·HWPML을 Markdown으로 변환 (순수 TypeScript 파서)
+- 저장소: https://github.com/chrisryugj/kordoc
+- 라이선스: MIT
+- 참고: kordoc 자체가 rhwp(MIT)·Hancom OpenDataLoader PDF(Apache-2.0)·
+  PaddleOCR(Apache-2.0) 등을 포함하며, 해당 고지는 kordoc 패키지의
+  NOTICE·THIRD_PARTY에 포함되어 배포됩니다
+
+### rhwp (@rhwp/core)
+
+- 용도: 데스크톱 앱의 HWPX 뷰어 렌더링
+- 저장소: https://github.com/edwardkim/rhwp
+- 라이선스: MIT
+
 ### turndown
 
 - 용도: HTML을 Markdown으로 변환
