@@ -72,6 +72,10 @@ packages/core/tests/fixtures/*_images/
 # 변환 산출 .md는 케이스별로 명시 (루트 *.md를 한꺼번에 막을 수 없어서)
 /nested_tables.md
 
+# K2 PDF A/B 실측 산출물 (scripts/make-pdf-corpus.mjs 로 언제든 재생성)
+/pdf-corpus/
+/pdf-ab-out/
+
 # TypeScript build info
 *.tsbuildinfo
 
