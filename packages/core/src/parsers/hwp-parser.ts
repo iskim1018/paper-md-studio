@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process";
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { access, mkdtemp, open, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeToNFC } from "../normalize.js";
 import type { ParseOptions, ParseResult, Parser } from "../types.js";
 import { HwpxParser } from "./hwpx-parser.js";
+import { detectBinaryFormat, KordocParser } from "./kordoc-adapter.js";
 
 const JAR_FILE_NAME = "hwp-to-hwpx.jar";
 const JAR_ENV_OVERRIDE = "PAPER_MD_STUDIO_HWP_JAR";
@@ -68,6 +69,21 @@ function resolveJavaExecutable(): string {
   return javaBinary;
 }
 
+/** 포맷 판별에 필요한 파일 앞부분 크기 — HWPML 판별이 최대 512바이트를 본다 */
+const DETECT_PREFIX_BYTES = 1024;
+
+/** 매직바이트 판별용으로 파일 앞부분만 읽는다 (대용량 HWP 전체 로드 방지). */
+async function readFilePrefix(inputPath: string): Promise<Buffer> {
+  const handle = await open(inputPath, "r");
+  try {
+    const buffer = Buffer.alloc(DETECT_PREFIX_BYTES);
+    const { bytesRead } = await handle.read(buffer, 0, DETECT_PREFIX_BYTES, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
 interface JavaRunResult {
   readonly code: number;
   readonly stderr: string;
@@ -105,11 +121,21 @@ function runJava(javaCmd: string, args: Array<string>): Promise<JavaRunResult> {
 }
 
 /**
- * HWP 바이너리 파일을 Java 툴체인으로 HWPX로 선변환한 뒤
- * 기존 HwpxParser에 위임한다.
+ * .hwp 확장자 파일의 파서.
+ *
+ * 확장자는 같아도 실제 포맷은 셋으로 갈린다 — 매직바이트로 분기한다:
+ *   - HWP 3.x (1996~2002 단일 바이너리) → kordoc 파서
+ *   - HWPML (XML 기반 .hwp)            → kordoc 파서
+ *   - HWP 5.x (OLE2 바이너리)          → Java 툴체인으로 HWPX 선변환 후 HwpxParser
  */
 export class HwpParser implements Parser {
   async parse(inputPath: string, options: ParseOptions): Promise<ParseResult> {
+    const prefix = await readFilePrefix(inputPath);
+    const detected = detectBinaryFormat(prefix);
+    if (detected === "hwp3" || detected === "hwpml") {
+      return await new KordocParser().parse(inputPath, options);
+    }
+
     const jarPath = await resolveJarPath();
     const javaCmd = resolveJavaExecutable();
 

@@ -1,5 +1,13 @@
 /** 지원하는 문서 포맷 */
-export type DocumentFormat = "hwp" | "hwpx" | "doc" | "docx" | "pdf" | "html";
+export type DocumentFormat =
+  | "hwp"
+  | "hwpx"
+  | "doc"
+  | "docx"
+  | "pdf"
+  | "html"
+  | "xlsx"
+  | "xls";
 
 /** HTML 변환 옵션 (로컬 .html 파일 또는 URL) */
 export interface HtmlConvertOptions {
@@ -47,6 +55,8 @@ export interface ParseResult {
   markdown: string | null;
   /** 추출된 이미지 */
   images: Array<ImageAsset>;
+  /** 파싱 중 발생한 경고 (한국어 메시지) */
+  warnings?: Array<string>;
 }
 
 /** 파서에 전달되는 옵션 */
@@ -72,4 +82,6 @@ export interface ConvertResult {
   format: DocumentFormat;
   /** 변환 소요 시간 (ms) */
   elapsed: number;
+  /** 변환 중 발생한 경고 (한국어 메시지) */
+  warnings?: Array<string>;
 }

@@ -23,7 +23,12 @@ const SUPPORTED_EXTENSIONS = new Set([
   ".doc",
   ".docx",
   ".pdf",
+  ".xlsx",
+  ".xls",
 ]);
+
+const SUPPORTED_EXTENSIONS_LABEL =
+  ".hwp, .hwpx, .doc, .docx, .pdf, .xlsx, .xls";
 
 const QuerySchema = z.object({
   images: z
@@ -94,7 +99,7 @@ async function parseUpload(
     return {
       ok: false,
       status: 400,
-      error: `지원하지 않는 파일 형식입니다: ${ext} (지원: .hwp, .hwpx, .doc, .docx, .pdf)`,
+      error: `지원하지 않는 파일 형식입니다: ${ext} (지원: ${SUPPORTED_EXTENSIONS_LABEL})`,
     };
   }
 
@@ -212,7 +217,7 @@ async function parseUrlBody(
     return {
       ok: false,
       status: 400,
-      error: `지원하지 않는 파일 형식입니다: ${extLabel} (지원: .hwp, .hwpx, .doc, .docx, .pdf). 후보 파일명: "${chosen}". 필요 시 filename 필드로 다른 확장자를 명시하세요.`,
+      error: `지원하지 않는 파일 형식입니다: ${extLabel} (지원: ${SUPPORTED_EXTENSIONS_LABEL}). 후보 파일명: "${chosen}". 필요 시 filename 필드로 다른 확장자를 명시하세요.`,
     };
   }
 

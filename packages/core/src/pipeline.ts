@@ -8,6 +8,7 @@ import { DocxParser } from "./parsers/docx-parser.js";
 import { HtmlParser } from "./parsers/html-parser.js";
 import { HwpParser } from "./parsers/hwp-parser.js";
 import { HwpxParser } from "./parsers/hwpx-parser.js";
+import { KordocParser } from "./parsers/kordoc-adapter.js";
 import { PdfParser } from "./parsers/pdf-parser.js";
 import type {
   ConvertOptions,
@@ -26,6 +27,8 @@ const FORMAT_MAP: Record<string, DocumentFormat> = {
   ".pdf": "pdf",
   ".html": "html",
   ".htm": "html",
+  ".xlsx": "xlsx",
+  ".xls": "xls",
 };
 
 const PARSER_MAP: Record<DocumentFormat, () => Parser> = {
@@ -35,6 +38,8 @@ const PARSER_MAP: Record<DocumentFormat, () => Parser> = {
   docx: () => new DocxParser(),
   pdf: () => new PdfParser(),
   html: () => new HtmlParser(),
+  xlsx: () => new KordocParser(),
+  xls: () => new KordocParser(),
 };
 
 function detectFormat(filePath: string): DocumentFormat {
@@ -42,7 +47,7 @@ function detectFormat(filePath: string): DocumentFormat {
   const format = FORMAT_MAP[ext];
   if (!format) {
     throw new Error(
-      `지원하지 않는 파일 형식입니다: ${ext} (지원: .hwp, .hwpx, .doc, .docx, .pdf, .html)`,
+      `지원하지 않는 파일 형식입니다: ${ext} (지원: .hwp, .hwpx, .doc, .docx, .pdf, .html, .xlsx, .xls)`,
     );
   }
   return format;
@@ -147,5 +152,8 @@ export async function convert(options: ConvertOptions): Promise<ConvertResult> {
     images: parseResult.images,
     format,
     elapsed: performance.now() - start,
+    ...(parseResult.warnings && parseResult.warnings.length > 0
+      ? { warnings: parseResult.warnings }
+      : {}),
   };
 }

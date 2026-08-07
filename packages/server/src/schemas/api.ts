@@ -17,7 +17,7 @@ const ImageMetaSchema = z.object({
 
 export const ConvertDataSchema = z.object({
   conversionId: z.string(),
-  format: z.enum(["hwp", "hwpx", "doc", "docx", "pdf"]),
+  format: z.enum(["hwp", "hwpx", "doc", "docx", "pdf", "html", "xlsx", "xls"]),
   markdown: z.string(),
   images: z.array(ImageMetaSchema),
   cached: z.boolean(),
