@@ -76,15 +76,14 @@
 - typescript-reviewer 리뷰: CRITICAL 0. HIGH 2건(서버 라우트 누락, 전체 파일
   읽기) 반영 완료.
 
-### 미해결 후속 항목 (K1 범위 밖으로 미룸)
+### 후속 항목
 
-- [ ] **app GUI**: `packages/app/src/store/file-store.ts`가 core와 무관한 자체
-  `DocumentFormat` 타입·확장자 목록을 가짐 — xlsx/xls를 GUI에서 열려면 확장 필요
-  (파일 다이얼로그 필터 포함)
-- [ ] **mcp**: `packages/mcp/src/input-resolver.ts`의 `SUPPORTED_EXTS`에
-  `.xlsx`/`.xls` 추가
-- [ ] server `convert-cache.test.ts`에 xlsx/xls 케이스 추가 (매핑 자체는
-  `Record<DocumentFormat,…>` 전수성으로 typecheck가 보증)
+- [x] **app GUI** (2026-08-07): `file-store.ts` 자체 `DocumentFormat`·확장자
+  목록, 파일 다이얼로그 필터(`use-file-pickers.ts`), 뷰어 안내
+  (`preview-panel.tsx` — Excel은 원본 미리보기 없이 Markdown 안내) 확장 완료
+- [x] **mcp** (2026-08-07): `input-resolver.ts`의 `SUPPORTED_EXTS`에
+  `.xlsx`/`.xls` 추가 완료
+- [x] server `convert-cache.test.ts`에 xlsx 감지 케이스 추가 완료 (2026-08-07)
 - [ ] `rewriteImageRefs`는 문자열 일치 치환이라 kordoc이 참조를 인코딩하면
   조용히 no-op (저위험 — kordoc은 `image_NNN.ext` 순차 명명)
 
@@ -95,10 +94,13 @@
 
 **작업지시**:
 
-1. kordoc PDF 경로는 optionalDependency `pdfjs-dist`가 필요하다. core에 이미
-   pdf 스택이 있으므로 충돌 없는지 확인 후 설치.
-2. 비교 스크립트 작성 (scratch, 커밋 불필요): 같은 PDF를 (a) `convert()`,
-   (b) kordoc `parse(buffer)` 로 각각 변환해 나란히 저장.
+1. ~~kordoc PDF 경로는 optionalDependency `pdfjs-dist`가 필요~~ → **확인 완료
+   (2026-08-07)**: pnpm이 kordoc의 optionalDependencies(pdfjs-dist·
+   onnxruntime-node·sharp·@hyzyla/pdfium·@huggingface/transformers)를 전부
+   기본 설치함. K2는 바로 가능. **단, 앱 sidecar 번들에 이들이 딸려가는지
+   크기 실측이 K4 선행 과제로 확정됨.**
+2. ~~비교 스크립트 작성~~ → **완료**: `scripts/pdf-ab.mjs` (합성 PDF 스모크
+   통과, 2026-08-07). 사전에 `pnpm build` 필요.
 3. 코퍼스: `packages/core/tests/fixtures`의 PDF + 사용자 제공 실무 문서
    (한컴 워드프로세서 출력 PDF 필수 포함).
 4. **판정 기준** (모두 문서화할 것):
