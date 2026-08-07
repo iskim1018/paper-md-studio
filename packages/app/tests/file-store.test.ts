@@ -25,6 +25,12 @@ describe("isSupportedFile", () => {
     expect(isSupportedFile("/path/to/FILE.HWP")).toBe(true);
   });
 
+  it("Excel 파일(.xlsx/.xls)을 허용한다 (kordoc 경유)", () => {
+    expect(isSupportedFile("/path/to/직원명단.xlsx")).toBe(true);
+    expect(isSupportedFile("/path/to/legacy.xls")).toBe(true);
+    expect(isSupportedFile("/path/to/FILE.XLSX")).toBe(true);
+  });
+
   it(".doc 파일을 허용한다 (LibreOffice 경유)", () => {
     expect(isSupportedFile("/path/to/old.doc")).toBe(true);
     expect(isSupportedFile("/path/to/FILE.DOC")).toBe(true);

@@ -111,6 +111,17 @@ function FileViewer({ format, filePath }: FileViewerProps) {
           </p>
         </div>
       );
+    case "xlsx":
+    case "xls":
+      return (
+        <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-[var(--color-muted)]">
+          <FileSearch size={32} />
+          <p className="text-sm">Excel 원본 미리보기 미지원</p>
+          <p className="text-xs">
+            오른쪽 Markdown 영역에서 변환된 표를 확인하세요.
+          </p>
+        </div>
+      );
     case "html":
       return <HtmlViewer filePath={filePath} />;
     default:

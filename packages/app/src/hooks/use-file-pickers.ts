@@ -11,6 +11,8 @@ const DIALOG_EXTENSIONS = [
   "pdf",
   "html",
   "htm",
+  "xlsx",
+  "xls",
   "md",
 ];
 

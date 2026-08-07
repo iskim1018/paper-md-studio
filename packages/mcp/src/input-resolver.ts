@@ -67,7 +67,15 @@ async function resolveFromPath(
   };
 }
 
-const SUPPORTED_EXTS = new Set([".hwp", ".hwpx", ".doc", ".docx", ".pdf"]);
+const SUPPORTED_EXTS = new Set([
+  ".hwp",
+  ".hwpx",
+  ".doc",
+  ".docx",
+  ".pdf",
+  ".xlsx",
+  ".xls",
+]);
 
 async function resolveFromUrl(
   args: ResolveInputArgs,

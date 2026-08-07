@@ -62,6 +62,23 @@ describe("ConvertCache", () => {
     await rm(tmpRoot, { recursive: true, force: true });
   });
 
+  it(".xlsx originalName은 xlsx 포맷으로 감지된다", async () => {
+    const cache = new ConvertCache({ storage, tmpDir: tmpRoot });
+    convertMock.mockImplementationOnce(async (options: ConvertOptions) => {
+      calls.push({ inputPath: options.inputPath, options });
+      await stat(options.inputPath);
+      return makeConvertResult({ format: "xlsx" });
+    });
+
+    const result = await cache.convert({
+      bytes: new Uint8Array([5, 6, 7, 8]),
+      originalName: "직원명단.xlsx",
+    });
+
+    expect(result.meta.format).toBe("xlsx");
+    expect(calls[0]?.inputPath.endsWith(".xlsx")).toBe(true);
+  });
+
   it("신규 변환은 MISS로 처리되고 storage에 저장된다", async () => {
     const cache = new ConvertCache({ storage, tmpDir: tmpRoot });
     const bytes = new Uint8Array([1, 2, 3, 4]);

@@ -8,6 +8,8 @@ export type DocumentFormat =
   | "docx"
   | "pdf"
   | "html"
+  | "xlsx"
+  | "xls"
   | "md";
 export type FileStatus = "pending" | "converting" | "done" | "error";
 
@@ -90,6 +92,8 @@ const FORMAT_EXTENSIONS: Record<string, DocumentFormat> = {
   ".pdf": "pdf",
   ".html": "html",
   ".htm": "html",
+  ".xlsx": "xlsx",
+  ".xls": "xls",
   // .md는 변환 단계를 건너뛰고 원본 콘텐츠를 그대로 result에 적재한다.
   ".md": "md",
 };
