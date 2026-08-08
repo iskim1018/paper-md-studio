@@ -31,28 +31,6 @@ const VIEWER_METHODS = [
   "renderPageSvg",
 ] as const;
 
-/** MD → HWPX 변환기(core/hwpx-writer)가 호출하는 문서 조립·저장 API */
-const WRITER_METHODS = [
-  "applyCharFormat",
-  "applyParaFormat",
-  "applyStyle",
-  "createBlankDocument",
-  "createStyle",
-  "createTable",
-  "ensureDefaultBullet",
-  "ensureDefaultNumbering",
-  "exportHwpx",
-  "findOrCreateFontId",
-  "insertFootnote",
-  "insertPicture",
-  "insertText",
-  "insertTextInCell",
-  "insertTextInFootnote",
-  "setCellProperties",
-  "setPageDef",
-  "splitParagraph",
-] as const;
-
 function hasMethod(name: string): boolean {
   return (
     typeof (HwpDocument.prototype as unknown as Record<string, unknown>)[
@@ -63,10 +41,6 @@ function hasMethod(name: string): boolean {
 
 describe("@rhwp/core API 계약", () => {
   it.each(VIEWER_METHODS)("뷰어가 쓰는 %s 가 존재한다", (method) => {
-    expect(hasMethod(method)).toBe(true);
-  });
-
-  it.each(WRITER_METHODS)("변환기가 쓰는 %s 가 존재한다", (method) => {
     expect(hasMethod(method)).toBe(true);
   });
 

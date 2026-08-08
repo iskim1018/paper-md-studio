@@ -305,8 +305,6 @@ node scripts/pdf-ab.mjs ./private/pdf-corpus     # 출력 기본값도 private/p
 
 ## 8. K5+ — 보류 (to-Markdown 범위 밖, GUI 트랙)
 
-- `patchHwpx`/`HwpxSession`: 에디터에서 "원본 HWPX로 저장" — 2026-08-03에
-  보류한 MD→HWPX를 "생성"이 아닌 "원본 패치"로 재정의하는 접근
 - `compare`: 문서 비교/신구대조표 (크로스 포맷, 셀 단위)
 - `fillForm`/`extractFormSchema`: 양식 채우기 + 폼 UI 자동 생성
 - `redactMarkdown`: 개인정보 마스킹
