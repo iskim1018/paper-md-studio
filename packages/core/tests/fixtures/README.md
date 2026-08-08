@@ -21,3 +21,8 @@
 - HWP: 한컴오피스에서 "HWP 5.0 바이너리"로 저장
 - DOCX/DOCX with image: Word/Google Docs 등에서 생성
 - PDF: 임의 PDF (텍스트 기반 권장)
+
+> 한컴오피스로 위 샘플을 만드는 김에 PDF 변환 품질 실측용 코퍼스도 함께
+> 뽑아두면 좋습니다 — 표·목차·굵은 제목이 있는 문서를 `PDF로 저장하기`와
+> `인쇄 → PDF` 두 방식으로 출력해 `pdf-corpus-real/` 에 넣습니다.
+> 선정 기준과 실행 절차는 `docs/kordoc-integration.md` 의 "2차 실측 준비" 절 참고.
