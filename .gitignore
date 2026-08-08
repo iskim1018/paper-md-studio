@@ -102,3 +102,8 @@ packages/core/tests/fixtures/*_images/
 # Logs
 *.log
 npm-debug.log*
+
+# REST 서버가 변환 결과를 캐시하는 경로. 비공개 문서를 변환하면 그 산출물
+# (markdown·이미지·meta)이 그대로 쌓이므로 통째로 무시한다. 2026-08-09 에
+# 스모크 테스트가 만든 결과물이 `git add -A` 로 스테이징된 적이 있다.
+/.paper-md-storage/
