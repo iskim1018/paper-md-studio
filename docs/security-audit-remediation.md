@@ -1,15 +1,70 @@
 # CI 보안 감사 복구 작업지시서
 
-> 이 문서만 읽고 바로 착수할 수 있도록 조사 결과·처리 방안·검증 절차를 자족적으로
-> 기록한다. 작성: 2026-08-08 (기준 커밋 `42f2b9e`)
+> 조사 결과·처리 방안·검증 절차를 자족적으로 기록한다.
+> 작성: 2026-08-08 (기준 커밋 `42f2b9e`) · **완료: 2026-08-08 — 복구 변경은
+> 이 문서 갱신과 같은 커밋에 있다** (완료 시점의 별도 기준 커밋 없음)
 
-## 0. 한 줄 요약
+## 0. 결과 — 완료 ✅
 
-CI 가 `pnpm audit` 단계에서만 실패한다. **이번 kordoc 도입 이전부터 실패하던
-문제**이고, 루트 `package.json` 의 `pnpm.overrides` 바닥값이 새 권고보다 낮은 것이
-주원인이다. 취약점 20건 중 **kordoc 이 새로 들인 것은 2건**뿐이다.
+`pnpm audit` **0건 / exit 0**. 1~4단계를 모두 적용했고 pdfjs 메이저 업그레이드도
+포함했다. 커밋 전 xhigh 코드리뷰에서 9건이 적발되어 함께 반영했다(아래에 녹여
+기록). §1~§4 는 작업 당시의 조사 기록으로 남긴다.
 
-## 1. 현재 상태와 확인 방법
+**작업지시서와 달리 한 것** — 공통 원인: 지시서의 `>=` 를 그대로 쓰면 이미 배포된
+새 메이저(undici 8.10.0, nanoid 6.0.1, 그리고 향후의 sharp 0.36/adm-zip 0.7)가
+전이 의존성에 메이저째 들어온다. 전부 계열 고정으로 좁혔다.
+
+| 항목 | 지시서 | 실제 | 비고 |
+|------|--------|------|------|
+| `undici` | `>=7.29.0` | `^7.29.0` | jsdom 이 8.x 로 점프하는 것 방지 |
+| `nanoid` 3.x | `nanoid@<3.3.17` → `>=3.3.17` | `nanoid@>=3.0.0 <3.3.17` → `^3.3.17` | 키 하한도 추가 — 무하한이면 1.x/2.x 선언까지 3.x 로 강제 승격 (2→3 에서 CJS export 형태 변경) |
+| `nanoid` 5.x | `>=5.1.16` | `^5.1.16` | |
+| `adm-zip` | `>=0.6.0` | `^0.6.0` | 0.x 는 마이너가 곧 메이저. kordoc 자신의 override 와 동일 |
+| `sharp` | `>=0.35.0` | `^0.35.0` | kordoc 의 선언(`^0.35.0`)과 동일 |
+
+**pdfjs 5.x → 6.x 에서 실제로 문제였던 것** — API 는 호환이었다(v6 `render()` 는
+`canvas` 인자를 새로 받지만 `canvas = canvasContext.canvas` 로 기본값이 잡혀 기존
+호출부 유효). 진짜 문제는 **modern 빌드의 브라우저 바닥**: 6.2.108 은 `Iterator`
+헬퍼(Safari 18.4+)와 `Uint8Array.fromBase64`(18.2+)를 폴리필 없이 참조하는데,
+Tauri 의 `minimumSystemVersion: "12.0"` 범위인 macOS 12 는 Safari 17.6 이 상한이라
+**PDF 뷰어가 로드 단계에서 통째로 깨진다**. headless chromium 렌더 검증으로는
+잡히지 않는 종류다(Chrome 은 122부터 지원). → 뷰어를 **`pdfjs-dist/legacy/build`**
+로 전환해 해결 (core-js 폴리필 `es.iterator.*`·`es.uint8-array.from-base64` 내장,
+뷰어 임포트 2곳 + 테스트 mock 지정자 1곳 변경).
+
+**곁가지로 고친 것 2건**
+
+- `scripts/make-scan-pdf.mjs` 의 `loadFromStore` 가 `.pnpm/` 스토어를 스캔해
+  **사전순 첫 매치**를 골라, 상향된 `sharp@0.35.3` 이 아니라 lockfile 이 참조하지
+  않는 잔여 디렉토리 `sharp@0.34.5` 를 로드하고 있었다(갓 클론한 환경과 조용히
+  갈림). 스캔·버전 파싱 자체를 버리고 **`.pnpm/node_modules/` 숨김 호이스트**
+  (pnpm 이 lockfile 에 링크된 정확한 버전을 심링크)를 require 하도록 교체 —
+  잔여물이 옛 버전이든 새 버전이든 영향받지 않는다.
+- 루트 `engines.node` 를 `>=22.0.0` → `>=22.13.0` 으로 상향 — pdfjs-dist 6.2.108
+  의 engines(`>=22.13.0 || >=24`)가 실질 바닥을 올렸는데 선언이 그대로면
+  22.0~22.12 사용자에게 거짓 허용이 된다. CI(node 22 최신)는 영향 없음.
+
+**검증 기록** (아래 항목 전부 legacy 빌드 전환·override 확정 후 최종 상태 기준)
+
+| 항목 | 결과 |
+|------|------|
+| `pnpm audit` | 0건, exit 0 |
+| lockfile 수렴 | overrides 대상은 전부 권고 이상. `nanoid` 는 **의도된 2계열**(3.3.18·5.1.16, §3 참조), 나머지는 단일 버전. ⚠️ 앱의 pdfjs-dist 6.2.108 과 별개로 **kordoc 경유 pdfjs-dist 4.10.38 이 lockfile 에 남아 있다**(현 감사 미적발 — 다음 pdfjs 권고 때 함께 점검할 것) |
+| build · typecheck · lint | 전부 exit 0 |
+| `pnpm test` | 78 files / 688 tests passed |
+| `test:e2e` | 54 passed |
+| pdfjs legacy 실렌더 | headless chromium 에서 **`Iterator`·`Uint8Array.fromBase64` 전역을 지워 Safari 17.6 을 모사**한 페이지에 legacy 빌드 로드 — 폴리필이 전역 복원, 한글·괘선 표·체크박스 글리프 정상, modern 빌드와 픽셀 계측(ink) 일치, console error 0. 배율 1→2 재렌더·`cancel()` 후 재사용 경로 포함 |
+| MCP stdio 경로 | 기동 → `initialize` · `tools/list` 정상 응답 (hono·ip-address·fast-uri 는 이 경로에서 **로드되지 않음** — 아래 별도 확인) |
+| MCP HTTP 경로 (hono·ip-address·fast-uri) | SDK `StreamableHTTPServerTransport` 인스턴스화 정상 + 상향 버전 직접 구동: hono 4.13.1 라우팅 200, ip-address 10.4.0 파싱, fast-uri 4.1.2 파싱 |
+| REST Swagger UI (brace-expansion) | `/docs` · `/docs/json` 200, 정적 자산 5종 200 |
+| `make-scan-pdf.mjs` (sharp) | 숨김 호이스트 로더로 0.35.3 로드, 정상 산출 |
+
+> ⚠️ 유닛 테스트(`tests/viewers/pdf-viewer.test.tsx`)는 `vi.mock` 으로 pdfjs 를
+> 통째로 대체하므로 이런 업그레이드를 **전혀 검증하지 못한다**. 다음에 pdfjs 를
+> 올릴 때도 ① 실렌더 확인과 ② **modern/legacy 빌드의 브라우저 바닥 대조**
+> (릴리스 노트의 supported browsers vs `minimumSystemVersion`)를 반드시 할 것.
+
+## 1. 당시 상태와 확인 방법
 
 CI 잡 두 개 중 `Lint · Typecheck · Test` 만 실패하며, 그 안에서도 마지막
 `Security audit` 단계 하나다. 빌드·Biome·타입체크·Vitest·E2E 는 모두 통과한다.

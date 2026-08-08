@@ -12,7 +12,7 @@
  * 사용법:
  *   node scripts/make-scan-pdf.mjs <원본.pdf> [-o <출력.pdf>] [--pages N]
  */
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { basename, dirname, resolve } from "node:path";
@@ -22,20 +22,23 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
 
 /** pnpm 저장소에서 패키지 실경로를 찾아 로드한다 (전이 의존성이라 루트에서 안 잡힘) */
-function loadFromStore(matcher, entry) {
-  const store = resolve(REPO, "node_modules/.pnpm");
-  const dir = readdirSync(store).find((d) => matcher.test(d));
-  if (!dir) {
-    throw new Error(`의존성을 찾을 수 없습니다: ${matcher}`);
+function loadFromStore(entry) {
+  // `.pnpm/node_modules` 는 pnpm 이 현재 lockfile 에 링크된 정확한 버전을
+  // 심링크해 두는 숨김 호이스트 디렉토리다. 스토어(`.pnpm/`)를 직접 스캔해
+  // 버전을 고르면 갱신·롤백 잔여 디렉토리(lockfile 이 참조하지 않는 옛/새
+  // 버전)를 조용히 집을 수 있어 쓰지 않는다.
+  const hoisted = resolve(REPO, "node_modules/.pnpm/node_modules");
+  try {
+    return require(resolve(hoisted, entry));
+  } catch (err) {
+    throw new Error(`의존성을 찾을 수 없습니다: ${entry} (pnpm install 필요)`, {
+      cause: err,
+    });
   }
-  return require(resolve(store, dir, "node_modules", entry));
 }
 
-const { PDFiumLibrary } = loadFromStore(
-  /^@hyzyla\+pdfium@/,
-  "@hyzyla/pdfium/dist/index.cjs",
-);
-const sharp = loadFromStore(/^sharp@/, "sharp");
+const { PDFiumLibrary } = loadFromStore("@hyzyla/pdfium/dist/index.cjs");
+const sharp = loadFromStore("sharp");
 const { chromium } = require(
   require.resolve("playwright-core", {
     paths: [resolve(REPO, "packages/core")],

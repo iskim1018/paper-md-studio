@@ -47,9 +47,13 @@ async function loadPdf(filePath: string): Promise<{
   doc: PdfDocument;
   pages: Array<PageInfo>;
 }> {
-  const pdfjsLib = await import("pdfjs-dist");
+  // legacy 빌드 사용 — modern 빌드(6.x)는 Iterator 헬퍼(Safari 18.4+)·
+  // Uint8Array.fromBase64(18.2+)를 폴리필 없이 참조해, minimumSystemVersion 12.0
+  // (macOS 12 는 Safari 17.6 이 상한) 범위의 WKWebView 에서 로드 자체가 깨진다.
+  // legacy 빌드는 core-js 폴리필(es.iterator.*, es.uint8-array.from-base64)을 내장.
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-    "pdfjs-dist/build/pdf.worker.min.mjs",
+    "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
     import.meta.url,
   ).toString();
 
