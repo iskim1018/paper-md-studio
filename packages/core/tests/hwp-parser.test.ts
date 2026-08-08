@@ -2,7 +2,7 @@ import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { HwpParser } from "../src/parsers/hwp-parser.js";
+import { HwpParser, resolveHwp5Engine } from "../src/parsers/hwp-parser.js";
 import { convert } from "../src/pipeline.js";
 
 const FIXTURES = resolve(import.meta.dirname, "fixtures");
@@ -62,6 +62,41 @@ describe.skipIf(!javaAvailable || !hasHwpSample)(
     });
   },
 );
+
+describe("resolveHwp5Engine (K3 실험 플래그)", () => {
+  it("플래그가 없으면 검증된 Java 경로를 쓴다", () => {
+    expect(resolveHwp5Engine({})).toBe("java");
+  });
+
+  it("PAPER_MD_STUDIO_HWP_ENGINE=kordoc이면 kordoc 직파싱으로 바꾼다", () => {
+    expect(resolveHwp5Engine({ PAPER_MD_STUDIO_HWP_ENGINE: "kordoc" })).toBe(
+      "kordoc",
+    );
+  });
+
+  it("모르는 값은 무시하고 Java로 떨어뜨린다 — 오타로 엔진이 바뀌면 안 된다", () => {
+    // 대소문자 변형·인접 오타·빈 문자열 모두 기본 경로여야 한다.
+    for (const value of ["Kordoc", "KORDOC", "kordok", "java", "", " kordoc"]) {
+      expect(resolveHwp5Engine({ PAPER_MD_STUDIO_HWP_ENGINE: value })).toBe(
+        "java",
+      );
+    }
+  });
+
+  it("인자를 생략하면 process.env를 읽는다", () => {
+    const prev = process.env.PAPER_MD_STUDIO_HWP_ENGINE;
+    process.env.PAPER_MD_STUDIO_HWP_ENGINE = "kordoc";
+    try {
+      expect(resolveHwp5Engine()).toBe("kordoc");
+    } finally {
+      if (prev === undefined) {
+        delete process.env.PAPER_MD_STUDIO_HWP_ENGINE;
+      } else {
+        process.env.PAPER_MD_STUDIO_HWP_ENGINE = prev;
+      }
+    }
+  });
+});
 
 describe("HwpParser (포맷 등록)", () => {
   it("pipeline이 .hwp 확장자를 지원 포맷으로 인식한다", async () => {
