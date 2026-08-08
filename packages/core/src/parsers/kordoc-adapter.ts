@@ -8,6 +8,7 @@ import type {
   Parser,
 } from "../types.js";
 import { normalizeHtmlTablesToGfm } from "./html-tables-to-gfm.js";
+import { canonicalizeGlyphs, normalizePuaSymbols } from "./pua-symbols.js";
 
 /** kordoc ParseFailure의 구조화 에러 코드 → 한국어 안내 메시지 */
 const ERROR_MESSAGES: Record<string, string> = {
@@ -153,8 +154,15 @@ export class KordocParser implements Parser {
     );
     // 표 정규화는 이미지 참조 재작성 뒤에 온다 — 셀 안 이미지 경로도 함께
     // 고쳐진 상태로 GFM 에 실려야 한다.
+    //
+    // 글리프 정규화 2단: kordoc은 PUA 48개를 스스로 매핑하지만 우리 매핑에만
+    // 있는 코드가 남고(normalizePuaSymbols), 겹치는 코드도 고른 글자가 다르다
+    // (canonicalizeGlyphs — ◻→□, ✔→✓). 같은 체크박스가 .hwp로 열 때와
+    // .hwpx로 열 때 달라 보이면 안 되므로 둘 다 태운다.
     const markdown = this.parserOptions.normalizeTables
-      ? normalizeHtmlTablesToGfm(rewritten)
+      ? canonicalizeGlyphs(
+          normalizePuaSymbols(normalizeHtmlTablesToGfm(rewritten)),
+        )
       : rewritten;
 
     const warnings = toWarningMessages(result.warnings ?? []);

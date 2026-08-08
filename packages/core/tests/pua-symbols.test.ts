@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { normalizePuaSymbols } from "../src/parsers/pua-symbols.js";
+import {
+  canonicalizeGlyphs,
+  normalizePuaSymbols,
+} from "../src/parsers/pua-symbols.js";
 
 describe("normalizePuaSymbols", () => {
   it("체크박스 PUA 문자를 ■/□로 치환한다", () => {
@@ -28,6 +31,44 @@ describe("normalizePuaSymbols", () => {
     const text = "일반 한글 텍스트와 기호 ■ □ ● 유지";
 
     expect(normalizePuaSymbols(text)).toBe(text);
+  });
+
+  it("kordoc 실측으로 합친 코드도 치환한다 (2026-08-08 합집합)", () => {
+    // kordoc이 매핑하고 우리는 빠뜨렸던 대역. 코드포인트 이스케이프로 쓰는
+    // 이유는 PUA 문자가 편집기에서 보이지 않아 리터럴로 두면 사고가 나서다.
+    expect(normalizePuaSymbols("\u{F0AB}")).toBe("★");
+    expect(normalizePuaSymbols("\u{F04A}")).toBe("☺");
+    expect(normalizePuaSymbols("\u{F0F0}")).toBe("⇨");
+    expect(normalizePuaSymbols("\u{F0A4}")).toBe("◉");
+  });
+
+  it("겹치는 코드는 자체 매핑을 유지한다 — kordoc의 0xF06D는 틀렸다", () => {
+    // Wingdings 0x6D는 white circle이다. kordoc은 ●로 두지만 우리가 맞다.
+    expect(normalizePuaSymbols("\u{F06D}")).toBe("○");
+    expect(normalizePuaSymbols("\u{F0A8}")).toBe("□");
+    expect(normalizePuaSymbols("\u{F0FC}")).toBe("✓");
+  });
+});
+
+describe("canonicalizeGlyphs", () => {
+  it("다른 엔진이 고른 동의 글리프를 우리 기준으로 통일한다", () => {
+    // kordoc은 PUA 정규화를 끝낸 상태로 주므로 코드포인트를 되살릴 수 없다.
+    // 글자 대 글자로 맞추는 수밖에 없다.
+    expect(canonicalizeGlyphs("◻ 미체크")).toBe("□ 미체크");
+    expect(canonicalizeGlyphs("✔ 완료")).toBe("✓ 완료");
+    expect(canonicalizeGlyphs("⚪⚫")).toBe("○●");
+  });
+
+  it("이미 우리 기준인 글자는 그대로 둔다", () => {
+    const text = "□ 미체크 ✓ 완료 ○ ● ■";
+
+    expect(canonicalizeGlyphs(text)).toBe(text);
+  });
+
+  it("일반 텍스트는 건드리지 않는다", () => {
+    const text = "제안서 검토 결과는 다음과 같습니다.";
+
+    expect(canonicalizeGlyphs(text)).toBe(text);
   });
 });
 

@@ -115,7 +115,11 @@ function glyphCensus(md) {
     const n = md.split(g).length - 1;
     if (n > 0) census[g] = n;
   }
-  const pua = md.match(/[-]|[\u{F0000}-\u{FFFFD}]/gu);
+  // 코드포인트 이스케이프로만 쓴다. 리터럴 PUA 문자를 소스에 넣으면 보이지
+  // 않아 편집·복사 과정에서 조용히 사라진다 — 실제로 그렇게 사라져 이 클래스가
+  // `[-]`(하이픈 매칭)이 되는 바람에 GFM 구분선 `---`을 PUA로 세고 있었다
+  // (2026-08-08, 표본4의 "PUA잔존 1,870"은 전부 하이픈이었다).
+  const pua = md.match(/[\u{F000}-\u{F0FF}\u{F0000}-\u{FFFFD}]/gu);
   if (pua) census["PUA잔존"] = pua.length;
   return census;
 }

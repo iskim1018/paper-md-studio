@@ -14,7 +14,7 @@ import type {
   Parser,
 } from "../types.js";
 import { MERGE_LEFT, MERGE_UP } from "./html-tables-to-gfm.js";
-import { normalizePuaSymbols } from "./pua-symbols.js";
+import { canonicalizeGlyphs, normalizePuaSymbols } from "./pua-symbols.js";
 
 interface HwpxStyle {
   id: string;
@@ -272,7 +272,11 @@ function extractRawRunText(run: Record<string, unknown>): string {
       return "";
     })
     .join("");
-  return normalizePuaSymbols(text);
+  // PUA 정규화 + 글리프 통일. 통일까지 여기서 하는 이유는, 문서가 PUA가 아닌
+  // 리터럴 ✔·◻를 직접 담고 있을 수 있어서다. kordoc 경로에만 통일을 걸면 같은
+  // 기호가 .hwp로 열 때와 .hwpx로 열 때 달라 보인다 (2026-08-08 실측에서
+  // Java ✔×2 / kordoc ✓×2 로 실제 갈렸다).
+  return canonicalizeGlyphs(normalizePuaSymbols(text));
 }
 
 interface TagState {
