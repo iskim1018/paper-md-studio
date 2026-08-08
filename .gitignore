@@ -51,9 +51,10 @@ tools/**/dependency-reduced-pom.xml
 playwright-report/
 test-results/
 
-# Test fixture samples (보안상 실제 문서는 저장소에 포함하지 않음)
-# 개발자는 로컬에 packages/core/tests/fixtures/ 아래 sample.{hwp,hwpx,docx,pdf},
-# sample-with-image.docx를 직접 배치. 샘플이 없으면 관련 테스트는 자동 skip.
+# Test fixture samples — 이 폴더에는 "공개 가능한" 샘플만 둔다.
+# 비공개 업무 문서는 아래 /private/ 안에서만 다룰 것 (폴더 전체 무시).
+# 개발자는 로컬에 sample.{hwp,hwpx,docx,pdf}·sample-with-image.docx 를 배치하며,
+# 없으면 관련 테스트는 자동 skip 된다. 자세한 원칙은 해당 폴더의 README 참고.
 packages/core/tests/fixtures/*.hwp
 packages/core/tests/fixtures/*.hwpx
 packages/core/tests/fixtures/*.docx
