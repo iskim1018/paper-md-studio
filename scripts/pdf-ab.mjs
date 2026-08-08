@@ -23,9 +23,14 @@ const kordoc = await import(
 // ─── 인자 파싱 ───────────────────────────────────────────
 const args = process.argv.slice(2);
 const outFlag = args.indexOf("-o");
+// 기본 출력은 개인 장비 전용 폴더(gitignore) 안으로 둔다. 입력이 비공개
+// 문서면 변환 결과도 비공개이므로, 지정을 잊어도 저장소 밖으로 새지 않는다.
 const outDir =
-  outFlag >= 0 ? resolve(args[outFlag + 1]) : resolve("pdf-ab-out");
-const inputs = args.filter((a, i) => i !== outFlag && i !== outFlag + 1);
+  outFlag >= 0 ? resolve(args[outFlag + 1]) : resolve("private/pdf-ab");
+// outFlag 가 -1(=-o 없음)이면 outFlag+1 이 0 이 되어 첫 인자(입력)를 지워버린다.
+const inputs = args.filter(
+  (_, i) => outFlag < 0 || (i !== outFlag && i !== outFlag + 1),
+);
 
 if (inputs.length === 0) {
   console.error(

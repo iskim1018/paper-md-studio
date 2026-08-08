@@ -72,12 +72,19 @@ packages/core/tests/fixtures/*_images/
 # 변환 산출 .md는 케이스별로 명시 (루트 *.md를 한꺼번에 막을 수 없어서)
 /nested_tables.md
 
-# K2 PDF A/B 실측 산출물 (scripts/make-pdf-corpus.mjs 로 언제든 재생성)
+# ─────────────────────────────────────────────────────────────
+# 개인 장비 전용 작업 공간.
+#
+# 공개하면 안 되는 실문서와 그 파생물(변환 결과·중간 산출물)은 전부 이 폴더
+# 안에서만 다룬다. 확장자별로 거르지 않고 폴더를 통째로 무시하므로, 안에
+# 무엇을 만들든 새어나가지 않고 파일명·확장자도 규칙에서 드러나지 않는다.
+# 저장소에 올릴 샘플은 합성 문서만 쓴다 (scripts/make-pdf-corpus.mjs).
+# ─────────────────────────────────────────────────────────────
+/private/
+
+# 합성 코퍼스·비교 산출물 (scripts/ 로 언제든 재생성)
 /pdf-corpus/
 /pdf-ab-out/
-# 실물 한컴 PDF 코퍼스 — 개인·업무 문서라 절대 커밋하지 않는다
-/pdf-corpus-real/
-/pdf-ab-real/
 
 # TypeScript build info
 *.tsbuildinfo

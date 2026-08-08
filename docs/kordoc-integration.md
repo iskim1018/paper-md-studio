@@ -189,12 +189,14 @@ ToUnicode/CMap, 같은 자리 겹쳐 그리기, 실제 표 괘선) **한컴 오�
 | 2단 조판 읽기 순서 | 회의록·속기록 |
 | 스캔본 (`needsOcr`) | 이미지로만 된 공고문 |
 
-**3. 배치와 실행.** `pdf-corpus-real/` 에 넣는다(gitignore 처리됨 — 업무 문서가
-저장소에 들어가지 않는다).
+**3. 배치와 실행.** 저장소 루트의 `private/` 안에 둔다. 이 폴더는 통째로 무시되므로
+안에서 무엇을 만들든 저장소로 새지 않고, 파일명·확장자가 무시 규칙에 드러나지도
+않는다. **공개하면 안 되는 문서는 `packages/core/tests/fixtures/` 에 두지 말 것** —
+그쪽은 추적되는 디렉토리이고 확장자 패턴으로만 걸러진다.
 
 ```bash
 pnpm build
-node scripts/pdf-ab.mjs ./pdf-corpus-real -o ./pdf-ab-real
+node scripts/pdf-ab.mjs ./private/pdf-corpus     # 출력 기본값도 private/pdf-ab
 ```
 
 현행 파이프라인 / kordoc 기본값 / kordoc `tables:false` 세 갈래를 한 번에
@@ -214,7 +216,7 @@ node scripts/pdf-ab.mjs ./pdf-corpus-real -o ./pdf-ab-real
 
 > ⚠️ 실측에 쓴 문서는 **비공개 자료**다. 제목·본문·발췌를 이 저장소(문서·커밋
 > 메시지·테스트 데이터 어디에도) 남기지 않는다. 아래는 수치와 현상만 기록한다.
-> 산출물(`pdf-corpus-real/`, `pdf-ab-real/`)은 gitignore 대상이며 실측 후 지운다.
+> 문서와 산출물은 통째로 무시되는 `private/` 안에서만 다룬다.
 
 | 지표 | 정답지(HWPX) | 현행 | kordoc | kordoc 표끔 |
 |------|--------------|------|--------|-------------|

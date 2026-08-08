@@ -52,10 +52,12 @@ if (!input) {
   process.exit(1);
 }
 const outFlag = args.indexOf("-o");
+// 지정이 없으면 원본 옆에 둔다. 비공개 문서를 개인 폴더에서 다루면 스캔본도
+// 같은 폴더에 남아, 원본만 격리해두면 파생물도 함께 격리된다.
 const output =
   outFlag >= 0
     ? resolve(args[outFlag + 1])
-    : resolve(`${basename(input, ".pdf")}_스캔본.pdf`);
+    : resolve(dirname(resolve(input)), `${basename(input, ".pdf")}_스캔본.pdf`);
 const pageFlag = args.indexOf("--pages");
 const maxPages = pageFlag >= 0 ? Number(args[pageFlag + 1]) : 6;
 
