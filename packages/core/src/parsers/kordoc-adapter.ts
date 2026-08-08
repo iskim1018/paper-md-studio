@@ -7,6 +7,7 @@ import type {
   ParseResult,
   Parser,
 } from "../types.js";
+import { normalizeHtmlTablesToGfm } from "./html-tables-to-gfm.js";
 
 /** kordoc ParseFailure의 구조화 에러 코드 → 한국어 안내 메시지 */
 const ERROR_MESSAGES: Record<string, string> = {
@@ -121,7 +122,20 @@ export function ensureOfflineDefault(): void {
  * XLSX·XLS·HWP 3.x·HWPML 등 kordoc에 위임하는 포맷의 공용 진입점이다.
  * 포맷 판별은 kordoc의 매직바이트 감지에 맡긴다.
  */
+export interface KordocParserOptions {
+  /**
+   * kordoc이 낸 HTML 표를 GFM으로 내릴지 여부 (K3 W2).
+   *
+   * HWP5 경로에서만 켠다. K1으로 이미 나간 XLSX·HWP3·HWPML의 출력을 바꾸지
+   * 않기 위해 기본값은 끔이다. 그 포맷들도 같은 이득을 볼 수 있지만 전환은
+   * 표본 실측을 거쳐 별도로 판단한다.
+   */
+  readonly normalizeTables?: boolean;
+}
+
 export class KordocParser implements Parser {
+  constructor(private readonly parserOptions: KordocParserOptions = {}) {}
+
   async parse(inputPath: string, options: ParseOptions): Promise<ParseResult> {
     ensureOfflineDefault();
     const buffer = await readFile(inputPath);
@@ -132,11 +146,16 @@ export class KordocParser implements Parser {
     }
 
     const images = toImageAssets(result.images ?? []);
-    const markdown = rewriteImageRefs(
+    const rewritten = rewriteImageRefs(
       result.markdown,
       images.map((img) => img.name),
       options.imagesDirName,
     );
+    // 표 정규화는 이미지 참조 재작성 뒤에 온다 — 셀 안 이미지 경로도 함께
+    // 고쳐진 상태로 GFM 에 실려야 한다.
+    const markdown = this.parserOptions.normalizeTables
+      ? normalizeHtmlTablesToGfm(rewritten)
+      : rewritten;
 
     const warnings = toWarningMessages(result.warnings ?? []);
 

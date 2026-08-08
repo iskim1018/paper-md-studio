@@ -159,8 +159,12 @@ export class HwpParser implements Parser {
     }
 
     // HWP 5.x — K3 실험 플래그가 켜져 있으면 Java를 건너뛰고 kordoc이 직접 읽는다.
+    // kordoc은 표를 HTML로 내므로 GFM 정규화를 켠다 (토큰 절감 + 병합 표기).
     if (resolveHwp5Engine() === "kordoc") {
-      return await new KordocParser().parse(inputPath, options);
+      return await new KordocParser({ normalizeTables: true }).parse(
+        inputPath,
+        options,
+      );
     }
 
     const jarPath = await resolveJarPath();

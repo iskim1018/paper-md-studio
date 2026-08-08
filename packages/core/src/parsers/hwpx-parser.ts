@@ -13,6 +13,7 @@ import type {
   ParseResult,
   Parser,
 } from "../types.js";
+import { MERGE_LEFT, MERGE_UP } from "./html-tables-to-gfm.js";
 import { normalizePuaSymbols } from "./pua-symbols.js";
 
 interface HwpxStyle {
@@ -566,7 +567,7 @@ function expandTableToGrid(
     while (tcIdx < tcs.length || (reserved.get(col) ?? 0) > 0) {
       const remaining = reserved.get(col) ?? 0;
       if (remaining > 0) {
-        cells.push("");
+        cells.push(MERGE_UP);
         if (remaining - 1 <= 0) reserved.delete(col);
         else reserved.set(col, remaining - 1);
         col += 1;
@@ -582,9 +583,9 @@ function expandTableToGrid(
 
       cells.push(text);
       col += 1;
-      // colSpan-1만큼 빈 셀 padding
+      // colSpan-1만큼 병합 자리 padding
       for (let i = 1; i < colSpan; i += 1) {
-        cells.push("");
+        cells.push(MERGE_LEFT);
         col += 1;
       }
       // rowSpan>1이면 그 셀이 점유한 모든 col에 잔여 행수 등록
@@ -600,7 +601,7 @@ function expandTableToGrid(
     maxCols = Math.max(maxCols, cells.length);
   }
 
-  // 모든 행을 maxCols로 padding
+  // 모든 행을 maxCols로 padding — 이건 병합이 아니라 행 길이 보정이므로 빈칸이다
   for (const cells of expanded) {
     while (cells.length < maxCols) cells.push("");
   }
