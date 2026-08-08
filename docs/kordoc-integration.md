@@ -71,7 +71,7 @@
 |------|------|------|
 | XLSX / XLS | kordoc | ✅ K1 완료 |
 | HWP 3.x / HWPML (`.hwp` 매직바이트 판별) | kordoc | ✅ K1 완료 |
-| HWP 5.x (OLE2) | Java `hwp2hwpx` → HWPX → 자체 파서 | 🔁 K3 2단계 — **kordoc + GFM 직렬화로 전환 확정**, Java 제거 예정 (§6) |
+| HWP 5.x (OLE2) | **kordoc + GFM 직렬화** (기본) / Java `hwp2hwpx` 폴백 | ✅ W4 전환 완료 (2026-08-09). Java 툴체인 제거는 W5 |
 | HWPX | 자체 파서 (PUA·중첩표·grid normalize 누적 투자) | 유지 |
 | PDF | pdf2md + 자체 보정 2단 | 유지 (K2에서 A/B 실측 후 결정) |
 | DOCX | mammoth + turndown | 유지 (후순위 재검토) |
@@ -538,9 +538,22 @@ padding) 로 GFM 에 눌러 편 프로토타입으로 재측정:
 수치를 갱신하고, W2 통과 후 산출물 기준: ① 실질 유실 0 유지 ② 토큰 수
 Java 경로 이하 ③ GFM 표 렌더 정상(프리뷰 + Milkdown 편집 모드 각 1회 육안).
 
-**W4. 기본값 전환** — `resolveHwp5Engine` 기본값을 kordoc 으로. Java 경로는
-`PAPER_MD_STUDIO_HWP_ENGINE=java` 폴백으로 **일단 유지** (전환 커밋과 제거
-커밋을 분리해 되돌리기 쉽게). CLI·GUI·MCP·REST 스모크.
+**W4. 기본값 전환** ✅ **완료 (2026-08-09)** — `resolveHwp5Engine` 기본값이
+kordoc 이다. Java 경로는 `PAPER_MD_STUDIO_HWP_ENGINE=java` 로 아직 쓸 수 있다
+(제거는 W5). 모르는 값은 기본값으로 떨어뜨린다 — 오타로 엔진이 바뀌면 안 된다.
+
+스모크는 **`JAVA_HOME`·jar 경로를 없는 곳으로 막은 상태**에서 돌렸다. Java 가
+정말 불필요한지는 그렇게만 증명된다.
+
+| 진입점 | 결과 |
+|--------|------|
+| CLI | 31,272 bytes 산출, 경고 배선 정상 |
+| MCP `convert_document` | 19,849자, 표·병합 화살표 포함 |
+| REST `POST /v1/convert` | 17,280자, 이미지 16, 표·화살표 포함 |
+
+GUI 는 사용자가 별도 확인(W3 육안 항목과 함께). `tests/hwp-parser.test.ts` 의
+Java 블록은 `PAPER_MD_STUDIO_HWP_ENGINE=java` 를 고정하도록 고쳤다 — 안 그러면
+이름과 달리 kordoc 을 재게 된다.
 
 **W5. Java 툴체인 제거** — 체크리스트:
 

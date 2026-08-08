@@ -20,17 +20,18 @@ export type Hwp5Engine = "java" | "kordoc";
 /**
  * HWP 5.x(OLE2)를 어느 엔진으로 처리할지 결정한다.
  *
- * 기본값은 검증된 Java 경로다. `PAPER_MD_STUDIO_HWP_ENGINE=kordoc`일 때만
- * kordoc 직파싱으로 바꾼다 — Java jar+JRE 번들(설치본 수십 MB)을 걷어낼 수
- * 있는지 A/B로 재기 위한 실험 플래그이며, 아직 기본값이 아니다.
+ * **기본값은 kordoc 직파싱이다** (2026-08-09 전환, K3 W4). 실측 4표본에서
+ * 내용 유실 없이 토큰은 Java 경로 이하, 속도는 10~20배였다(§6). Java 경로는
+ * `PAPER_MD_STUDIO_HWP_ENGINE=java`로 아직 쓸 수 있다 — 전환 커밋과 제거
+ * 커밋을 분리해 되돌리기 쉽게 두기 위해서다. jar·JRE 번들 제거는 W5.
  *
- * 알 수 없는 값은 조용히 무시하고 Java로 떨어뜨린다. 오타 하나로 변환 엔진이
- * 바뀌는 것보다 검증된 경로를 유지하는 편이 안전하다.
+ * 알 수 없는 값은 조용히 무시하고 기본값으로 떨어뜨린다. 오타 하나로 변환
+ * 엔진이 바뀌면 안 된다.
  */
 export function resolveHwp5Engine(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Hwp5Engine {
-  return env[HWP_ENGINE_ENV] === "kordoc" ? "kordoc" : "java";
+  return env[HWP_ENGINE_ENV] === "java" ? "java" : "kordoc";
 }
 
 /**
@@ -147,8 +148,9 @@ function runJava(javaCmd: string, args: Array<string>): Promise<JavaRunResult> {
  * 확장자는 같아도 실제 포맷은 셋으로 갈린다 — 매직바이트로 분기한다:
  *   - HWP 3.x (1996~2002 단일 바이너리) → kordoc 파서
  *   - HWPML (XML 기반 .hwp)            → kordoc 파서
- *   - HWP 5.x (OLE2 바이너리)          → Java 툴체인으로 HWPX 선변환 후 HwpxParser
- *                                        (PAPER_MD_STUDIO_HWP_ENGINE=kordoc이면 직파싱)
+ *   - HWP 5.x (OLE2 바이너리)          → kordoc 직파싱 (기본)
+ *                                        PAPER_MD_STUDIO_HWP_ENGINE=java 면
+ *                                        기존 Java 툴체인 → HWPX → HwpxParser
  */
 export class HwpParser implements Parser {
   async parse(inputPath: string, options: ParseOptions): Promise<ParseResult> {
@@ -158,8 +160,8 @@ export class HwpParser implements Parser {
       return await new KordocParser().parse(inputPath, options);
     }
 
-    // HWP 5.x — K3 실험 플래그가 켜져 있으면 Java를 건너뛰고 kordoc이 직접 읽는다.
-    // kordoc은 표를 HTML로 내므로 GFM 정규화를 켠다 (토큰 절감 + 병합 표기).
+    // HWP 5.x — 기본은 kordoc 직파싱이다 (W4 전환). kordoc은 표를 HTML로 내므로
+    // GFM 정규화를 켠다 (토큰 절감 + 병합 표기 + 글리프 통일).
     if (resolveHwp5Engine() === "kordoc") {
       return await new KordocParser({ normalizeTables: true }).parse(
         inputPath,
