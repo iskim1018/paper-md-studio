@@ -123,6 +123,29 @@ function cellText(cell: Record<string, unknown>, ctx: CellContext): string {
   );
 }
 
+interface MergeRange {
+  readonly start: { row: number; col: number };
+  readonly end: { row: number; col: number };
+}
+
+/** "A1:C2" → 시작·끝 좌표. 형식이 어긋나면 null */
+function parseMergeRef(ref: string): MergeRange | null {
+  const [startRef = "", endRef = ""] = ref.split(":");
+  const start = parseCellRef(startRef);
+  const end = parseCellRef(endRef);
+  if (!start || !end) return null;
+  return { start, end };
+}
+
+function markCovered(range: MergeRange, covered: Set<string>): void {
+  for (let r = range.start.row; r <= range.end.row; r += 1) {
+    for (let c = range.start.col; c <= range.end.col; c += 1) {
+      if (r === range.start.row && c === range.start.col) continue;
+      covered.add(key(r, c));
+    }
+  }
+}
+
 function collectMerges(worksheet: Record<string, unknown>): {
   spans: Map<string, CellSpan>;
   covered: Set<string>;
@@ -134,22 +157,14 @@ function collectMerges(worksheet: Record<string, unknown>): {
   for (const merge of toArray(
     mergeCells.mergeCell as Array<Record<string, unknown>> | undefined,
   )) {
-    const ref = String(merge["@_ref"] ?? "");
-    const [startRef = "", endRef = ""] = ref.split(":");
-    const start = parseCellRef(startRef);
-    const end = parseCellRef(endRef);
-    if (!start || !end) continue;
+    const range = parseMergeRef(String(merge["@_ref"] ?? ""));
+    if (!range) continue;
 
-    spans.set(key(start.row, start.col), {
-      colSpan: end.col - start.col + 1,
-      rowSpan: end.row - start.row + 1,
+    spans.set(key(range.start.row, range.start.col), {
+      colSpan: range.end.col - range.start.col + 1,
+      rowSpan: range.end.row - range.start.row + 1,
     });
-    for (let r = start.row; r <= end.row; r += 1) {
-      for (let c = start.col; c <= end.col; c += 1) {
-        if (r === start.row && c === start.col) continue;
-        covered.add(key(r, c));
-      }
-    }
+    markCovered(range, covered);
   }
   return { spans, covered };
 }
@@ -171,6 +186,100 @@ function collectHyperlinks(
   return links;
 }
 
+interface SparseRows {
+  /** 행 인덱스 → (열 인덱스 → 텍스트). 빈 셀은 담지 않는다 */
+  readonly rowsByIndex: Map<number, Map<number, string>>;
+  readonly hiddenRows: Set<number>;
+  readonly maxRow: number;
+  readonly maxCol: number;
+}
+
+/** 행 하나의 셀들을 (열 인덱스 → 텍스트)로 모은다 */
+function parseRowCells(
+  row: Record<string, unknown>,
+  ctx: CellContext,
+): { cells: Map<number, string>; maxCol: number } {
+  const cells = new Map<number, string>();
+  let maxCol = -1;
+  let fallbackCol = 0;
+
+  for (const cell of toArray(
+    row.c as Array<Record<string, unknown>> | undefined,
+  )) {
+    const pos = parseCellRef(String(cell["@_r"] ?? ""));
+    const colIndex = pos ? pos.col : fallbackCol;
+    fallbackCol = colIndex + 1;
+
+    const text = cellText(cell, ctx);
+    if (text !== "") cells.set(colIndex, text);
+    if (colIndex > maxCol) maxCol = colIndex;
+  }
+  return { cells, maxCol };
+}
+
+/**
+ * sheetData의 행들을 희소 표현으로 읽는다.
+ * 엑셀은 빈 행·열을 아예 쓰지 않으므로 r 속성이 실제 위치의 근거다.
+ */
+function parseSheetRows(
+  sheetData: Record<string, unknown>,
+  ctx: CellContext,
+): SparseRows {
+  const rowsByIndex = new Map<number, Map<number, string>>();
+  const hiddenRows = new Set<number>();
+  let maxRow = -1;
+  let maxCol = -1;
+  let fallbackRow = 0;
+
+  for (const row of toArray(
+    sheetData.row as Array<Record<string, unknown>> | undefined,
+  )) {
+    const declared = Number(row["@_r"]);
+    const rowIndex = Number.isInteger(declared) ? declared - 1 : fallbackRow;
+    fallbackRow = rowIndex + 1;
+    if (String(row["@_hidden"] ?? "") === "1") hiddenRows.add(rowIndex);
+
+    const parsed = parseRowCells(row, ctx);
+    rowsByIndex.set(rowIndex, parsed.cells);
+    if (parsed.maxCol > maxCol) maxCol = parsed.maxCol;
+    if (rowIndex > maxRow) maxRow = rowIndex;
+  }
+
+  return { rowsByIndex, hiddenRows, maxRow, maxCol };
+}
+
+/** 병합 좌표까지 포함해 격자 크기를 넓힌다 (병합만 있고 값은 없는 자리 대비) */
+function extendBounds(
+  bounds: { maxRow: number; maxCol: number },
+  positions: Iterable<string>,
+): { maxRow: number; maxCol: number } {
+  let { maxRow, maxCol } = bounds;
+  for (const position of positions) {
+    const [r = "0", c = "0"] = position.split(",");
+    maxRow = Math.max(maxRow, Number(r));
+    maxCol = Math.max(maxCol, Number(c));
+  }
+  return { maxRow, maxCol };
+}
+
+/** 희소 행들을 빈 문자열로 채운 직사각 격자로 편다 */
+function toDenseGrid(
+  rowsByIndex: ReadonlyMap<number, Map<number, string>>,
+  maxRow: number,
+  maxCol: number,
+): Array<Array<string>> {
+  const cells: Array<Array<string>> = [];
+  for (let r = 0; r <= maxRow; r += 1) {
+    const source = rowsByIndex.get(r);
+    const row: Array<string> = [];
+    for (let c = 0; c <= maxCol; c += 1) {
+      row.push(source?.get(c) ?? "");
+    }
+    cells.push(row);
+  }
+  return cells;
+}
+
 /** 워크시트 XML을 셀 격자로 편다 */
 export function parseWorksheet(
   xml: string,
@@ -181,54 +290,19 @@ export function parseWorksheet(
   const doc = worksheetParser.parse(xml) as Record<string, unknown>;
   const worksheet = (doc.worksheet ?? {}) as Record<string, unknown>;
   const sheetData = (worksheet.sheetData ?? {}) as Record<string, unknown>;
-  const ctx: CellContext = { sharedStrings, formats, date1904 };
 
-  const rowsByIndex = new Map<number, Map<number, string>>();
-  const hiddenRows = new Set<number>();
-  let maxRow = -1;
-  let maxCol = -1;
-
-  let fallbackRow = 0;
-  for (const row of toArray(
-    sheetData.row as Array<Record<string, unknown>> | undefined,
-  )) {
-    const declared = Number(row["@_r"]);
-    const rowIndex = Number.isInteger(declared) ? declared - 1 : fallbackRow;
-    fallbackRow = rowIndex + 1;
-    if (String(row["@_hidden"] ?? "") === "1") hiddenRows.add(rowIndex);
-
-    const cellsInRow = new Map<number, string>();
-    let fallbackCol = 0;
-    for (const cell of toArray(
-      row.c as Array<Record<string, unknown>> | undefined,
-    )) {
-      const pos = parseCellRef(String(cell["@_r"] ?? ""));
-      const colIndex = pos ? pos.col : fallbackCol;
-      fallbackCol = colIndex + 1;
-      const text = cellText(cell, ctx);
-      if (text !== "") cellsInRow.set(colIndex, text);
-      if (colIndex > maxCol) maxCol = colIndex;
-    }
-    rowsByIndex.set(rowIndex, cellsInRow);
-    if (rowIndex > maxRow) maxRow = rowIndex;
-  }
-
+  const parsed = parseSheetRows(sheetData, {
+    sharedStrings,
+    formats,
+    date1904,
+  });
   const { spans, covered } = collectMerges(worksheet);
-  for (const spanKey of [...spans.keys(), ...covered]) {
-    const [r = "0", c = "0"] = spanKey.split(",");
-    maxRow = Math.max(maxRow, Number(r));
-    maxCol = Math.max(maxCol, Number(c));
-  }
-
-  const cells: Array<Array<string>> = [];
-  for (let r = 0; r <= maxRow; r += 1) {
-    const source = rowsByIndex.get(r);
-    const row: Array<string> = [];
-    for (let c = 0; c <= maxCol; c += 1) {
-      row.push(source?.get(c) ?? "");
-    }
-    cells.push(row);
-  }
+  const { maxRow, maxCol } = extendBounds(parsed, [
+    ...spans.keys(),
+    ...covered,
+  ]);
+  const cells = toDenseGrid(parsed.rowsByIndex, maxRow, maxCol);
+  const hiddenRows = parsed.hiddenRows;
 
   const drawing = (worksheet.drawing ?? null) as Record<string, unknown> | null;
 

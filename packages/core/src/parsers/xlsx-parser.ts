@@ -23,7 +23,7 @@ import {
   parseWorkbook,
   resolveZipPath,
 } from "./xlsx/workbook.js";
-import type { SheetGrid } from "./xlsx/worksheet.js";
+import type { CellSpan, SheetGrid } from "./xlsx/worksheet.js";
 import { parseWorksheet } from "./xlsx/worksheet.js";
 
 /**
@@ -97,6 +97,32 @@ function parseDrawingImages(xml: string): Array<DrawingImage> {
   return images;
 }
 
+/** 병합 크기를 colspan/rowspan 속성 문자열로 (1칸이면 빈 문자열) */
+function spanAttributes(span: CellSpan | undefined): string {
+  if (!span) return "";
+  const attrs: Array<string> = [];
+  if (span.colSpan > 1) attrs.push(`colspan="${span.colSpan}"`);
+  if (span.rowSpan > 1) attrs.push(`rowspan="${span.rowSpan}"`);
+  return attrs.length > 0 ? ` ${attrs.join(" ")}` : "";
+}
+
+/** 셀 하나를 <td>/<th>로 만든다 */
+function renderCell(
+  text: string,
+  span: CellSpan | undefined,
+  href: string | undefined,
+  isHeader: boolean,
+): string {
+  // 셀 안 줄바꿈(Alt+Enter)은 \n으로 저장된다. HTML에서 \n은 공백으로 접히므로
+  // <br>로 바꿔야 원본의 줄 구분이 살아남는다.
+  const escaped = escapeHtml(text).replace(/\r?\n/g, "<br>");
+  const content = href
+    ? `<a href="${escapeHtml(href)}">${escaped || escapeHtml(href)}</a>`
+    : escaped;
+  const tag = isHeader ? "th" : "td";
+  return `<${tag}${spanAttributes(span)}>${content}</${tag}>`;
+}
+
 /** 병합·숨김을 반영해 시트 격자를 HTML 표로 만든다 */
 function gridToHtmlTable(
   grid: SheetGrid,
@@ -112,26 +138,14 @@ function gridToHtmlTable(
     for (let c = 0; c < limits.cols; c += 1) {
       const position = `${r},${c}`;
       if (grid.covered.has(position)) continue;
-
-      const span = grid.spans.get(position);
-      const attrs: Array<string> = [];
-      if (span && span.colSpan > 1) attrs.push(`colspan="${span.colSpan}"`);
-      if (span && span.rowSpan > 1) attrs.push(`rowspan="${span.rowSpan}"`);
-
-      // 셀 안 줄바꿈(Alt+Enter)은 \n으로 저장된다. HTML에서 \n은 공백으로
-      // 접히므로 <br>로 바꿔야 원본의 줄 구분이 살아남는다.
-      const text = escapeHtml(grid.cells[r]?.[c] ?? "").replace(
-        /\r?\n/g,
-        "<br>",
+      cells.push(
+        renderCell(
+          grid.cells[r]?.[c] ?? "",
+          grid.spans.get(position),
+          hyperlinkTargets.get(position),
+          r === 0,
+        ),
       );
-      const href = hyperlinkTargets.get(position);
-      const content = href
-        ? `<a href="${escapeHtml(href)}">${text || escapeHtml(href)}</a>`
-        : text;
-
-      const tag = r === 0 ? "th" : "td";
-      const attrText = attrs.length > 0 ? ` ${attrs.join(" ")}` : "";
-      cells.push(`<${tag}${attrText}>${content}</${tag}>`);
     }
 
     if (cells.length > 0) rows.push(`<tr>${cells.join("")}</tr>`);
