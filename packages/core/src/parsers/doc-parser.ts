@@ -104,7 +104,8 @@ async function resolveLibreOffice(): Promise<string | null> {
 }
 
 /**
- * macOS textutil 존재 여부 확인. 이미지는 보존되지 않으므로 fallback 전용.
+ * macOS textutil 존재 여부 확인. 이미지·표 구조가 보존되지 않으므로
+ * fallback 전용 (표 손실은 2026-08-15 실측 — w:tbl 0개로 평탄화됨).
  */
 async function hasTextutil(): Promise<boolean> {
   if (process.platform !== "darwin") return false;
@@ -116,12 +117,17 @@ async function hasTextutil(): Promise<boolean> {
   }
 }
 
+const TEXTUTIL_FALLBACK_WARNING =
+  "LibreOffice가 없어 macOS textutil로 변환했습니다. " +
+  "표 구조와 이미지가 손실될 수 있습니다. " +
+  "온전한 변환을 위해 LibreOffice 설치를 권장합니다 (brew install --cask libreoffice).";
+
 /**
  * DOC(레거시 Word) 파일을 DOCX로 선변환한 뒤 DocxParser에 위임한다.
  *
  * 변환 도구 우선순위:
- *   1. LibreOffice headless (크로스플랫폼, 이미지 보존)
- *   2. macOS textutil (fallback, 이미지 손실)
+ *   1. LibreOffice headless (크로스플랫폼, 표·이미지 보존)
+ *   2. macOS textutil (fallback, 표·이미지 손실 — 경고 배선)
  */
 export class DocParser implements Parser {
   async parse(inputPath: string, options: ParseOptions): Promise<ParseResult> {
@@ -204,7 +210,13 @@ export class DocParser implements Parser {
     }
 
     const docxParser = new DocxParser();
-    return await docxParser.parse(outputPath, options);
+    const parsed = await docxParser.parse(outputPath, options);
+    // textutil은 표를 문단으로 평탄화한다 (경고 없이 조용히). 사용자가 원인을
+    // 알 수 있도록 경고를 배선한다 — 스캔 PDF 경고와 같은 원칙 (2026-08-08).
+    return {
+      ...parsed,
+      warnings: [TEXTUTIL_FALLBACK_WARNING, ...(parsed.warnings ?? [])],
+    };
   }
 
   /**

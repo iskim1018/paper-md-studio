@@ -68,6 +68,56 @@ describe.skipIf(!converterAvailable || !hasDocSample)(
   },
 );
 
+/** LibreOffice만 확인 (textutil 제외) — 폴백 경고 테스트의 skip 조건용 */
+function hasLibreOffice(): boolean {
+  for (const cmd of ["libreoffice --version", "soffice --version"]) {
+    try {
+      execSync(cmd, { stdio: "ignore" });
+      return true;
+    } catch {
+      // fall through
+    }
+  }
+  return existsSync("/Applications/LibreOffice.app/Contents/MacOS/soffice");
+}
+
+const canTestTextutilFallback =
+  process.platform === "darwin" &&
+  existsSync("/usr/bin/textutil") &&
+  !hasLibreOffice();
+
+// LibreOffice가 설치된 환경에서는 폴백 경로 자체가 실행되지 않으므로 skip.
+describe.skipIf(!canTestTextutilFallback)("DocParser textutil 폴백", () => {
+  it("textutil 폴백 사용 시 표·이미지 손실 경고를 반환한다", async () => {
+    const { mkdtemp, rm, writeFile } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+
+    const tmpDir = await mkdtemp(join(tmpdir(), "doc-parser-test-"));
+    try {
+      // textutil로 합성 .doc 픽스처를 만든다 (비공개 문서 발췌 금지)
+      const txtPath = join(tmpDir, "synthetic.txt");
+      const docPath = join(tmpDir, "synthetic.doc");
+      await writeFile(txtPath, "합성 테스트 문단입니다.\n", "utf-8");
+      execSync(
+        `/usr/bin/textutil -convert doc -output "${docPath}" "${txtPath}"`,
+        { stdio: "ignore" },
+      );
+
+      const parser = new DocParser();
+      const result = await parser.parse(docPath, {
+        imagesDirName: "synthetic_images",
+      });
+
+      expect(result.markdown).toContain("합성 테스트 문단");
+      expect(result.warnings?.some((w) => w.includes("textutil"))).toBe(true);
+      expect(result.warnings?.some((w) => w.includes("표 구조"))).toBe(true);
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("DocParser (포맷 등록)", () => {
   it("pipeline이 .doc 확장자를 지원 포맷으로 인식한다", async () => {
     // 실제 변환은 LibreOffice 필요 — detectFormat 에러 메시지에 .doc가

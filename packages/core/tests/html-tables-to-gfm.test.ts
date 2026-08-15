@@ -156,4 +156,48 @@ describe("normalizeHtmlTablesToGfm", () => {
     expect(out).toContain("![그림](./doc_images/img_001.png)");
     expect(out).toContain("글자");
   });
+
+  // mammoth(DOCX)는 셀 내용을 <p>로 감싼다. 블록 요소가 셀에 남으면 turndown이
+  // 줄바꿈을 내어 GFM 표가 여러 줄로 조각난다 (1행=1줄이어야 렌더된다).
+  describe("셀 안 블록 요소 평탄화 (DOCX/mammoth 계약)", () => {
+    it("셀 안 문단 여러 개를 <br>로 이어 한 줄로 만든다", () => {
+      const md =
+        "<table><tr><td><p>첫 문단</p><p>둘째 문단</p></td><td><p>가</p></td></tr></table>";
+
+      const out = normalizeHtmlTablesToGfm(md);
+      const rows = out.split("\n").filter((l) => l.startsWith("|"));
+
+      expect(out).toContain("첫 문단<br>둘째 문단");
+      expect(out).toContain("| 가 |");
+      expect(rows).toHaveLength(2); // 헤더 + separator
+    });
+
+    it("문단 하나짜리 셀에는 <br>를 남기지 않는다", () => {
+      const md = "<table><tr><td><p>혼자</p></td></tr></table>";
+
+      const out = normalizeHtmlTablesToGfm(md);
+
+      expect(out).toContain("| 혼자 |");
+      expect(out).not.toContain("<br>");
+    });
+
+    it("셀 안 목록은 항목을 <br>로 이어 평탄화한다", () => {
+      const md =
+        "<table><tr><td><ul><li>하나</li><li>둘</li></ul></td></tr></table>";
+
+      const out = normalizeHtmlTablesToGfm(md);
+
+      expect(out).toContain("하나<br>둘");
+      expect(out.split("\n").filter((l) => l.startsWith("|"))).toHaveLength(2);
+    });
+
+    it("셀 안 문단의 강조 마크업은 살린다", () => {
+      const md =
+        "<table><tr><td><p><strong>굵게</strong></p><p>보통</p></td></tr></table>";
+
+      const out = normalizeHtmlTablesToGfm(md);
+
+      expect(out).toContain("**굵게**<br>보통");
+    });
+  });
 });

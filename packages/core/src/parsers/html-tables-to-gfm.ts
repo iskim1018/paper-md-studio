@@ -85,13 +85,32 @@ function ownRows(table: ElementLike): Array<ElementLike> {
 const ownCells = (row: ElementLike): Array<ElementLike> =>
   directChildren(row, "td, th");
 
+/**
+ * 셀 안 블록 요소(<p>·목록 등)를 <br> 구분 인라인으로 평탄화한다.
+ *
+ * mammoth(DOCX)는 셀 내용을 반드시 <p>로 감싼다. 블록 요소가 셀에 남으면
+ * turndown이 줄바꿈을 내어 GFM의 1행 1줄 계약이 깨진다. 인라인 마크업
+ * (strong·em·img 등)은 건드리지 않는다.
+ */
+const BLOCK_CLOSE_RE = /<\/(?:p|div|h[1-6]|ul|ol|li|blockquote|pre)\s*>/gi;
+const BLOCK_OPEN_RE =
+  /<(?:p|div|h[1-6]|ul|ol|li|blockquote|pre)(?:\s[^>]*)?>/gi;
+
+function inlineBlocks(html: string): string {
+  return html
+    .replace(BLOCK_CLOSE_RE, "<br>")
+    .replace(BLOCK_OPEN_RE, "")
+    .replace(/\s*(?:<br\s*\/?>\s*)+/gi, "<br>")
+    .replace(/^(?:<br>)+|(?:<br>)+$/g, "");
+}
+
 /** 자식 표를 제외한 셀 내부 HTML (이미지·<br>·강조는 그대로 살린다) */
 function ownHtml(cell: ElementLike): string {
   const clone = cell.cloneNode(true);
   for (const nested of Array.from(clone.querySelectorAll("table"))) {
     nested.remove();
   }
-  return (clone.innerHTML ?? "").replace(/\s+/g, " ").trim();
+  return inlineBlocks((clone.innerHTML ?? "").replace(/\s+/g, " ").trim());
 }
 
 /**
