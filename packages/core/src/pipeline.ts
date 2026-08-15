@@ -38,8 +38,8 @@ const PARSER_MAP: Record<DocumentFormat, () => Parser> = {
   docx: () => new DocxParser(),
   pdf: () => new PdfParser(),
   html: () => new HtmlParser(),
-  xlsx: () => new KordocParser(),
-  xls: () => new KordocParser(),
+  xlsx: () => new KordocParser({ normalizeTables: true }),
+  xls: () => new KordocParser({ normalizeTables: true }),
 };
 
 function detectFormat(filePath: string): DocumentFormat {

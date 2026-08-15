@@ -127,9 +127,9 @@ export interface KordocParserOptions {
   /**
    * kordoc이 낸 HTML 표를 GFM으로 내릴지 여부 (K3 W2).
    *
-   * HWP5 경로에서만 켠다. K1으로 이미 나간 XLSX·HWP3·HWPML의 출력을 바꾸지
-   * 않기 위해 기본값은 끔이다. 그 포맷들도 같은 이득을 볼 수 있지만 전환은
-   * 표본 실측을 거쳐 별도로 판단한다.
+   * HWP5에서 시작해 2026-08-15 XLSX·XLS로 확대했다 (합성 표본 실측: 병합
+   * 193→98자, 보고서형 405→232자 + 병합 화살표 확보). HWP3·HWPML은 아직
+   * 표본이 없어 기본값 끔을 유지한다.
    */
   readonly normalizeTables?: boolean;
 }
