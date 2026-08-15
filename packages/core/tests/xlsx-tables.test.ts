@@ -17,10 +17,22 @@ import { convert } from "../src/pipeline.js";
  * 픽스처는 합성 OOXML이다 (비공개 문서 발췌 금지).
  */
 
+/** 스타일 인덱스: 0 일반 / 1 날짜 / 2 통화(₩) / 3 백분율 */
+type CellSpec =
+  | string
+  | number
+  | null
+  | { readonly v: number; readonly s: number }
+  | { readonly error: string };
+
 interface SheetSpec {
   readonly name: string;
-  readonly rows: ReadonlyArray<ReadonlyArray<string | number | null>>;
+  readonly rows: ReadonlyArray<ReadonlyArray<CellSpec>>;
   readonly merges?: ReadonlyArray<string>;
+  /** 숨긴 행 (1-based) */
+  readonly hiddenRows?: ReadonlyArray<number>;
+  /** 시트 자체를 숨김 처리 */
+  readonly hidden?: boolean;
 }
 
 const escapeXml = (value: string): string =>
@@ -36,13 +48,23 @@ function columnName(index: number): string {
   return name;
 }
 
-function cellXml(value: string | number | null, ref: string): string {
+function cellXml(value: CellSpec, ref: string): string {
   if (value === null || value === "") return "";
+  if (typeof value === "object") {
+    if ("error" in value) {
+      return `<c r="${ref}" t="e"><v>${escapeXml(value.error)}</v></c>`;
+    }
+    // 엑셀은 숫자 셀에 t 속성을 쓰지 않는다 — 실제 저장 형태를 그대로 재현한다
+    return `<c r="${ref}" s="${value.s}"><v>${value.v}</v></c>`;
+  }
   if (typeof value === "number") return `<c r="${ref}"><v>${value}</v></c>`;
   return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
 }
 
+const STYLES_XML = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><numFmts count="1"><numFmt numFmtId="164" formatCode="&quot;₩&quot;#,##0"/></numFmts><cellXfs count="4"><xf numFmtId="0"/><xf numFmtId="14"/><xf numFmtId="164"/><xf numFmtId="10"/></cellXfs></styleSheet>`;
+
 function sheetXml(sheet: SheetSpec): string {
+  const hidden = new Set(sheet.hiddenRows ?? []);
   const rows = sheet.rows
     .map((row, rowIndex) => {
       const cells = row
@@ -50,7 +72,8 @@ function sheetXml(sheet: SheetSpec): string {
           cellXml(cell, `${columnName(colIndex)}${rowIndex + 1}`),
         )
         .join("");
-      return `<row r="${rowIndex + 1}">${cells}</row>`;
+      const hiddenAttr = hidden.has(rowIndex + 1) ? ' hidden="1"' : "";
+      return `<row r="${rowIndex + 1}"${hiddenAttr}>${cells}</row>`;
     })
     .join("");
   const merges = sheet.merges?.length
@@ -73,6 +96,7 @@ function buildXlsx(sheets: ReadonlyArray<SheetSpec>): Uint8Array {
   files["[Content_Types].xml"] = strToU8(
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>${overrides}</Types>`,
   );
+  files["xl/styles.xml"] = strToU8(STYLES_XML);
   files["_rels/.rels"] = strToU8(
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
   );
@@ -80,7 +104,7 @@ function buildXlsx(sheets: ReadonlyArray<SheetSpec>): Uint8Array {
     `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${sheets
       .map(
         (s, i) =>
-          `<sheet name="${escapeXml(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`,
+          `<sheet name="${escapeXml(s.name)}" sheetId="${i + 1}" r:id="rId${i + 1}"${s.hidden ? ' state="hidden"' : ""}/>`,
       )
       .join("")}</sheets></workbook>`,
   );
@@ -110,14 +134,22 @@ describe("XLSX 표 변환", () => {
     await rm(tmpDir, { recursive: true, force: true });
   });
 
+  async function convertFile(
+    fileName: string,
+    sheets: ReadonlyArray<SheetSpec>,
+  ): Promise<{ markdown: string; warnings: ReadonlyArray<string> }> {
+    const path = join(tmpDir, `${fileName}.xlsx`);
+    await writeFile(path, buildXlsx(sheets));
+    const result = await convert({ inputPath: path });
+    return { markdown: result.markdown, warnings: result.warnings ?? [] };
+  }
+
   async function convertSheets(
     fileName: string,
     sheets: ReadonlyArray<SheetSpec>,
   ): Promise<string> {
-    const path = join(tmpDir, `${fileName}.xlsx`);
-    await writeFile(path, buildXlsx(sheets));
-    const result = await convert({ inputPath: path });
-    return result.markdown;
+    const { markdown } = await convertFile(fileName, sheets);
+    return markdown;
   }
 
   it("가로 병합을 GFM 표 + 왼쪽 화살표로 내린다", async () => {
@@ -213,5 +245,177 @@ describe("XLSX 표 변환", () => {
     expect(markdown).toContain("| 품목 | 수량 |");
     expect(markdown).toContain("| 연필 | 100 |");
     expect(markdown).not.toContain("<table");
+  });
+
+  /**
+   * 엑셀은 값과 표시형식을 분리 저장하고, 숫자 셀에는 t 속성을 아예 쓰지 않는다.
+   * 이 두 사실을 모두 반영하지 않으면 날짜가 45000, 15.7%가 0.157로 나온다.
+   */
+  describe("표시형식 (날짜·통화·백분율)", () => {
+    it("날짜 시리얼을 사람이 읽는 날짜로 되돌린다", async () => {
+      const markdown = await convertSheets("날짜", [
+        {
+          name: "계약",
+          rows: [
+            ["항목", "체결일"],
+            ["A계약", { v: 45000, s: 1 }],
+          ],
+        },
+      ]);
+
+      expect(markdown).toContain("2023-03-15");
+      expect(markdown).not.toContain("45000");
+    });
+
+    it("통화 서식의 기호와 천단위 구분을 살린다", async () => {
+      const markdown = await convertSheets("통화", [
+        {
+          name: "금액",
+          rows: [
+            ["항목", "금액"],
+            ["계약금", { v: 1234567, s: 2 }],
+          ],
+        },
+      ]);
+
+      expect(markdown).toContain("₩1,234,567");
+    });
+
+    it("백분율을 % 표기로 되돌린다", async () => {
+      const markdown = await convertSheets("백분율", [
+        {
+          name: "달성률",
+          rows: [
+            ["항목", "비율"],
+            ["달성", { v: 0.157, s: 3 }],
+          ],
+        },
+      ]);
+
+      expect(markdown).toContain("15.70%");
+      expect(markdown).not.toContain("0.157");
+    });
+  });
+
+  /**
+   * 숨긴 시트·행은 대외비인 경우가 많다. 변환 결과는 공유되는 산출물이므로
+   * 기본 제외하되, 조용히 빠지면 안 되므로 경고로 알린다.
+   */
+  describe("숨긴 시트·행", () => {
+    it("숨긴 시트를 제외하고 경고로 알린다", async () => {
+      const { markdown, warnings } = await convertFile("숨긴시트", [
+        {
+          name: "공개",
+          rows: [
+            ["항목", "값"],
+            ["매출", 100],
+          ],
+        },
+        { name: "내부검토", hidden: true, rows: [["원가", 42]] },
+      ]);
+
+      expect(markdown).toContain("## 공개");
+      expect(markdown).not.toContain("내부검토");
+      expect(markdown).not.toContain("원가");
+      expect(warnings.some((w) => w.includes("숨겨진 시트"))).toBe(true);
+      expect(warnings.some((w) => w.includes("내부검토"))).toBe(true);
+    });
+
+    it("숨긴 행을 제외한다", async () => {
+      const markdown = await convertSheets("숨긴행", [
+        {
+          name: "목록",
+          rows: [
+            ["항목", "값"],
+            ["보이는행", 1],
+            ["숨긴행", 999],
+          ],
+          hiddenRows: [3],
+        },
+      ]);
+
+      expect(markdown).toContain("보이는행");
+      expect(markdown).not.toContain("숨긴행");
+      expect(markdown).not.toContain("999");
+    });
+  });
+
+  describe("특수 문자와 오류값", () => {
+    it("셀 안 줄바꿈을 <br>로 유지해 표를 깨뜨리지 않는다", async () => {
+      const markdown = await convertSheets("줄바꿈", [
+        {
+          name: "설명",
+          rows: [
+            ["항목", "내용"],
+            ["A", "첫 줄\n둘째 줄"],
+          ],
+        },
+      ]);
+
+      expect(markdown).toContain("첫 줄<br>둘째 줄");
+      const tableLines = markdown
+        .split("\n")
+        .filter((line) => line.startsWith("|"));
+      expect(tableLines).toHaveLength(3); // 헤더 + separator + 1행
+    });
+
+    it("셀 안의 파이프를 escape 해 열이 어긋나지 않게 한다", async () => {
+      const markdown = await convertSheets("파이프", [
+        {
+          name: "특수",
+          rows: [
+            ["항목", "값"],
+            ["구분", "가|나"],
+          ],
+        },
+      ]);
+
+      const row = markdown.split("\n").find((line) => line.includes("가"));
+      expect(row).toContain("가\\|나");
+      expect(row?.split(/(?<!\\)\|/)).toHaveLength(4);
+    });
+
+    it("수식 오류값을 그대로 보존한다", async () => {
+      const markdown = await convertSheets("오류", [
+        {
+          name: "오류",
+          rows: [
+            ["항목", "값"],
+            ["나누기", { error: "#DIV/0!" }],
+            ["참조", { error: "#REF!" }],
+          ],
+        },
+      ]);
+
+      expect(markdown).toContain("#DIV/0!");
+      expect(markdown).toContain("#REF!");
+    });
+  });
+
+  describe("대형 시트", () => {
+    it("행 상한을 넘으면 잘라내되 경고로 알린다 — 조용한 손실 금지", async () => {
+      const rows: Array<Array<CellSpec>> = [["번호", "값"]];
+      for (let i = 1; i <= 5200; i += 1) rows.push([i, `값${i}`]);
+
+      const { markdown, warnings } = await convertFile("대형", [
+        { name: "대형", rows },
+      ]);
+
+      expect(warnings.some((w) => w.includes("너무 커서"))).toBe(true);
+      expect(markdown).toContain("값1 |");
+      expect(markdown).not.toContain("값5200");
+    });
+
+    it("상한 이내면 모든 행을 변환한다", async () => {
+      const rows: Array<Array<CellSpec>> = [["번호"]];
+      for (let i = 1; i <= 300; i += 1) rows.push([i]);
+
+      const { markdown, warnings } = await convertFile("보통크기", [
+        { name: "보통", rows },
+      ]);
+
+      expect(warnings).toHaveLength(0);
+      expect(markdown).toContain("| 300 |");
+    });
   });
 });
