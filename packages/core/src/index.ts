@@ -48,4 +48,5 @@ export type {
   ParseOptions,
   ParseResult,
   Parser,
+  XlsxConvertOptions,
 } from "./types.js";

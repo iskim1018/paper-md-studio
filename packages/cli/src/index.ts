@@ -3,7 +3,11 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
-import type { ConvertResult, HtmlConvertOptions } from "@paper-md-studio/core";
+import type {
+  ConvertResult,
+  HtmlConvertOptions,
+  XlsxConvertOptions,
+} from "@paper-md-studio/core";
 import {
   convert,
   convertToHtml,
@@ -23,6 +27,7 @@ const { values, positionals } = parseArgs({
     "download-images": { type: "boolean" },
     render: { type: "boolean" },
     "wait-selector": { type: "string" },
+    "include-hidden": { type: "boolean" },
     timeout: { type: "string" },
     help: { type: "boolean", short: "h" },
     version: { type: "boolean", short: "v" },
@@ -45,6 +50,7 @@ paper-md-studio - 문서를 Markdown으로 변환
   --download-images         HTML 원격 이미지를 {문서명}_images/로 다운로드
   --render                  SPA 렌더링 후 변환 (URL 전용, Chrome 필요)
   --wait-selector <셀렉터>  SPA 렌더링 시 대기할 CSS 셀렉터
+  --include-hidden          엑셀의 숨긴 시트·행·열도 변환에 포함 (기본: 제외)
   --timeout <ms>            네트워크·렌더링 시간 제한 (기본: 30000)
   -h, --help                도움말 표시
   -v, --version             버전 표시
@@ -111,6 +117,12 @@ function buildHtmlOptions(): HtmlConvertOptions | undefined {
     options.timeoutMs = timeoutMs;
   }
   return Object.keys(options).length > 0 ? options : undefined;
+}
+
+/** XLSX 변환 플래그를 XlsxConvertOptions로 변환한다 */
+function buildXlsxOptions(): XlsxConvertOptions | undefined {
+  if (values["include-hidden"] !== true) return undefined;
+  return { includeHidden: true };
 }
 
 interface OutputTargets {
@@ -204,11 +216,13 @@ async function main(): Promise<void> {
       );
     }
 
+    const xlsxOptions = buildXlsxOptions();
     const result = await convert({
       inputPath: resolvedInput,
       outputDir: outputTargets.outputDir,
       imagesDirName: values["images-dir"],
       ...(htmlOptions ? { html: htmlOptions } : {}),
+      ...(xlsxOptions ? { xlsx: xlsxOptions } : {}),
     });
 
     const { outDir, mdPath } = resolveMdPath(

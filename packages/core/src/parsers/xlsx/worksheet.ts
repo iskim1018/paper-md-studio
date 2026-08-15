@@ -32,6 +32,8 @@ export interface SheetGrid {
   readonly covered: ReadonlySet<string>;
   /** 숨김 처리된 행 인덱스 (0-based) */
   readonly hiddenRows: ReadonlySet<number>;
+  /** 숨김 처리된 열 인덱스 (0-based) */
+  readonly hiddenCols: ReadonlySet<number>;
   /** 셀 위치 → 하이퍼링크 관계 ID */
   readonly hyperlinkRels: ReadonlyMap<string, string>;
   /** 시트에 붙은 그림(drawing) 관계 ID */
@@ -169,6 +171,29 @@ function collectMerges(worksheet: Record<string, unknown>): {
   return { spans, covered };
 }
 
+/**
+ * 숨긴 열을 모은다.
+ *
+ * 엑셀은 열 속성을 셀이 아니라 `<cols><col min max hidden>`에 구간으로 적는다
+ * (min·max는 1-based 양끝 포함). 넓은 시트를 보기 좋게 접어두는 용도로 흔히
+ * 쓰여, 행 숨김보다 오히려 자주 나타난다.
+ */
+function collectHiddenCols(worksheet: Record<string, unknown>): Set<number> {
+  const hidden = new Set<number>();
+  const cols = (worksheet.cols ?? {}) as Record<string, unknown>;
+
+  for (const col of toArray(
+    cols.col as Array<Record<string, unknown>> | undefined,
+  )) {
+    if (String(col["@_hidden"] ?? "") !== "1") continue;
+    const min = Number(col["@_min"]);
+    const max = Number(col["@_max"]);
+    if (!Number.isInteger(min) || !Number.isInteger(max)) continue;
+    for (let c = min; c <= max; c += 1) hidden.add(c - 1);
+  }
+  return hidden;
+}
+
 function collectHyperlinks(
   worksheet: Record<string, unknown>,
 ): Map<string, string> {
@@ -302,15 +327,14 @@ export function parseWorksheet(
     ...covered,
   ]);
   const cells = toDenseGrid(parsed.rowsByIndex, maxRow, maxCol);
-  const hiddenRows = parsed.hiddenRows;
-
   const drawing = (worksheet.drawing ?? null) as Record<string, unknown> | null;
 
   return {
     cells,
     spans,
     covered,
-    hiddenRows,
+    hiddenRows: parsed.hiddenRows,
+    hiddenCols: collectHiddenCols(worksheet),
     hyperlinkRels: collectHyperlinks(worksheet),
     drawingRelId: drawing ? String(drawing["@_id"] ?? "") || null : null,
   };

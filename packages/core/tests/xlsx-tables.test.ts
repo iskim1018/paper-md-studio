@@ -31,6 +31,8 @@ interface SheetSpec {
   readonly merges?: ReadonlyArray<string>;
   /** 숨긴 행 (1-based) */
   readonly hiddenRows?: ReadonlyArray<number>;
+  /** 숨긴 열 (1-based) */
+  readonly hiddenCols?: ReadonlyArray<number>;
   /** 시트 자체를 숨김 처리 */
   readonly hidden?: boolean;
 }
@@ -81,7 +83,13 @@ function sheetXml(sheet: SheetSpec): string {
         .map((ref) => `<mergeCell ref="${ref}"/>`)
         .join("")}</mergeCells>`
     : "";
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rows}</sheetData>${merges}</worksheet>`;
+  // 엑셀은 열 숨김을 셀이 아니라 <cols> 구간에 적는다 (min·max는 1-based)
+  const cols = sheet.hiddenCols?.length
+    ? `<cols>${sheet.hiddenCols
+        .map((c) => `<col min="${c}" max="${c}" hidden="1"/>`)
+        .join("")}</cols>`
+    : "";
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${cols}<sheetData>${rows}</sheetData>${merges}</worksheet>`;
 }
 
 function buildXlsx(sheets: ReadonlyArray<SheetSpec>): Uint8Array {
@@ -137,10 +145,14 @@ describe("XLSX 표 변환", () => {
   async function convertFile(
     fileName: string,
     sheets: ReadonlyArray<SheetSpec>,
+    includeHidden = false,
   ): Promise<{ markdown: string; warnings: ReadonlyArray<string> }> {
     const path = join(tmpDir, `${fileName}.xlsx`);
     await writeFile(path, buildXlsx(sheets));
-    const result = await convert({ inputPath: path });
+    const result = await convert({
+      inputPath: path,
+      ...(includeHidden ? { xlsx: { includeHidden: true } } : {}),
+    });
     return { markdown: result.markdown, warnings: result.warnings ?? [] };
   }
 
@@ -337,6 +349,102 @@ describe("XLSX 표 변환", () => {
       expect(markdown).toContain("보이는행");
       expect(markdown).not.toContain("숨긴행");
       expect(markdown).not.toContain("999");
+    });
+
+    it("숨긴 열을 제외한다 — 열이 많아 접어둔 경우가 흔하다", async () => {
+      const { markdown, warnings } = await convertFile("숨긴열", [
+        {
+          name: "넓은표",
+          rows: [
+            ["항목", "숨긴열", "값"],
+            ["A", "내부메모", 100],
+          ],
+          hiddenCols: [2],
+        },
+      ]);
+
+      expect(markdown).toContain("| 항목 | 값 |");
+      expect(markdown).not.toContain("숨긴열");
+      expect(markdown).not.toContain("내부메모");
+      expect(warnings.some((w) => w.includes("열 1개"))).toBe(true);
+    });
+
+    it("경고가 포함 방법(--include-hidden)을 함께 알려준다", async () => {
+      const { warnings } = await convertFile("안내", [
+        {
+          name: "표",
+          rows: [
+            ["항목", "값"],
+            ["A", 1],
+          ],
+          hiddenRows: [2],
+        },
+      ]);
+
+      expect(warnings.some((w) => w.includes("--include-hidden"))).toBe(true);
+    });
+  });
+
+  /**
+   * 숨김의 의도(대외비 은닉 / 보기 편하려고 접어둠)는 문서만 보고 알 수 없다.
+   * 기본은 안전한 쪽(제외)이되, 사용자가 뒤집을 수 있어야 한다.
+   */
+  describe("includeHidden 옵션", () => {
+    const sheets: ReadonlyArray<SheetSpec> = [
+      {
+        name: "공개",
+        rows: [
+          ["항목", "접은열", "값"],
+          ["A", "메모", 100],
+          ["접은행", "메모2", 200],
+        ],
+        hiddenRows: [3],
+        hiddenCols: [2],
+      },
+      { name: "접은시트", hidden: true, rows: [["시트내용", 42]] },
+    ];
+
+    it("켜면 숨긴 시트·행·열을 모두 포함한다", async () => {
+      const { markdown, warnings } = await convertFile("포함", sheets, true);
+
+      expect(markdown).toContain("접은열");
+      expect(markdown).toContain("접은행");
+      expect(markdown).toContain("## 접은시트");
+      expect(markdown).toContain("시트내용");
+      expect(warnings).toHaveLength(0);
+    });
+
+    it("끄면(기본) 모두 제외하고 경고를 남긴다", async () => {
+      const { markdown, warnings } = await convertFile("제외", sheets);
+
+      expect(markdown).not.toContain("접은열");
+      expect(markdown).not.toContain("접은행");
+      expect(markdown).not.toContain("접은시트");
+      expect(warnings.length).toBeGreaterThan(0);
+    });
+
+    it("숨긴 열과 겹친 병합의 열 수를 다시 계산해 표를 유지한다", async () => {
+      // A1:C1 제목 병합인데 B열이 숨김 → 보이는 열은 2개
+      const { markdown } = await convertFile("병합과숨김", [
+        {
+          name: "표",
+          rows: [
+            ["연간 보고", null, null],
+            ["구분", "숨김", "값"],
+            ["A", "x", 1],
+          ],
+          merges: ["A1:C1"],
+          hiddenCols: [2],
+        },
+      ]);
+
+      const tableLines = markdown
+        .split("\n")
+        .filter((line) => line.startsWith("|"));
+      for (const line of tableLines) {
+        expect(line.split(/(?<!\\)\|/)).toHaveLength(4); // 2열 → 4조각
+      }
+      expect(markdown).toContain(`| 연간 보고 | ${MERGE_LEFT} |`);
     });
   });
 

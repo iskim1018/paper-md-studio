@@ -82,6 +82,7 @@ function toParseOptions(
   return {
     imagesDirName,
     ...(options.html ? { html: options.html } : {}),
+    ...(options.xlsx ? { xlsx: options.xlsx } : {}),
   };
 }
 

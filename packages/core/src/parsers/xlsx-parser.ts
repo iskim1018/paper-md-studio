@@ -16,6 +16,8 @@ import type {
 import { normalizeHtmlTablesToGfm } from "./html-tables-to-gfm.js";
 import type { NumberFormats } from "./xlsx/cell-format.js";
 import { buildNumberFormats } from "./xlsx/cell-format.js";
+import type { VisibleGrid } from "./xlsx/visibility.js";
+import { projectVisibleGrid } from "./xlsx/visibility.js";
 import type { SheetRef } from "./xlsx/workbook.js";
 import {
   parseRelationships,
@@ -123,16 +125,15 @@ function renderCell(
   return `<${tag}${spanAttributes(span)}>${content}</${tag}>`;
 }
 
-/** 병합·숨김을 반영해 시트 격자를 HTML 표로 만든다 */
+/** 격자(숨김 반영 완료)를 HTML 표로 만든다 */
 function gridToHtmlTable(
-  grid: SheetGrid,
+  grid: VisibleGrid,
   hyperlinkTargets: ReadonlyMap<string, string>,
   limits: { rows: number; cols: number },
 ): string {
   const rows: Array<string> = [];
 
   for (let r = 0; r < limits.rows; r += 1) {
-    if (grid.hiddenRows.has(r)) continue;
     const cells: Array<string> = [];
 
     for (let c = 0; c < limits.cols; c += 1) {
@@ -170,6 +171,20 @@ interface SheetContext {
   readonly images: Array<ImageAsset>;
   readonly warnings: Array<string>;
   readonly imagesDirName: string;
+  readonly includeHidden: boolean;
+}
+
+/** 숨김 제외로 실제로 빠진 것이 있으면 무엇이 빠졌는지 알린다 */
+function hiddenExclusionWarning(
+  sheetName: string,
+  hiddenRows: number,
+  hiddenCols: number,
+): string | null {
+  if (hiddenRows === 0 && hiddenCols === 0) return null;
+  const parts: Array<string> = [];
+  if (hiddenRows > 0) parts.push(`행 ${hiddenRows}개`);
+  if (hiddenCols > 0) parts.push(`열 ${hiddenCols}개`);
+  return `시트 "${sheetName}"의 숨겨진 ${parts.join("·")}를 제외했습니다 (포함하려면 --include-hidden).`;
 }
 
 export class XlsxParser implements Parser {
@@ -206,20 +221,21 @@ export class XlsxParser implements Parser {
       images,
       warnings,
       imagesDirName: options.imagesDirName,
+      includeHidden: options.xlsx?.includeHidden === true,
     };
 
     const hiddenSheets = sheets.filter((sheet) => sheet.hidden);
-    if (hiddenSheets.length > 0) {
+    if (hiddenSheets.length > 0 && !context.includeHidden) {
       warnings.push(
-        `숨겨진 시트 ${hiddenSheets.length}개를 변환에서 제외했습니다: ${hiddenSheets
+        `숨겨진 시트 ${hiddenSheets.length}개를 제외했습니다: ${hiddenSheets
           .map((sheet) => sheet.name)
-          .join(", ")}`,
+          .join(", ")} (포함하려면 --include-hidden).`,
       );
     }
 
     const htmlParts: Array<string> = [];
     for (const sheet of sheets) {
-      if (sheet.hidden) continue;
+      if (sheet.hidden && !context.includeHidden) continue;
       const sheetHtml = this.renderSheet(sheet, context);
       if (sheetHtml) htmlParts.push(sheetHtml);
     }
@@ -259,12 +275,22 @@ export class XlsxParser implements Parser {
       return "";
     }
 
-    const grid = parseWorksheet(
+    const raw = parseWorksheet(
       sheetXml,
       ctx.sharedStrings,
       ctx.formats,
       ctx.date1904,
     );
+
+    if (!ctx.includeHidden) {
+      const warning = hiddenExclusionWarning(
+        sheet.name,
+        raw.hiddenRows.size,
+        raw.hiddenCols.size,
+      );
+      if (warning) ctx.warnings.push(warning);
+    }
+    const grid = projectVisibleGrid(raw, ctx.includeHidden);
 
     const totalRows = grid.cells.length;
     const totalCols = grid.cells[0]?.length ?? 0;
@@ -284,13 +310,13 @@ export class XlsxParser implements Parser {
       { rows, cols },
     );
     if (table) parts.push(table);
-    parts.push(...this.collectImages(grid, ctx, sheetPath));
+    parts.push(...this.collectImages(raw, ctx, sheetPath));
 
     return parts.join("\n");
   }
 
   private resolveHyperlinks(
-    grid: SheetGrid,
+    grid: VisibleGrid,
     files: ZipFiles,
     sheetPath: string,
   ): Map<string, string> {

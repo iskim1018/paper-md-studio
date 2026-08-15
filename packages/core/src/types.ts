@@ -25,6 +25,18 @@ export interface HtmlConvertOptions {
   downloadImages?: boolean;
 }
 
+/** XLSX 변환 옵션 */
+export interface XlsxConvertOptions {
+  /**
+   * 숨긴 시트·행·열을 변환에 포함할지 여부 (기본: false).
+   *
+   * 숨김의 의도는 대외비 은닉일 수도, 열이 많아 접어둔 것일 수도 있어 문서만
+   * 보고는 구분할 수 없다. 변환 결과는 공유되는 산출물이므로 기본은 제외이며,
+   * 무엇이 빠졌는지는 경고로 알린다.
+   */
+  includeHidden?: boolean;
+}
+
 /** 변환 시 추출된 이미지 */
 export interface ImageAsset {
   /** 이미지 파일명 (예: img_001.png) */
@@ -45,6 +57,8 @@ export interface ConvertOptions {
   imagesDirName?: string;
   /** HTML 변환 옵션 (html 포맷에서만 사용) */
   html?: HtmlConvertOptions;
+  /** XLSX 변환 옵션 (xlsx 포맷에서만 사용) */
+  xlsx?: XlsxConvertOptions;
 }
 
 /** 파서가 반환하는 중간 결과 */
@@ -65,6 +79,8 @@ export interface ParseOptions {
   imagesDirName: string;
   /** HTML 변환 옵션 (html 포맷에서만 사용) */
   html?: HtmlConvertOptions;
+  /** XLSX 변환 옵션 (xlsx 포맷에서만 사용) */
+  xlsx?: XlsxConvertOptions;
 }
 
 /** 포맷별 파서 인터페이스 */
