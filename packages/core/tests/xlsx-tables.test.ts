@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { strToU8, zipSync } from "fflate";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { MERGE_LEFT, MERGE_UP } from "../src/parsers/html-tables-to-gfm.js";
-import { convert } from "../src/pipeline.js";
+import { convert, convertToHtml } from "../src/pipeline.js";
 
 /**
  * XLSX 표 → GFM 계약 테스트.
@@ -447,6 +447,54 @@ describe("XLSX 표 변환", () => {
       expect(markdown).not.toContain("접은행");
       expect(markdown).not.toContain("접은시트");
       expect(warnings.length).toBeGreaterThan(0);
+    });
+
+    it("포함할 때 숨김이던 자리에 표시를 남긴다 — 원본 뷰어가 흐리게 그린다", async () => {
+      const path = join(tmpDir, "표시.xlsx");
+      await writeFile(
+        path,
+        buildXlsx([
+          {
+            name: "표",
+            rows: [
+              ["항목", "숨긴열"],
+              ["보임", "메모"],
+              ["숨긴행", "x"],
+            ],
+            hiddenRows: [3],
+            hiddenCols: [2],
+          },
+        ]),
+      );
+
+      const { html } = await convertToHtml({
+        inputPath: path,
+        xlsx: { includeHidden: true },
+      });
+
+      expect(html).toContain('class="xlsx-hidden-row"');
+      expect(html).toContain('class="xlsx-hidden-col"');
+    });
+
+    it("제외할 때는 표시할 자리 자체가 없다", async () => {
+      const path = join(tmpDir, "표시없음.xlsx");
+      await writeFile(
+        path,
+        buildXlsx([
+          {
+            name: "표",
+            rows: [
+              ["항목", "숨긴열"],
+              ["보임", "메모"],
+            ],
+            hiddenCols: [2],
+          },
+        ]),
+      );
+
+      const { html } = await convertToHtml({ inputPath: path });
+
+      expect(html).not.toContain("xlsx-hidden");
     });
 
     it("숨긴 열과 겹친 병합의 열 수를 다시 계산해 표를 유지한다", async () => {

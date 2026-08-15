@@ -486,3 +486,61 @@ summary {
     transition: none;
   }
 }
+
+/* ─── XLSX 원본 미리보기 ─────────────────────────────────────────────
+   변환 엔진이 읽어낸 시트를 스프레드시트처럼 보여준다. 표가 넓으면
+   가로 스크롤로 흘리고, 시트 제목은 스크롤 중에도 자리를 잡아 준다. */
+.xlsx-preview h2 {
+  position: sticky;
+  top: -1rem;
+  z-index: 1;
+  margin: 1.25rem 0 0.5rem;
+  padding: 0.25rem 0;
+  background-color: var(--color-panel-bg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.xlsx-preview h2:first-child {
+  margin-top: 0;
+}
+
+.xlsx-preview table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.xlsx-preview th,
+.xlsx-preview td {
+  border: 1px solid var(--color-border);
+  padding: 3px 8px;
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+  /* 한 셀이 표 전체를 밀어내지 않도록 상한만 둔다 */
+  max-width: 320px;
+}
+
+.xlsx-preview th {
+  background-color: var(--color-chip-bg);
+  font-weight: 600;
+}
+
+/* 숨겨져 있던 행·열 — 원본에는 있으나 기본 변환에서는 빠지는 자리.
+   지워서 보여주면 무엇이 빠지는지 판단할 수 없으므로 흐리게 남긴다. */
+.xlsx-preview .xlsx-hidden-row > td,
+.xlsx-preview .xlsx-hidden-row > th,
+.xlsx-preview .xlsx-hidden-col {
+  background-image: repeating-linear-gradient(
+    135deg,
+    transparent,
+    transparent 5px,
+    var(--color-border) 5px,
+    var(--color-border) 6px
+  );
+  color: var(--color-muted);
+  font-style: italic;
+}

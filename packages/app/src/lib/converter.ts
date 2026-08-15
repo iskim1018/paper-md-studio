@@ -32,13 +32,21 @@ export interface ConvertOptions {
  * HTML 포맷(로컬 .html / URL)은 Readability 본문 추출 + sanitize를
  * 거친 "변환될 본문"이 반환됩니다.
  */
-export async function convertFileToHtml(inputPath: string): Promise<string> {
+export interface HtmlPreviewOptions {
+  /** 엑셀의 숨긴 시트·행·열도 미리보기에 포함 (원본 확인 목적) */
+  readonly includeHidden?: boolean;
+}
+
+export async function convertFileToHtml(
+  inputPath: string,
+  options: HtmlPreviewOptions = {},
+): Promise<string> {
   const { Command } = await import("@tauri-apps/plugin-shell");
 
-  const command = Command.sidecar("binaries/paper-md-studio-cli", [
-    inputPath,
-    "--html",
-  ]);
+  const args = [inputPath, "--html"];
+  if (options.includeHidden) args.push("--include-hidden");
+
+  const command = Command.sidecar("binaries/paper-md-studio-cli", args);
   const output = await command.execute();
 
   if (output.code !== 0) {

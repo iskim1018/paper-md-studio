@@ -17,6 +17,14 @@ export interface VisibleGrid {
   readonly spans: ReadonlyMap<string, CellSpan>;
   readonly covered: ReadonlySet<string>;
   readonly hyperlinkRels: ReadonlyMap<string, string>;
+  /**
+   * 살아남은 것 중 원본에서 숨김이었던 행·열 (투영 후 인덱스).
+   * 제외한 경우에는 비어 있다. 원본 뷰어가 "이건 숨겨져 있던 자리"라고
+   * 표시하는 데 쓴다 — 무엇이 감춰져 있었는지 눈으로 봐야 포함 여부를
+   * 판단할 수 있다.
+   */
+  readonly hiddenRows: ReadonlySet<number>;
+  readonly hiddenCols: ReadonlySet<number>;
 }
 
 const key = (row: number, col: number): string => `${row},${col}`;
@@ -105,7 +113,27 @@ export function projectVisibleGrid(
   const { spans, covered } = applyProjectedSpans(grid, cells, rowMap, colMap);
   const hyperlinkRels = remapHyperlinks(grid, rowMap, colMap);
 
-  return { cells, spans, covered, hyperlinkRels };
+  return {
+    cells,
+    spans,
+    covered,
+    hyperlinkRels,
+    hiddenRows: projectIndices(grid.hiddenRows, rowMap),
+    hiddenCols: projectIndices(grid.hiddenCols, colMap),
+  };
+}
+
+/** 숨김 인덱스를 투영 후 좌표로 옮긴다 (제외됐으면 자연히 빠진다) */
+function projectIndices(
+  hidden: ReadonlySet<number>,
+  map: ReadonlyMap<number, number>,
+): Set<number> {
+  const projected = new Set<number>();
+  for (const index of hidden) {
+    const mapped = map.get(index);
+    if (mapped !== undefined) projected.add(mapped);
+  }
+  return projected;
 }
 
 /** 투영된 병합을 격자에 반영하고 span·covered를 만든다 */

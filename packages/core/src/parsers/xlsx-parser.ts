@@ -109,12 +109,20 @@ function spanAttributes(span: CellSpan | undefined): string {
   return attrs.length > 0 ? ` ${attrs.join(" ")}` : "";
 }
 
+/**
+ * 원본에서 숨김이던 자리에 붙는 클래스. 뷰어가 흐리게 표시해 "감춰져 있던
+ * 칸"임을 알린다. Markdown 변환에는 영향이 없다 (turndown이 클래스를 버린다).
+ */
+const HIDDEN_ROW_CLASS = "xlsx-hidden-row";
+const HIDDEN_COL_CLASS = "xlsx-hidden-col";
+
 /** 셀 하나를 <td>/<th>로 만든다 */
 function renderCell(
   text: string,
   span: CellSpan | undefined,
   href: string | undefined,
   isHeader: boolean,
+  isHiddenCol: boolean,
 ): string {
   // 셀 안 줄바꿈(Alt+Enter)은 \n으로 저장된다. HTML에서 \n은 공백으로 접히므로
   // <br>로 바꿔야 원본의 줄 구분이 살아남는다.
@@ -123,7 +131,8 @@ function renderCell(
     ? `<a href="${escapeHtml(href)}">${escaped || escapeHtml(href)}</a>`
     : escaped;
   const tag = isHeader ? "th" : "td";
-  return `<${tag}${spanAttributes(span)}>${content}</${tag}>`;
+  const cls = isHiddenCol ? ` class="${HIDDEN_COL_CLASS}"` : "";
+  return `<${tag}${spanAttributes(span)}${cls}>${content}</${tag}>`;
 }
 
 /** 격자(숨김 반영 완료)를 HTML 표로 만든다 */
@@ -146,11 +155,16 @@ function gridToHtmlTable(
           grid.spans.get(position),
           hyperlinkTargets.get(position),
           r === 0,
+          grid.hiddenCols.has(c),
         ),
       );
     }
 
-    if (cells.length > 0) rows.push(`<tr>${cells.join("")}</tr>`);
+    if (cells.length === 0) continue;
+    const rowClass = grid.hiddenRows.has(r)
+      ? ` class="${HIDDEN_ROW_CLASS}"`
+      : "";
+    rows.push(`<tr${rowClass}>${cells.join("")}</tr>`);
   }
 
   return rows.length > 0 ? `<table>${rows.join("")}</table>` : "";

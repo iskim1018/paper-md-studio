@@ -207,9 +207,11 @@ async function main(): Promise<void> {
     const htmlOptions = buildHtmlOptions();
 
     if (isHtml) {
+      const xlsxHtmlOptions = buildXlsxOptions();
       const htmlResult = await convertToHtml({
         inputPath: resolvedInput,
         ...(htmlOptions ? { html: htmlOptions } : {}),
+        ...(xlsxHtmlOptions ? { xlsx: xlsxHtmlOptions } : {}),
       });
       console.log(htmlResult.html);
       return;
