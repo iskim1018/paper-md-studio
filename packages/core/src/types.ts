@@ -37,6 +37,22 @@ export interface XlsxConvertOptions {
   includeHidden?: boolean;
 }
 
+/**
+ * 숨김 처리로 변환에서 제외된 항목 수 (XLSX 전용).
+ *
+ * 경고 메시지와 별도로 두는 이유는, UI가 "포함해서 다시 변환" 버튼을 띄울지
+ * 판단할 때 한국어 문구를 파싱하게 만들면 안 되기 때문이다. 문구는 바뀌어도
+ * 이 값의 의미는 바뀌지 않는다.
+ */
+export interface HiddenExclusion {
+  /** 제외된 숨긴 시트 수 */
+  sheets: number;
+  /** 제외된 숨긴 행 수 (전 시트 합계) */
+  rows: number;
+  /** 제외된 숨긴 열 수 (전 시트 합계) */
+  cols: number;
+}
+
 /** 변환 시 추출된 이미지 */
 export interface ImageAsset {
   /** 이미지 파일명 (예: img_001.png) */
@@ -71,6 +87,8 @@ export interface ParseResult {
   images: Array<ImageAsset>;
   /** 파싱 중 발생한 경고 (한국어 메시지) */
   warnings?: Array<string>;
+  /** 숨김 처리로 제외된 항목 수 (XLSX 전용, 제외된 게 있을 때만) */
+  hiddenExcluded?: HiddenExclusion;
 }
 
 /** 파서에 전달되는 옵션 */
@@ -100,4 +118,6 @@ export interface ConvertResult {
   elapsed: number;
   /** 변환 중 발생한 경고 (한국어 메시지) */
   warnings?: Array<string>;
+  /** 숨김 처리로 제외된 항목 수 (XLSX 전용, 제외된 게 있을 때만) */
+  hiddenExcluded?: HiddenExclusion;
 }

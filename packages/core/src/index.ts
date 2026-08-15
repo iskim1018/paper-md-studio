@@ -43,6 +43,7 @@ export type {
   ConvertOptions,
   ConvertResult,
   DocumentFormat,
+  HiddenExclusion,
   HtmlConvertOptions,
   ImageAsset,
   ParseOptions,

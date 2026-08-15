@@ -159,5 +159,8 @@ export async function convert(options: ConvertOptions): Promise<ConvertResult> {
     ...(parseResult.warnings && parseResult.warnings.length > 0
       ? { warnings: parseResult.warnings }
       : {}),
+    ...(parseResult.hiddenExcluded
+      ? { hiddenExcluded: parseResult.hiddenExcluded }
+      : {}),
   };
 }

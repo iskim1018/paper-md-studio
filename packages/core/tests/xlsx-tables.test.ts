@@ -369,7 +369,9 @@ describe("XLSX 표 변환", () => {
       expect(warnings.some((w) => w.includes("열 1개"))).toBe(true);
     });
 
-    it("경고가 포함 방법(--include-hidden)을 함께 알려준다", async () => {
+    it("경고는 무엇이 빠졌는지만 말한다 — 되돌리는 방법은 진입점 몫", async () => {
+      // core는 자기가 CLI에서 쓰이는지 GUI에서 쓰이는지 모른다.
+      // 여기서 CLI 플래그를 안내하면 GUI 배너에도 그대로 새어 나온다.
       const { warnings } = await convertFile("안내", [
         {
           name: "표",
@@ -381,7 +383,31 @@ describe("XLSX 표 변환", () => {
         },
       ]);
 
-      expect(warnings.some((w) => w.includes("--include-hidden"))).toBe(true);
+      expect(warnings.some((w) => w.includes("제외했습니다"))).toBe(true);
+      expect(warnings.some((w) => w.includes("--include-hidden"))).toBe(false);
+    });
+
+    it("제외된 항목 수를 구조화해 함께 돌려준다 — UI가 문구를 파싱하지 않도록", async () => {
+      const path = join(tmpDir, "구조화.xlsx");
+      await writeFile(
+        path,
+        buildXlsx([
+          {
+            name: "표",
+            rows: [
+              ["항목", "숨긴열", "값"],
+              ["A", "메모", 1],
+              ["숨긴행", "x", 2],
+            ],
+            hiddenRows: [3],
+            hiddenCols: [2],
+          },
+          { name: "숨긴시트", hidden: true, rows: [["내용", 1]] },
+        ]),
+      );
+      const result = await convert({ inputPath: path });
+
+      expect(result.hiddenExcluded).toEqual({ sheets: 1, rows: 1, cols: 1 });
     });
   });
 

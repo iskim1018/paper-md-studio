@@ -81,6 +81,10 @@ function printWarnings(result: ConvertResult): void {
   for (const warning of result.warnings ?? []) {
     console.warn(`  경고: ${warning}`);
   }
+  // 되돌리는 방법은 진입점이 안내한다 — core는 CLI 플래그를 알지 못한다
+  if (result.hiddenExcluded) {
+    console.warn("  숨긴 항목까지 변환하려면 --include-hidden 을 붙이세요.");
+  }
 }
 
 function printJsonResult(result: ConvertResult, outputPath: string): void {
@@ -91,6 +95,7 @@ function printJsonResult(result: ConvertResult, outputPath: string): void {
     imageCount: result.images.length,
     outputPath,
     ...(result.warnings?.length ? { warnings: result.warnings } : {}),
+    ...(result.hiddenExcluded ? { hiddenExcluded: result.hiddenExcluded } : {}),
   };
   console.log(JSON.stringify(jsonOutput));
 }

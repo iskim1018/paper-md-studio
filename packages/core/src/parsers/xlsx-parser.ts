@@ -8,6 +8,7 @@ import {
   mimeFromExt,
 } from "../image-utils.js";
 import type {
+  HiddenExclusion,
   ImageAsset,
   ParseOptions,
   ParseResult,
@@ -172,9 +173,16 @@ interface SheetContext {
   readonly warnings: Array<string>;
   readonly imagesDirName: string;
   readonly includeHidden: boolean;
+  /** 제외한 숨김 항목 누계 — UI가 "포함해 다시 변환"을 띄울 근거 */
+  readonly excluded: HiddenExclusion;
 }
 
-/** 숨김 제외로 실제로 빠진 것이 있으면 무엇이 빠졌는지 알린다 */
+/**
+ * 숨김 제외로 실제로 빠진 것이 있으면 무엇이 빠졌는지 알린다.
+ *
+ * "어떻게 포함하는지"는 여기서 말하지 않는다 — core는 자기가 CLI에서 쓰이는지
+ * GUI에서 쓰이는지 모른다. 되돌리는 방법 안내는 각 진입점의 몫이다.
+ */
 function hiddenExclusionWarning(
   sheetName: string,
   hiddenRows: number,
@@ -184,7 +192,7 @@ function hiddenExclusionWarning(
   const parts: Array<string> = [];
   if (hiddenRows > 0) parts.push(`행 ${hiddenRows}개`);
   if (hiddenCols > 0) parts.push(`열 ${hiddenCols}개`);
-  return `시트 "${sheetName}"의 숨겨진 ${parts.join("·")}를 제외했습니다 (포함하려면 --include-hidden).`;
+  return `시트 "${sheetName}"의 숨겨진 ${parts.join("·")}를 제외했습니다.`;
 }
 
 export class XlsxParser implements Parser {
@@ -206,6 +214,7 @@ export class XlsxParser implements Parser {
 
     const warnings: Array<string> = [];
     const images: Array<ImageAsset> = [];
+    const excluded: HiddenExclusion = { sheets: 0, rows: 0, cols: 0 };
     const context: SheetContext = {
       files,
       workbookRels: parseRelationships(
@@ -222,14 +231,16 @@ export class XlsxParser implements Parser {
       warnings,
       imagesDirName: options.imagesDirName,
       includeHidden: options.xlsx?.includeHidden === true,
+      excluded,
     };
 
     const hiddenSheets = sheets.filter((sheet) => sheet.hidden);
     if (hiddenSheets.length > 0 && !context.includeHidden) {
+      excluded.sheets = hiddenSheets.length;
       warnings.push(
         `숨겨진 시트 ${hiddenSheets.length}개를 제외했습니다: ${hiddenSheets
           .map((sheet) => sheet.name)
-          .join(", ")} (포함하려면 --include-hidden).`,
+          .join(", ")}`,
       );
     }
 
@@ -250,6 +261,9 @@ export class XlsxParser implements Parser {
       markdown,
       images,
       ...(warnings.length > 0 ? { warnings } : {}),
+      ...(excluded.sheets + excluded.rows + excluded.cols > 0
+        ? { hiddenExcluded: excluded }
+        : {}),
     };
   }
 
@@ -283,6 +297,8 @@ export class XlsxParser implements Parser {
     );
 
     if (!ctx.includeHidden) {
+      ctx.excluded.rows += raw.hiddenRows.size;
+      ctx.excluded.cols += raw.hiddenCols.size;
       const warning = hiddenExclusionWarning(
         sheet.name,
         raw.hiddenRows.size,

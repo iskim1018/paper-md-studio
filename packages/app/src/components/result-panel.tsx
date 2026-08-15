@@ -2,6 +2,7 @@ import {
   Check,
   Copy,
   Eraser,
+  Eye,
   FileCode2,
   FolderOpen,
   Save,
@@ -16,6 +17,8 @@ import { saveMarkdownAs, saveMarkdownTo } from "../lib/file-writer";
 import { removeEmptyTableRows } from "../lib/md-cleanup";
 import { fileManagerName, revealFile } from "../lib/reveal";
 import { shortcutLabel } from "../lib/shortcuts";
+import { useConvertQueueStore } from "../store/convert-queue-store";
+import type { FileItem } from "../store/file-store";
 import { useFileStore } from "../store/file-store";
 import { MarkdownPreview } from "./editor/markdown-preview";
 import { MilkdownEditor } from "./editor/milkdown-editor";
@@ -25,8 +28,8 @@ import { Tooltip } from "./ui/tooltip";
 
 type ViewMode = "preview" | "edit" | "source" | "split";
 
-interface ConversionWarningsProps {
-  readonly warnings?: ReadonlyArray<string>;
+interface ConversionNoticeProps {
+  readonly file: FileItem;
 }
 
 /**
@@ -34,9 +37,28 @@ interface ConversionWarningsProps {
  *
  * 텍스트 레이어가 없는 스캔 PDF 처럼 "성공했는데 내용이 비어 있는" 경우,
  * 알림이 없으면 사용자는 앱이 고장 난 것으로 오해한다.
+ *
+ * 엑셀의 숨김 항목은 여기서 곧바로 되돌릴 수 있게 한다. 무엇이 숨겨져 있는지는
+ * 파일을 열어보기 전엔 알 수 없어 변환 전에 묻는 것은 깜깜이 선택을 강요하는
+ * 셈이다. 반면 이 시점엔 무엇이 몇 개 빠졌는지 이미 알고 있다. 숨긴 게 없는
+ * 파일에서는 배너가 뜨지 않아 평소 UI 비용은 0이다.
  */
-function ConversionWarnings({ warnings }: ConversionWarningsProps) {
-  if (!warnings?.length) {
+function ConversionNotice({ file }: ConversionNoticeProps) {
+  const setIncludeHidden = useFileStore((s) => s.setIncludeHidden);
+  const retry = useConvertQueueStore((s) => s.retry);
+
+  const warnings = file.result?.warnings ?? [];
+  const hasExcluded = file.result?.hiddenExcluded !== undefined;
+  // 포함 상태에서는 제외된 게 없으니, 되돌릴 근거는 사용자의 선택 자체다
+  const canToggleHidden = hasExcluded || file.includeHidden;
+  const isConverting = file.status === "converting";
+
+  const handleToggleHidden = useCallback(() => {
+    setIncludeHidden(file.id, !file.includeHidden);
+    retry({ id: file.id, path: file.path });
+  }, [file.id, file.path, file.includeHidden, setIncludeHidden, retry]);
+
+  if (warnings.length === 0 && !canToggleHidden) {
     return null;
   }
 
@@ -44,16 +66,39 @@ function ConversionWarnings({ warnings }: ConversionWarningsProps) {
     <div
       className="flex shrink-0 items-start gap-2 border-b border-[var(--color-border)] bg-[var(--color-chip-bg)] px-[18px] py-2 text-xs text-[var(--color-muted)]"
       data-testid="conversion-warnings"
+      role="status"
     >
-      <TriangleAlert
-        size={14}
-        className="mt-px shrink-0 text-[var(--color-accent)]"
-      />
+      {file.includeHidden ? (
+        <Eye size={14} className="mt-px shrink-0 text-[var(--color-accent)]" />
+      ) : (
+        <TriangleAlert
+          size={14}
+          className="mt-px shrink-0 text-[var(--color-accent)]"
+        />
+      )}
+
       <ul className="space-y-1">
+        {file.includeHidden && <li>숨긴 시트·행·열을 포함해 변환했습니다.</li>}
         {warnings.map((warning) => (
           <li key={warning}>{warning}</li>
         ))}
       </ul>
+
+      {canToggleHidden && (
+        <button
+          type="button"
+          onClick={handleToggleHidden}
+          disabled={isConverting}
+          className="ml-auto shrink-0 cursor-pointer rounded-[6px] border border-[var(--color-border)] px-2.5 py-1 text-[12px] font-medium text-[var(--color-text)] transition-colors hover:bg-[var(--color-hover)] disabled:cursor-default disabled:opacity-50"
+          data-testid="toggle-hidden-btn"
+        >
+          {isConverting
+            ? "다시 변환 중..."
+            : file.includeHidden
+              ? "숨긴 항목 빼고 다시 변환"
+              : "숨긴 항목 포함해 다시 변환"}
+        </button>
+      )}
     </div>
   );
 }
@@ -142,7 +187,9 @@ export function ResultPanel() {
     undoCleanup(selectedFile.id);
   }, [selectedFile, undoCleanup]);
 
-  if (!selectedFile || selectedFile.status !== "done" || !selectedFile.result) {
+  // 재변환(숨김 포함/제외 전환) 중에는 직전 결과를 그대로 두고 배너만 바뀐다.
+  // 상태만 보고 비우면 버튼을 누르는 순간 보던 내용이 사라졌다 돌아와 깜빡인다.
+  if (!selectedFile?.result) {
     return (
       <div
         className="flex h-full flex-col items-center justify-center gap-2 text-[var(--color-muted)]"
@@ -160,7 +207,7 @@ export function ResultPanel() {
 
   return (
     <div className="flex h-full flex-col" data-testid="result-panel">
-      <ConversionWarnings warnings={selectedFile.result?.warnings} />
+      <ConversionNotice file={selectedFile} />
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-y-1 border-b border-[var(--color-border)] px-[18px] py-2.5">
         <ModeToggle mode={mode} onChange={setMode} />
         <div className="flex flex-wrap items-center gap-0.5">

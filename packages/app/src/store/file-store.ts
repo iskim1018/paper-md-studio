@@ -21,6 +21,15 @@ export interface ConvertResult {
   outputPath: string;
   /** 변환은 됐지만 사용자가 알아야 할 사항 (예: 텍스트 없는 스캔 PDF) */
   warnings?: Array<string>;
+  /**
+   * 숨김 처리로 제외된 항목 수 (엑셀 전용).
+   * 경고 문구를 파싱하지 않고 "포함해 다시 변환" 안내를 띄우는 근거가 된다.
+   */
+  hiddenExcluded?: {
+    readonly sheets: number;
+    readonly rows: number;
+    readonly cols: number;
+  };
 }
 
 export interface FileItem {
@@ -39,6 +48,11 @@ export interface FileItem {
   readonly cleanupSnapshot: string | null;
   /** 폴더 스캔으로 추가된 경우 트리 표시용 그룹 경로 (예: "샘플/하위"). 개별 추가는 null. */
   readonly groupDir: string | null;
+  /**
+   * 엑셀의 숨긴 시트·행·열을 포함해 변환할지 (기본 false).
+   * 결과 화면에서 되돌릴 수 있어야 하므로 파일별로 기억한다.
+   */
+  readonly includeHidden: boolean;
 }
 
 interface FileStore {
@@ -84,6 +98,8 @@ interface FileStore {
   checkAll: () => void;
   /** 모든 체크 해제. */
   clearChecked: () => void;
+  /** 엑셀 숨김 항목 포함 여부를 바꾼다 (재변환은 호출측이 큐에 넣는다). */
+  setIncludeHidden: (id: string, includeHidden: boolean) => void;
 }
 
 const FORMAT_EXTENSIONS: Record<string, DocumentFormat> = {
@@ -178,6 +194,7 @@ export const useFileStore = create<FileStore>((set) => ({
         isDirty: false,
         cleanupSnapshot: null,
         groupDir: null,
+        includeHidden: false,
       }));
 
       return {
@@ -212,6 +229,7 @@ export const useFileStore = create<FileStore>((set) => ({
           isDirty: false,
           cleanupSnapshot: null,
           groupDir,
+          includeHidden: false,
         }),
       );
 
@@ -241,6 +259,7 @@ export const useFileStore = create<FileStore>((set) => ({
         isDirty: false,
         cleanupSnapshot: null,
         groupDir: null,
+        includeHidden: false,
       };
       return {
         files: [...state.files, newFile],
@@ -423,6 +442,13 @@ export const useFileStore = create<FileStore>((set) => ({
       checkedIds: new Set<string>(),
       lastCheckedId: null,
     }),
+
+  setIncludeHidden: (id, includeHidden) =>
+    set((state) => ({
+      files: state.files.map((file) =>
+        file.id === id ? { ...file, includeHidden } : file,
+      ),
+    })),
 }));
 
 export { isSupportedFile };

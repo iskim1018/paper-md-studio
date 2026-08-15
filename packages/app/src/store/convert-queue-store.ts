@@ -37,10 +37,15 @@ async function runItem(item: QueueItem): Promise<RunOutcome | undefined> {
       updateFile(item.id, { status: "pending", error: undefined });
       return { skipped: true };
     }
+    // 재변환(숨김 포함/제외 전환)은 파일에 기억된 선택을 그대로 따른다
+    const includeHidden =
+      fileStore.getState().files.find((f) => f.id === item.id)
+        ?.includeHidden === true;
     const result = await convertFile(item.path, {
       outputPath: resolved.outputPath,
       // URL 변환은 결과 md가 로컬 파일이므로 원격 이미지도 함께 보존한다
       downloadImages: isHttpUrl(item.path),
+      includeHidden,
     });
     updateFile(item.id, { status: "done", result });
   } catch (err: unknown) {

@@ -8,6 +8,12 @@ interface CliOutput {
   readonly outputPath: string;
   /** 변환은 됐지만 사용자가 알아야 할 사항 (예: 텍스트 없는 스캔 PDF) */
   readonly warnings?: Array<string>;
+  /** 숨김 처리로 제외된 항목 수 (엑셀 전용) */
+  readonly hiddenExcluded?: {
+    readonly sheets: number;
+    readonly rows: number;
+    readonly cols: number;
+  };
 }
 
 export interface ConvertOptions {
@@ -17,6 +23,8 @@ export interface ConvertOptions {
   readonly outputPath?: string | null;
   /** HTML 변환 시 원격 이미지를 {문서명}_images/로 다운로드 */
   readonly downloadImages?: boolean;
+  /** 엑셀의 숨긴 시트·행·열도 변환에 포함 */
+  readonly includeHidden?: boolean;
 }
 
 /**
@@ -60,6 +68,9 @@ export async function convertFile(
   if (options.downloadImages) {
     args.push("--download-images");
   }
+  if (options.includeHidden) {
+    args.push("--include-hidden");
+  }
 
   const command = Command.sidecar("binaries/paper-md-studio-cli", args);
 
@@ -89,5 +100,6 @@ export async function convertFile(
     imageCount: result.imageCount,
     outputPath: result.outputPath,
     ...(result.warnings?.length ? { warnings: result.warnings } : {}),
+    ...(result.hiddenExcluded ? { hiddenExcluded: result.hiddenExcluded } : {}),
   };
 }
