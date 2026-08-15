@@ -3,7 +3,7 @@ import {
   buildNumberFormats,
   classifyFormat,
   formatCellValue,
-} from "../src/parsers/xlsx/cell-format.js";
+} from "../src/parsers/spreadsheet/cell-format.js";
 
 /**
  * 엑셀은 셀에 "값"만 저장하고 사람이 보는 표시형식은 styles.xml에 따로 둔다.

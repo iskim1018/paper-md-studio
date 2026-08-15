@@ -219,6 +219,9 @@ importers:
       '@opendocsg/pdf2md':
         specifier: ^0.2.6
         version: 0.2.6(@napi-rs/canvas@0.1.97)
+      cfb:
+        specifier: 1.2.2
+        version: 1.2.2
       fast-xml-parser:
         specifier: ^5.7.0
         version: 5.7.2

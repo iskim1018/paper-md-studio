@@ -8,8 +8,8 @@ import { DocxParser } from "./parsers/docx-parser.js";
 import { HtmlParser } from "./parsers/html-parser.js";
 import { HwpParser } from "./parsers/hwp-parser.js";
 import { HwpxParser } from "./parsers/hwpx-parser.js";
-import { KordocParser } from "./parsers/kordoc-adapter.js";
 import { PdfParser } from "./parsers/pdf-parser.js";
+import { XlsParser } from "./parsers/xls-parser.js";
 import { XlsxParser } from "./parsers/xlsx-parser.js";
 import type {
   ConvertOptions,
@@ -39,10 +39,10 @@ const PARSER_MAP: Record<DocumentFormat, () => Parser> = {
   docx: () => new DocxParser(),
   pdf: () => new PdfParser(),
   html: () => new HtmlParser(),
-  // .xlsx는 자체 파서 — 표시형식·그림·하이퍼링크·숨김은 kordoc이 읽지 않는
-  // 파트라 위임하면 복원할 수 없다. .xls(바이너리 BIFF)는 kordoc 유지.
+  // 엑셀은 둘 다 자체 파서 — 사용자에게 .xls와 .xlsx는 같은 문서다.
+  // 격자를 만든 뒤부터는 두 경로가 완전히 같은 코드를 탄다 (spreadsheet/).
   xlsx: () => new XlsxParser(),
-  xls: () => new KordocParser({ normalizeTables: true }),
+  xls: () => new XlsParser(),
 };
 
 function detectFormat(filePath: string): DocumentFormat {

@@ -1,24 +1,22 @@
 import { readFile } from "node:fs/promises";
 import { XMLParser } from "fast-xml-parser";
 import { strFromU8, unzipSync } from "fflate";
-import { htmlToMarkdownKeepingTables } from "../html-to-md.js";
 import {
   createImageAsset,
   makeImageName,
   mimeFromExt,
 } from "../image-utils.js";
 import type {
-  HiddenExclusion,
   ImageAsset,
   ParseOptions,
   ParseResult,
   Parser,
 } from "../types.js";
-import { normalizeHtmlTablesToGfm } from "./html-tables-to-gfm.js";
-import type { NumberFormats } from "./xlsx/cell-format.js";
-import { buildNumberFormats } from "./xlsx/cell-format.js";
-import type { VisibleGrid } from "./xlsx/visibility.js";
-import { projectVisibleGrid } from "./xlsx/visibility.js";
+import type { NumberFormats } from "./spreadsheet/cell-format.js";
+import { buildNumberFormats } from "./spreadsheet/cell-format.js";
+import type { SheetGrid } from "./spreadsheet/grid.js";
+import type { RenderableSheet } from "./spreadsheet/render.js";
+import { escapeHtml, renderWorkbook } from "./spreadsheet/render.js";
 import type { SheetRef } from "./xlsx/workbook.js";
 import {
   parseRelationships,
@@ -26,7 +24,6 @@ import {
   parseWorkbook,
   resolveZipPath,
 } from "./xlsx/workbook.js";
-import type { CellSpan, SheetGrid } from "./xlsx/worksheet.js";
 import { parseWorksheet } from "./xlsx/worksheet.js";
 
 /**
@@ -41,10 +38,6 @@ import { parseWorksheet } from "./xlsx/worksheet.js";
  * 자동으로 일치한다.
  */
 
-/** 시트 하나에서 읽을 최대 행·열. 초과분은 잘라내고 반드시 경고를 남긴다. */
-const MAX_ROWS_PER_SHEET = 5000;
-const MAX_COLS_PER_SHEET = 200;
-
 const drawingParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
@@ -54,14 +47,6 @@ const drawingParser = new XMLParser({
       tagName,
     ),
 });
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 interface DrawingImage {
   readonly embedId: string;
@@ -100,76 +85,6 @@ function parseDrawingImages(xml: string): Array<DrawingImage> {
   return images;
 }
 
-/** 병합 크기를 colspan/rowspan 속성 문자열로 (1칸이면 빈 문자열) */
-function spanAttributes(span: CellSpan | undefined): string {
-  if (!span) return "";
-  const attrs: Array<string> = [];
-  if (span.colSpan > 1) attrs.push(`colspan="${span.colSpan}"`);
-  if (span.rowSpan > 1) attrs.push(`rowspan="${span.rowSpan}"`);
-  return attrs.length > 0 ? ` ${attrs.join(" ")}` : "";
-}
-
-/**
- * 원본에서 숨김이던 자리에 붙는 클래스. 뷰어가 흐리게 표시해 "감춰져 있던
- * 칸"임을 알린다. Markdown 변환에는 영향이 없다 (turndown이 클래스를 버린다).
- */
-const HIDDEN_ROW_CLASS = "xlsx-hidden-row";
-const HIDDEN_COL_CLASS = "xlsx-hidden-col";
-
-/** 셀 하나를 <td>/<th>로 만든다 */
-function renderCell(
-  text: string,
-  span: CellSpan | undefined,
-  href: string | undefined,
-  isHeader: boolean,
-  isHiddenCol: boolean,
-): string {
-  // 셀 안 줄바꿈(Alt+Enter)은 \n으로 저장된다. HTML에서 \n은 공백으로 접히므로
-  // <br>로 바꿔야 원본의 줄 구분이 살아남는다.
-  const escaped = escapeHtml(text).replace(/\r?\n/g, "<br>");
-  const content = href
-    ? `<a href="${escapeHtml(href)}">${escaped || escapeHtml(href)}</a>`
-    : escaped;
-  const tag = isHeader ? "th" : "td";
-  const cls = isHiddenCol ? ` class="${HIDDEN_COL_CLASS}"` : "";
-  return `<${tag}${spanAttributes(span)}${cls}>${content}</${tag}>`;
-}
-
-/** 격자(숨김 반영 완료)를 HTML 표로 만든다 */
-function gridToHtmlTable(
-  grid: VisibleGrid,
-  hyperlinkTargets: ReadonlyMap<string, string>,
-  limits: { rows: number; cols: number },
-): string {
-  const rows: Array<string> = [];
-
-  for (let r = 0; r < limits.rows; r += 1) {
-    const cells: Array<string> = [];
-
-    for (let c = 0; c < limits.cols; c += 1) {
-      const position = `${r},${c}`;
-      if (grid.covered.has(position)) continue;
-      cells.push(
-        renderCell(
-          grid.cells[r]?.[c] ?? "",
-          grid.spans.get(position),
-          hyperlinkTargets.get(position),
-          r === 0,
-          grid.hiddenCols.has(c),
-        ),
-      );
-    }
-
-    if (cells.length === 0) continue;
-    const rowClass = grid.hiddenRows.has(r)
-      ? ` class="${HIDDEN_ROW_CLASS}"`
-      : "";
-    rows.push(`<tr${rowClass}>${cells.join("")}</tr>`);
-  }
-
-  return rows.length > 0 ? `<table>${rows.join("")}</table>` : "";
-}
-
 type ZipFiles = Record<string, Uint8Array>;
 
 function readText(files: ZipFiles, path: string): string | null {
@@ -186,27 +101,6 @@ interface SheetContext {
   readonly images: Array<ImageAsset>;
   readonly warnings: Array<string>;
   readonly imagesDirName: string;
-  readonly includeHidden: boolean;
-  /** 제외한 숨김 항목 누계 — UI가 "포함해 다시 변환"을 띄울 근거 */
-  readonly excluded: HiddenExclusion;
-}
-
-/**
- * 숨김 제외로 실제로 빠진 것이 있으면 무엇이 빠졌는지 알린다.
- *
- * "어떻게 포함하는지"는 여기서 말하지 않는다 — core는 자기가 CLI에서 쓰이는지
- * GUI에서 쓰이는지 모른다. 되돌리는 방법 안내는 각 진입점의 몫이다.
- */
-function hiddenExclusionWarning(
-  sheetName: string,
-  hiddenRows: number,
-  hiddenCols: number,
-): string | null {
-  if (hiddenRows === 0 && hiddenCols === 0) return null;
-  const parts: Array<string> = [];
-  if (hiddenRows > 0) parts.push(`행 ${hiddenRows}개`);
-  if (hiddenCols > 0) parts.push(`열 ${hiddenCols}개`);
-  return `시트 "${sheetName}"의 숨겨진 ${parts.join("·")}를 제외했습니다.`;
 }
 
 export class XlsxParser implements Parser {
@@ -228,7 +122,7 @@ export class XlsxParser implements Parser {
 
     const warnings: Array<string> = [];
     const images: Array<ImageAsset> = [];
-    const excluded: HiddenExclusion = { sheets: 0, rows: 0, cols: 0 };
+    const includeHidden = options.xlsx?.includeHidden === true;
     const context: SheetContext = {
       files,
       workbookRels: parseRelationships(
@@ -244,39 +138,31 @@ export class XlsxParser implements Parser {
       images,
       warnings,
       imagesDirName: options.imagesDirName,
-      includeHidden: options.xlsx?.includeHidden === true,
-      excluded,
     };
 
-    const hiddenSheets = sheets.filter((sheet) => sheet.hidden);
-    if (hiddenSheets.length > 0 && !context.includeHidden) {
-      excluded.sheets = hiddenSheets.length;
-      warnings.push(
-        `숨겨진 시트 ${hiddenSheets.length}개를 제외했습니다: ${hiddenSheets
-          .map((sheet) => sheet.name)
-          .join(", ")}`,
-      );
-    }
-
-    const htmlParts: Array<string> = [];
-    for (const sheet of sheets) {
-      if (sheet.hidden && !context.includeHidden) continue;
-      const sheetHtml = this.renderSheet(sheet, context);
-      if (sheetHtml) htmlParts.push(sheetHtml);
-    }
-
-    const html = htmlParts.join("\n");
-    const markdown = normalizeHtmlTablesToGfm(
-      htmlToMarkdownKeepingTables(html),
+    const visibleSheets = sheets.filter(
+      (sheet) => includeHidden || !sheet.hidden,
     );
+    const renderable = visibleSheets
+      .map((sheet) => this.toRenderableSheet(sheet, context))
+      .filter((sheet): sheet is RenderableSheet => sheet !== null);
 
+    // 렌더는 XLS와 공유한다 — 확장자가 달라도 결과는 같아야 한다
+    const rendered = renderWorkbook(renderable, {
+      includeHidden,
+      hiddenSheetNames: sheets
+        .filter((sheet) => sheet.hidden)
+        .map((sheet) => sheet.name),
+    });
+
+    const allWarnings = [...warnings, ...rendered.warnings];
     return {
-      html,
-      markdown,
+      html: rendered.html,
+      markdown: rendered.markdown,
       images,
-      ...(warnings.length > 0 ? { warnings } : {}),
-      ...(excluded.sheets + excluded.rows + excluded.cols > 0
-        ? { hiddenExcluded: excluded }
+      ...(allWarnings.length > 0 ? { warnings: allWarnings } : {}),
+      ...(rendered.hiddenExcluded
+        ? { hiddenExcluded: rendered.hiddenExcluded }
         : {}),
     };
   }
@@ -290,7 +176,11 @@ export class XlsxParser implements Parser {
     }
   }
 
-  private renderSheet(sheet: SheetRef, ctx: SheetContext): string {
+  /** 시트 하나를 공용 렌더가 받는 모양으로 만든다 (렌더 자체는 하지 않는다) */
+  private toRenderableSheet(
+    sheet: SheetRef,
+    ctx: SheetContext,
+  ): RenderableSheet | null {
     const target = ctx.workbookRels.get(sheet.relId);
     const sheetPath = target
       ? resolveZipPath("xl", target)
@@ -300,7 +190,7 @@ export class XlsxParser implements Parser {
       ctx.warnings.push(
         `시트 "${sheet.name}"의 내용을 찾을 수 없어 건너뛰었습니다.`,
       );
-      return "";
+      return null;
     }
 
     const raw = parseWorksheet(
@@ -310,43 +200,21 @@ export class XlsxParser implements Parser {
       ctx.date1904,
     );
 
-    if (!ctx.includeHidden) {
-      ctx.excluded.rows += raw.hiddenRows.size;
-      ctx.excluded.cols += raw.hiddenCols.size;
-      const warning = hiddenExclusionWarning(
-        sheet.name,
-        raw.hiddenRows.size,
-        raw.hiddenCols.size,
-      );
-      if (warning) ctx.warnings.push(warning);
-    }
-    const grid = projectVisibleGrid(raw, ctx.includeHidden);
+    // 관계 ID를 실제 주소로 바꿔 둔다 — 이후 좌표 재매핑은 공용 렌더가 한다
+    const grid: SheetGrid = {
+      ...raw,
+      hyperlinkRels: this.resolveHyperlinks(raw, ctx.files, sheetPath),
+    };
 
-    const totalRows = grid.cells.length;
-    const totalCols = grid.cells[0]?.length ?? 0;
-    const rows = Math.min(totalRows, MAX_ROWS_PER_SHEET);
-    const cols = Math.min(totalCols, MAX_COLS_PER_SHEET);
-    if (rows < totalRows || cols < totalCols) {
-      ctx.warnings.push(
-        `시트 "${sheet.name}"가 너무 커서 ${rows}행 × ${cols}열까지만 변환했습니다 ` +
-          `(원본 ${totalRows}행 × ${totalCols}열).`,
-      );
-    }
-
-    const parts = [`<h2>${escapeHtml(sheet.name)}</h2>`];
-    const table = gridToHtmlTable(
+    return {
+      name: sheet.name,
       grid,
-      this.resolveHyperlinks(grid, ctx.files, sheetPath),
-      { rows, cols },
-    );
-    if (table) parts.push(table);
-    parts.push(...this.collectImages(raw, ctx, sheetPath));
-
-    return parts.join("\n");
+      extraHtml: this.collectImages(raw, ctx, sheetPath),
+    };
   }
 
   private resolveHyperlinks(
-    grid: VisibleGrid,
+    grid: SheetGrid,
     files: ZipFiles,
     sheetPath: string,
   ): Map<string, string> {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { projectVisibleGrid } from "../src/parsers/xlsx/visibility.js";
-import type { SheetGrid } from "../src/parsers/xlsx/worksheet.js";
+import type { SheetGrid } from "../src/parsers/spreadsheet/grid.js";
+import { projectVisibleGrid } from "../src/parsers/spreadsheet/visibility.js";
 
 /**
  * 숨긴 행·열을 걷어내고 격자를 다시 투영한다.

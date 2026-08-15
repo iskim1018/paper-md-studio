@@ -29,6 +29,7 @@
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
     "@opendocsg/pdf2md": "^0.2.6",
+    "cfb": "1.2.2",
     "fast-xml-parser": "^5.7.0",
     "fflate": "^0.8.2",
     "kordoc": "4.7.2",

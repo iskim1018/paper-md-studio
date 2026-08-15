@@ -1,4 +1,4 @@
-import type { CellSpan, SheetGrid } from "./worksheet.js";
+import type { CellSpan, SheetGrid } from "./grid.js";
 
 /**
  * 숨긴 행·열을 걷어내고 격자를 다시 투영한다.
