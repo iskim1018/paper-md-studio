@@ -142,10 +142,12 @@ export async function convert(options: ConvertOptions): Promise<ConvertResult> {
     toParseOptions(options, imagesDirName),
   );
 
+  // truthy 검사가 아니라 null 검사 — 빈 문자열은 "반환 없음"이 아니라
+  // 유효한 결과다 (스캔 PDF는 빈 markdown + 경고로 나간다)
   let markdown: string;
-  if (parseResult.markdown) {
+  if (parseResult.markdown !== null) {
     markdown = parseResult.markdown;
-  } else if (parseResult.html) {
+  } else if (parseResult.html !== null) {
     markdown = htmlToMarkdown(parseResult.html);
   } else {
     throw new Error("파서가 HTML 또는 Markdown을 반환하지 않았습니다.");

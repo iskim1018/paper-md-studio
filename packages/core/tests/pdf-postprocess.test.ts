@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  cleanupInspectorMarkdown,
   cleanupPdfMarkdown,
   hasExtractableText,
 } from "../src/parsers/pdf-postprocess.js";
@@ -23,6 +24,50 @@ describe("hasExtractableText", () => {
 
     // Act & Assert
     expect(hasExtractableText(markdown)).toBe(true);
+  });
+});
+
+describe("cleanupInspectorMarkdown", () => {
+  /**
+   * pdf-inspector 출력은 pdf2md와 잔재의 모양이 다르다 — 목차 점선 리더가
+   * 인라인으로 이어지고, 한컴 불릿이 Ÿ(U+0178)로 오매핑돼 남는다
+   * (2026-08-17 실물 업무편람 PDF 실측: Ÿ 20곳, 리더 79곳).
+   */
+  it("인라인 점선 리더를 짧은 구분자로 줄인다 — 토큰 절감", () => {
+    const md =
+      "개요 ····························· 3 추진 배경 ·············· 5";
+
+    const out = cleanupInspectorMarkdown(md);
+
+    expect(out).not.toMatch(/·{4,}/);
+    expect(out).toContain("개요");
+    expect(out).toContain("3");
+    expect(out).toContain("추진 배경");
+  });
+
+  it("마침표 리더(....)도 같은 규칙으로 줄인다", () => {
+    const md = "부록 ................................. 27";
+
+    const out = cleanupInspectorMarkdown(md);
+
+    expect(out).not.toMatch(/\.{4,}/);
+    expect(out).toContain("부록");
+    expect(out).toContain("27");
+  });
+
+  it("한컴 불릿 오매핑(Ÿ)을 불릿 기호로 되돌린다", () => {
+    const md = "| 1.1 | Ÿ 최초 제정 (2026.01.01.) |";
+
+    const out = cleanupInspectorMarkdown(md);
+
+    expect(out).not.toContain("Ÿ");
+    expect(out).toContain("• 최초 제정");
+  });
+
+  it("표 구분자(---)와 짧은 마침표는 건드리지 않는다", () => {
+    const md = "| 항목 | 값 |\n| --- | --- |\n| 버전 | 1.0. |";
+
+    expect(cleanupInspectorMarkdown(md)).toBe(md);
   });
 });
 

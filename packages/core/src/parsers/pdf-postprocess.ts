@@ -118,6 +118,23 @@ export function hasExtractableText(markdown: string): boolean {
   return markdown.replace(STRUCTURAL_COMMENT, "").trim() !== "";
 }
 
+/**
+ * pdf-inspector 출력의 잔재를 정리합니다.
+ *
+ * pdf2md와 잔재의 모양이 다르다 — 목차 점선 리더가 줄 단위가 아니라 인라인으로
+ * 이어지고, 한컴 불릿이 Ÿ(U+0178, CP1252 오매핑)로 남는다 (2026-08-17 실물
+ * 업무편람 PDF 실측: Ÿ 20곳, 리더 79곳, 리더 정리만으로 토큰 약 20% 절감).
+ */
+export function cleanupInspectorMarkdown(markdown: string): string {
+  return (
+    markdown
+      // 인라인 점선 리더(····· / .....)를 구분자 하나로 — 제목과 쪽번호는 남긴다
+      .replace(/\s*[·.]{4,}\s*/g, " — ")
+      // 한컴 불릿 오매핑: Wingdings 계열이 CP1252를 거치며 Ÿ로 남는다
+      .replace(/Ÿ\s?/g, "• ")
+  );
+}
+
 /** 제목 줄 — 마커와 내용 */
 const HEADING_LINE = /^(#{1,6})\s+(.*)$/;
 

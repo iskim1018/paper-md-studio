@@ -213,6 +213,9 @@ importers:
 
   packages/core:
     dependencies:
+      '@firecrawl/pdf-inspector':
+        specifier: 1.14.2
+        version: 1.14.2
       '@mozilla/readability':
         specifier: ^0.6.0
         version: 0.6.0
@@ -820,6 +823,50 @@ packages:
 
   '@fastify/swagger@9.7.0':
     resolution: {integrity: sha512-Vp1SC1GC2Hrkd3faFILv86BzUNyFz5N4/xdExqtCgkGASOzn/x+eMe4qXIGq7cdT6wif/P/oa6r1Ruqx19paZA==}
+
+  '@firecrawl/pdf-inspector-darwin-arm64@1.14.2':
+    resolution: {integrity: sha512-HXkyDRS+C+2UKm4axYOmFCp7IETXYlSLBuTMsFbQ9az9nBvEjAS55ZPvJoZYD0VFqt0bye0OmzFWLGuATC087Q==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@firecrawl/pdf-inspector-linux-arm64-gnu@1.14.2':
+    resolution: {integrity: sha512-GpZlM2XY2w/z4VwDjFDz9pS92DAJuyNGxCbEjc9uHG3mxm0O9K5CXawWFxbLZBpZ1C8mfMQRIeYMdBIYqzlr4Q==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@firecrawl/pdf-inspector-linux-arm64-musl@1.14.2':
+    resolution: {integrity: sha512-qWinxJ59L4UEZe5W3/R8137nvGAjqf2rog11IeV7sqbVxYevlnzkFDplMjVdOVfZcJyvxX7Vbagz69tYRdbYVQ==}
+    engines: {node: '>= 10'}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@firecrawl/pdf-inspector-linux-x64-gnu@1.14.2':
+    resolution: {integrity: sha512-kcQbAOak9DbaN1wUywT1Id3pXQaW7p+MhbVV5Nzbn8MZGC6N1iLky3OzFTHzjaAWNNBgid56WScMg87AVjHFEg==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@firecrawl/pdf-inspector-linux-x64-musl@1.14.2':
+    resolution: {integrity: sha512-MasigWZ9G9PirVV5r366U6daLzfz0yjXgNsIcedA4/S6UchcWTJ3E7le5jtm3L7kLVMFRtapoKxqUezwU8+7TA==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@firecrawl/pdf-inspector-win32-x64-msvc@1.14.2':
+    resolution: {integrity: sha512-SW6pTvuFmc6tLTlV93uSGkGwpaFksA9ua1Va70YCbBW7Q38pZeV4lU6rKDrglYq3XFqnkbz6M/NAIPJq943E1A==}
+    engines: {node: '>= 10'}
+    cpu: [x64]
+    os: [win32]
+
+  '@firecrawl/pdf-inspector@1.14.2':
+    resolution: {integrity: sha512-JHC5uk1vnjfzm6JdO2u7zyHoiL5Xg7R59LquAmKhwV5R+ofStlsM5tBlw4Bhl9JRyaDilUEhpaysZ+1aFeRJ+g==}
+    hasBin: true
 
   '@floating-ui/core@1.7.5':
     resolution: {integrity: sha512-1Ih4WTWyw0+lKyFMcBHGbb5U5FtuHJuujoyyr5zTaWS5EYMeT6Jb2AuDeftsCsEuchO+mM2ij5+q9crhydzLhQ==}
@@ -4797,6 +4844,33 @@ snapshots:
       yaml: 2.8.3
     transitivePeerDependencies:
       - supports-color
+
+  '@firecrawl/pdf-inspector-darwin-arm64@1.14.2':
+    optional: true
+
+  '@firecrawl/pdf-inspector-linux-arm64-gnu@1.14.2':
+    optional: true
+
+  '@firecrawl/pdf-inspector-linux-arm64-musl@1.14.2':
+    optional: true
+
+  '@firecrawl/pdf-inspector-linux-x64-gnu@1.14.2':
+    optional: true
+
+  '@firecrawl/pdf-inspector-linux-x64-musl@1.14.2':
+    optional: true
+
+  '@firecrawl/pdf-inspector-win32-x64-msvc@1.14.2':
+    optional: true
+
+  '@firecrawl/pdf-inspector@1.14.2':
+    optionalDependencies:
+      '@firecrawl/pdf-inspector-darwin-arm64': 1.14.2
+      '@firecrawl/pdf-inspector-linux-arm64-gnu': 1.14.2
+      '@firecrawl/pdf-inspector-linux-arm64-musl': 1.14.2
+      '@firecrawl/pdf-inspector-linux-x64-gnu': 1.14.2
+      '@firecrawl/pdf-inspector-linux-x64-musl': 1.14.2
+      '@firecrawl/pdf-inspector-win32-x64-msvc': 1.14.2
 
   '@floating-ui/core@1.7.5':
     dependencies:

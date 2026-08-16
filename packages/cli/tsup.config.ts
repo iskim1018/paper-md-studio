@@ -11,12 +11,16 @@ export default defineConfig((options) => {
     // 을 유지하기 위해서도 ESM이 필요.
     format: "esm",
     clean: false,
-    // playwright-core는 optionalDependency (SPA 렌더링 전용).
-    // 사이드카 번들 비대화를 막기 위해 번들에서 제외 — noExternal이
-    // external보다 우선하므로 정규식에서 명시적으로 빼야 한다. 미설치
-    // 환경에서는 renderSpa의 동적 import가 한국어 에러로 안내한다.
-    noExternal: isBundle ? [/^(?!playwright-core$).*/] : undefined,
-    external: ["playwright-core"],
+    // playwright-core는 optionalDependency (SPA 렌더링 전용) — 번들 비대화
+    // 방지로 제외. @firecrawl/pdf-inspector는 NAPI 로더가 전 플랫폼
+    // `require('./*.node')`를 갖고 있어 esbuild 정적 해석이 깨지므로 external
+    // 로 두고, 배포는 prepare-app-resources가 로더+바이너리를 리소스의 미니
+    // node_modules 로 동봉한다. 로드 실패 시 pdf-parser가 pdf2md로 폴백.
+    // noExternal이 external보다 우선하므로 정규식에서 명시적으로 빼야 한다.
+    noExternal: isBundle
+      ? [/^(?!playwright-core$|@firecrawl\/pdf-inspector$).*/]
+      : undefined,
+    external: ["playwright-core", "@firecrawl/pdf-inspector"],
     minify: isBundle,
     outDir: isBundle ? "dist-bundle" : "dist",
     splitting: false,

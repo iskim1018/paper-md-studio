@@ -14,6 +14,7 @@
  */
 import {
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   rmSync,
@@ -87,6 +88,21 @@ function main() {
   const cliSize = statSync(cliBundleDest).size;
   console.log(`✓ CLI 번들 복사: ${formatBytes(cliSize)}`);
   console.log(`  ${cliBundleDest}`);
+
+  // 런타임 미니 node_modules 복사.
+  //
+  // 번들에 인라인 불가능한 패키지(pdf-inspector NAPI 로더, kordoc 이 동적
+  // require 하는 cfb 계열)는 bundle-runtime-deps.mjs 가 dist-bundle 옆에
+  // 구성해 둔다 — 여기서는 그 디렉토리를 통째로 배포 리소스에 복사한다.
+  const runtimeDepsSrc = join(dirname(cliBundleSrc), "node_modules");
+  assertExists(
+    join(runtimeDepsSrc, "@firecrawl", "pdf-inspector", "index.js"),
+    "먼저 'pnpm build:cli-bundle'을 실행하세요 (bundle-runtime-deps.mjs 가 구성).",
+  );
+  const runtimeDepsDest = join(dirname(cliBundleDest), "node_modules");
+  rmSync(runtimeDepsDest, { recursive: true, force: true });
+  cpSync(runtimeDepsSrc, runtimeDepsDest, { recursive: true });
+  console.log(`✓ 런타임 미니 node_modules 복사 (pdf-inspector, cfb 계열)`);
 
   // 요약
   console.log(`\n=== app/src-tauri/resources 구성 ===`);
