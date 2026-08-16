@@ -2,11 +2,20 @@
 
 > 이 문서는 다른 세션·모델(Opus 등)·장비에서 작업을 이어받을 수 있도록
 > 배경, 결정, 완료 상태, 다음 단계의 작업지시를 자족적으로 기록한다.
-> 마지막 갱신: 2026-08-08
+> 마지막 갱신: 2026-08-16
 
 ## 0. 지금 상태 · 다음에 할 일
 
+- **⚠ 2026-08-15/16 범위 축소** — **XLSX·XLS 는 kordoc 에서 자체 파서로
+  전환**했다 (`parsers/xlsx/`, `parsers/xls/`, 공용 렌더 `parsers/spreadsheet/`).
+  kordoc 4.7.2 의 xlsx 경로가 날짜를 시리얼 숫자로 남기고(xmldom
+  `getAttribute` 가 없는 속성에 `""` 를 반환해 `type === null` 가드가 죽는
+  버그 — 엑셀은 숫자 셀의 `t` 속성을 생략하므로 실물 파일에서 100% 재현),
+  styles·drawings·hyperlinks·hidden 파트를 아예 읽지 않아 위임으로는 복원이
+  불가능했기 때문. 근거·경위는 CLAUDE.md 결정 로그 2026-08-15/16 참조.
+  **kordoc 은 이제 HWP5(기본 엔진)·HWP3·HWPML 전용이다.**
 - **K1 완료** — XLSX·XLS·HWP3·HWPML 을 kordoc 에 위임. GUI·MCP·REST 까지 관통.
+  (XLSX·XLS 는 위 항목대로 이후 자체 파서로 대체됨)
 - **K2 보류** — 합성 코퍼스(6종)와 실물 공공문서(1종) 실측을 마쳤으나 **결론이
   엇갈린다**. 합성에서는 kordoc 의 표 복원이 압도적이었는데, 실물에서는 현행
   파이프라인의 텍스트 품질이 앞섰다(§5). PDF 엔진 교체 여부는 **표본을 더
@@ -69,8 +78,8 @@
 
 | 포맷 | 엔진 | 상태 |
 |------|------|------|
-| XLSX / XLS | kordoc | ✅ K1 완료 |
-| HWP 3.x / HWPML (`.hwp` 매직바이트 판별) | kordoc | ✅ K1 완료 |
+| XLSX / XLS | **자체 파서** (`parsers/xlsx/`·`parsers/xls/`, 공용 렌더 `parsers/spreadsheet/`) | ✅ 2026-08-15/16 kordoc 에서 전환 (§0 첫 항목) |
+| HWP 3.x / HWPML (`.hwp` 매직바이트 판별) | kordoc + GFM 표 정규화 | ✅ K1 완료, 표 정규화는 2026-08-16 |
 | HWP 5.x (OLE2) | **kordoc + GFM 직렬화** (기본) / Java `hwp2hwpx` 폴백 | ✅ W4 전환 완료 (2026-08-09). Java 툴체인 제거는 W5 |
 | HWPX | 자체 파서 (PUA·중첩표·grid normalize 누적 투자) | 유지 |
 | PDF | pdf2md + 자체 보정 2단 | 유지 (K2에서 A/B 실측 후 결정) |

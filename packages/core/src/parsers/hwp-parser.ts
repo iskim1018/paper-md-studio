@@ -157,7 +157,12 @@ export class HwpParser implements Parser {
     const prefix = await readFilePrefix(inputPath);
     const detected = detectBinaryFormat(prefix);
     if (detected === "hwp3" || detected === "hwpml") {
-      return await new KordocParser().parse(inputPath, options);
+      // HWP3·HWPML도 kordoc이 병합 표를 HTML <table>로 내므로 (HWPML 합성
+      // 표본 실측, 2026-08-16) 다른 포맷과 같은 GFM 계약으로 정규화한다.
+      return await new KordocParser({ normalizeTables: true }).parse(
+        inputPath,
+        options,
+      );
     }
 
     // HWP 5.x — 기본은 kordoc 직파싱이다 (W4 전환). kordoc은 표를 HTML로 내므로

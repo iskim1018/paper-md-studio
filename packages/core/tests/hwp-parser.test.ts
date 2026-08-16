@@ -1,7 +1,10 @@
 import { execSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { MERGE_LEFT } from "../src/parsers/html-tables-to-gfm.js";
 import { HwpParser, resolveHwp5Engine } from "../src/parsers/hwp-parser.js";
 import { convert } from "../src/pipeline.js";
 
@@ -110,6 +113,50 @@ describe("resolveHwp5Engine (엔진 선택)", () => {
       } else {
         process.env.PAPER_MD_STUDIO_HWP_ENGINE = prev;
       }
+    }
+  });
+});
+
+describe("HwpParser (HWPML 경유 kordoc 경로)", () => {
+  /**
+   * HWPML(XML 기반 .hwp)의 병합 표도 다른 포맷과 같은 GFM 계약을 따라야 한다.
+   * kordoc은 병합 표를 HTML <table>로 내므로 (2026-08-16 실측) 정규화를
+   * 켜지 않으면 이 포맷만 HTML 표가 남는다.
+   */
+  const HWPML_WITH_MERGED_TABLE = `<?xml version="1.0" encoding="UTF-8"?>
+<HWPML Version="2.8">
+  <BODY>
+    <SECTION>
+      <P><TEXT><CHAR>표 앞 문단</CHAR></TEXT></P>
+      <TABLE RowCount="2" ColCount="2">
+        <ROW>
+          <CELL ColAddr="0" RowAddr="0" ColSpan="2" RowSpan="1"><PARALIST><P><TEXT><CHAR>병합 제목</CHAR></TEXT></P></PARALIST></CELL>
+        </ROW>
+        <ROW>
+          <CELL ColAddr="0" RowAddr="1"><PARALIST><P><TEXT><CHAR>가</CHAR></TEXT></P></PARALIST></CELL>
+          <CELL ColAddr="1" RowAddr="1"><PARALIST><P><TEXT><CHAR>나</CHAR></TEXT></P></PARALIST></CELL>
+        </ROW>
+      </TABLE>
+    </SECTION>
+  </BODY>
+</HWPML>`;
+
+  it("HWPML 병합 표를 GFM + 병합 화살표로 내린다", async () => {
+    const tmpDir = await mkdtemp(join(tmpdir(), "hwpml-table-test-"));
+    try {
+      const path = join(tmpDir, "구공문서.hwp");
+      await writeFile(path, HWPML_WITH_MERGED_TABLE, "utf-8");
+
+      const result = await new HwpParser().parse(path, {
+        imagesDirName: "구공문서_images",
+      });
+
+      expect(result.markdown).toContain("표 앞 문단");
+      expect(result.markdown).toContain(`| 병합 제목 | ${MERGE_LEFT} |`);
+      expect(result.markdown).toContain("| 가 | 나 |");
+      expect(result.markdown).not.toContain("<table");
+    } finally {
+      await rm(tmpDir, { recursive: true, force: true });
     }
   });
 });

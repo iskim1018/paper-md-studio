@@ -127,9 +127,10 @@ export interface KordocParserOptions {
   /**
    * kordoc이 낸 HTML 표를 GFM으로 내릴지 여부 (K3 W2).
    *
-   * HWP5에서 시작해 2026-08-15 XLSX·XLS로 확대했다 (합성 표본 실측: 병합
-   * 193→98자, 보고서형 405→232자 + 병합 화살표 확보). HWP3·HWPML은 아직
-   * 표본이 없어 기본값 끔을 유지한다.
+   * HWP5에서 시작해 XLSX·XLS(2026-08-15, 이후 자체 파서로 대체), HWP3·HWPML
+   * (2026-08-16, HWPML 합성 병합 표가 HTML로 나오는 것을 실측)까지 확대 —
+   * kordoc을 쓰는 모든 경로가 켠다. 기본값을 끔으로 유지하는 이유는 직접
+   * 생성자를 호출하는 테스트·외부 사용처의 출력을 조용히 바꾸지 않기 위해서다.
    */
   readonly normalizeTables?: boolean;
 }

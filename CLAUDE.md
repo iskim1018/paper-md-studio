@@ -51,15 +51,20 @@ pnpm --filter @paper-md-studio/app tauri dev          # GUI 개발 실행
 pnpm --filter @paper-md-studio/app test:e2e           # Playwright E2E
 ```
 
-## MVP 범위 (v1)
+## 지원 포맷 (2026-08-16 현재)
 
-- HWPX → Markdown (`@ssabrojs/hwpxjs`)
-- DOCX → Markdown (`mammoth` + `turndown`)
-- PDF → Markdown (`@opendocsg/pdf2md`)
-- HWP (5.0 바이너리) → HWPX → Markdown (`neolord0/hwp2hwpx` Java 툴체인)
+- HWPX → Markdown (자체 파서 — PUA 정규화·중첩표·grid normalize)
+- HWP 5.0 바이너리 → Markdown (kordoc 직파싱 기본, `PAPER_MD_STUDIO_HWP_ENGINE=java`로 Java `hwp2hwpx` 폴백)
+- HWP 3.x·HWPML → Markdown (`.hwp` 매직바이트 자동 판별, kordoc 위임 + GFM 표 정규화)
+- DOCX → Markdown (`mammoth` + 자체 GFM 표 직렬화)
+- DOC → Markdown (LibreOffice로 DOCX 선변환, macOS textutil 폴백 — 표·이미지 손실 경고)
+- PDF → Markdown (`@opendocsg/pdf2md` + 자체 보정 2단)
 - HTML → Markdown (`@mozilla/readability` + `linkedom` 본문 추출, 로컬 파일·URL·SPA 렌더링)
+- XLSX → Markdown (자체 파서 — 표시형식·병합·숨김·이미지, `parsers/xlsx/`)
+- XLS (BIFF8) → Markdown (자체 파서 — OLE2 컨테이너는 `cfb`, `parsers/xls/`. XLSX와 출력 동일 보장: `tests/spreadsheet-parity.test.ts`)
 
-v2 후순위: DOC(레거시, Phase 8)
+모든 표는 같은 GFM 계약(grid normalize + 병합 화살표 ←/↑ + 1행 1줄)으로 직렬화된다.
+CSV는 의도적으로 미지원 — 이미 구분자 있는 플레인 텍스트라 MD 표로 바꾸면 토큰만 늘어난다 (2026-08-16 결정).
 
 ## 코딩 규칙
 
@@ -143,6 +148,7 @@ Conventional Commits 형식:
 | 2026-08-07 | **kordoc 4.7.2 채택** (정확 핀, `^` 금지) — XLSX·XLS·HWP3·HWPML 변환 위임, `.hwp` 매직바이트 3분기(HWP3·HWPML→kordoc, OLE2→기존 Java) | 순수 TS·MIT·오프라인 1급 지원(`KORDOC_OFFLINE=1` 기본 강제, fetch 지점 2곳 실측). `parsers/kordoc-adapter.ts` 1곳 격리 + 계약 테스트(`tests/kordoc-adapter.test.ts`). 통합 로드맵·작업지시서는 `docs/kordoc-integration.md` |
 | 2026-08-08 | **비공개 문서는 `private/` 안에서만 취급** (폴더 전체 gitignore). 파일 단위 예외(`!sample.pdf` 등) 금지, 문서 제목·본문·발췌를 저장소·커밋 메시지에 남기지 않음 | 종전엔 업무 문서를 추적 디렉토리(`tests/fixtures/`)에 두고 확장자 패턴으로만 걸렀는데, 규칙 변경·`git add -f` 로 뚫리고 실제로 커밋 메시지·문서에 원문 인용이 새어 사후 스크럽이 필요했음. 예외 목록은 언젠가 틀리므로 폴더 격리로 단순화. 배치 원칙은 `packages/core/tests/fixtures/README.md` |
 | 2026-08-08 | CI 보안 감사 복구 — `pnpm audit` 20건 → 0건. **① override 값은 `>=` 대신 계열 고정(`^`) + 범위 키는 상·하한 모두 명시 ② pdfjs-dist 5.x→6.x 는 `legacy/build` 로 임포트 ③ `engines.node` ≥22.13.0** | ① `>=` 는 이미 배포된 새 메이저(undici 8.x, nanoid 6.x)를 전이 의존성에 끌어들인다 — 감사만 통과하고 런타임이 깨지는 전형적 경로. 하한 없는 키(`nanoid@<3.3.17`)는 1.x/2.x 선언까지 강제 승격시켜 동일 위험. ② v6 modern 빌드는 `Iterator` 헬퍼(Safari 18.4+)를 폴리필 없이 참조 — `minimumSystemVersion 12.0`(macOS 12 는 Safari 17.6 상한)과 충돌해 뷰어가 로드부터 깨진다. headless chromium 검증으로는 안 잡히는 종류(Chrome 은 122+ 지원). legacy 빌드는 core-js 폴리필 내장. ③ pdfjs 6.x 의 engines 가 실질 바닥을 올림. 상세·검증 기록은 `docs/security-audit-remediation.md` §0 |
+| 2026-08-16 | **HWP3·HWPML에도 GFM 표 정규화 적용** (`hwp-parser.ts`의 kordoc 분기에 `normalizeTables: true`) — 전 포맷이 같은 표 계약으로 수렴. **CSV는 의도적 미지원** | HWPML 합성 병합 표가 kordoc에서 HTML `<table>`로 나오는 것을 실측 — 이 두 포맷만 예외로 남아 있었다. HWPML은 XML이라 합성 픽스처로 테스트 고정 가능 (`hwp-parser.test.ts`, 셀에 `ColAddr`/`RowAddr` 필수 — 없으면 kordoc이 표를 통째로 버린다). CSV: 이미 구분자 있는 플레인 텍스트라 MD 표로 바꾸면 오히려 토큰이 늘어난다 — 제품 1급 목표(토큰 절감)에 역행 |
 | 2026-08-16 | **REST·MCP에 경고 배선 + 숨김 옵션 노출** — ① `warnings`·`hiddenExcluded`를 meta.json에 저장해 캐시 히트에서도 동일 응답 ② REST `?includeHidden=true`, MCP `includeHidden` 인자 ③ **옵션을 캐시 키에 반영** (`conversionCacheId` — 옵션을 해시에 섞어 새 64-hex 생성, ID 형식 검증·shard·서명 URL 무변경) | 검토 결과 `ConvertCache`가 core의 경고를 통째로 버리고 있었다 — 2026-08-08 경고 배선이 CLI·GUI까지만이어서, REST·MCP 소비자(특히 AI)는 숨긴 시트가 조용히 빠진 것을 알 길이 없었다. 옵션을 키에 안 섞으면 "숨김 제외" 캐시가 "숨김 포함" 요청에 그대로 나간다 — 같은 파일·다른 옵션은 다른 변환이다. 경고를 meta에 저장하는 이유: 첫 요청만 경고를 받고 캐시 히트는 못 받으면 소비자마다 다른 그림을 본다. MCP 툴 설명의 지원 포맷도 XLSX/XLS 누락 상태였음(K1 때 서버만 고침) |
 | 2026-08-16 | **`.xls`(BIFF8)도 자체 파서로 전환**, kordoc은 엑셀에서 완전히 손을 뗌. 격자 이후 단계를 `parsers/spreadsheet/`(cell-format·visibility·grid·render)로 뽑아 **두 포맷이 문자 그대로 같은 코드로 렌더** | 사용자에게 `.xls`와 `.xlsx`는 "같은 엑셀"이라 확장자만 다른 문서가 날짜는 45000, 서식은 소실, 숨김은 노출로 갈리면 버그로 읽힌다. 컨테이너(OLE2)는 검증된 `cfb`(Apache-2.0, 프로젝트 규칙 "battle-tested 우선")에 맡기고 BIFF 레코드만 직접 읽는다. **합성 픽스처의 함정 회피**: 생성기·파서를 모두 내가 쓰면 "서로만 맞는" 상태를 못 걸러내므로, 생성기가 만든 바이트를 독립 구현(kordoc)이 읽어내는 것으로 진짜 BIFF8임을 검증(2026-08-16). 동일성은 `tests/spreadsheet-parity.test.ts`가 같은 내용의 두 파일을 변환해 markdown·경고·hiddenExcluded를 **문자열 비교**로 고정한다. BIFF5(Excel 5/95)는 레코드 구조가 달라 거부하되 "다시 저장하거나 .xlsx로 변환" 안내를 남긴다 |
 | 2026-08-15 | **XLSX 원본 뷰어 추가** (`viewers/xlsx-viewer.tsx`) — 자체 파서의 HTML을 `--html`로 받아 렌더, **숨긴 행·열을 지우지 않고 빗금+흐림으로 표시**, 시트 2개 이상일 때만 이동 탭 | 엑셀은 다른 포맷과 달리 원본 뷰어가 없으면 "무엇이 빠졌는지" 대조할 방법이 아예 없다 — 결과 배너가 숨긴 항목을 알려줘도 원본을 못 보면 포함 여부를 판단할 수 없어 배너가 반쪽이 된다. 그래서 뷰어는 `includeHidden: true`로 불러오되(원본 그대로 보여주는 게 뷰어의 역할) 숨김이던 자리에 `xlsx-hidden-row`/`xlsx-hidden-col` 클래스를 실어 흐리게 그린다. 클래스는 turndown이 버리므로 Markdown 출력에는 영향이 없다. 자체 파서가 이미 HTML을 내기 때문에 새 의존성 없이 붙었다 (docx-preview·pdfjs 같은 별도 렌더러 불필요) |
