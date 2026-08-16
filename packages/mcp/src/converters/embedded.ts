@@ -36,6 +36,7 @@ export class EmbeddedConverter implements Converter {
     const result = await this.cache.convert({
       bytes: input.bytes,
       originalName: input.originalName,
+      ...(input.includeHidden ? { xlsx: { includeHidden: true } } : {}),
     });
     return {
       conversionId: result.meta.conversionId,
@@ -50,6 +51,12 @@ export class EmbeddedConverter implements Converter {
       elapsedMs: result.elapsedMs,
       originalName: result.meta.originalName,
       size: result.meta.size,
+      ...(result.meta.warnings?.length
+        ? { warnings: result.meta.warnings }
+        : {}),
+      ...(result.meta.hiddenExcluded
+        ? { hiddenExcluded: result.meta.hiddenExcluded }
+        : {}),
     };
   }
 

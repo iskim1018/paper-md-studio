@@ -73,6 +73,10 @@ export async function registerConversionsRoute(
           createdAt: meta.createdAt,
           originalName: meta.originalName,
           size: meta.size,
+          ...(meta.warnings?.length ? { warnings: [...meta.warnings] } : {}),
+          ...(meta.hiddenExcluded
+            ? { hiddenExcluded: meta.hiddenExcluded }
+            : {}),
         },
       });
     },

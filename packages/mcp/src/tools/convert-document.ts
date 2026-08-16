@@ -21,6 +21,12 @@ const inputShape = {
       message: "path / url / base64 중 하나는 반드시 지정해야 합니다.",
     }),
   images: imageModeSchema.default("refs"),
+  includeHidden: z
+    .boolean()
+    .default(false)
+    .describe(
+      "엑셀(XLSX/XLS)의 숨긴 시트·행·열을 변환에 포함할지. 기본은 제외하며, 무엇이 빠졌는지 warnings·hiddenExcluded 로 알립니다.",
+    ),
 } as const;
 
 export function registerConvertDocumentTool(
@@ -32,7 +38,7 @@ export function registerConvertDocumentTool(
     {
       title: "문서 → Markdown 변환",
       description:
-        "HWP/HWPX/DOCX/DOC/PDF 를 Markdown 으로 변환합니다. 동일 파일 재호출 시 SHA-256 캐시 히트로 즉시 반환됩니다.",
+        "HWP/HWPX/DOCX/DOC/PDF/XLSX/XLS 를 Markdown 으로 변환합니다. 동일 파일 재호출 시 SHA-256 캐시 히트로 즉시 반환됩니다. 변환 경고(스캔 PDF, 엑셀 숨김 제외 등)는 warnings 필드로 전달됩니다.",
       inputSchema: inputShape,
       annotations: {
         readOnlyHint: false,
@@ -81,6 +87,7 @@ export function registerConvertDocumentTool(
         const convertResult = await context.converter.convert({
           bytes: resolved.bytes,
           originalName: resolved.originalName,
+          ...(args.includeHidden ? { includeHidden: true } : {}),
         });
 
         const rewriteMode: McpImageMode = args.images;
@@ -121,6 +128,13 @@ export function registerConvertDocumentTool(
             text: node.text,
             anchor: node.anchor,
           })),
+          // 소비자(AI)가 결과의 한계를 알아야 한다 — 숨김 제외·스캔 PDF 등
+          ...(convertResult.warnings?.length
+            ? { warnings: [...convertResult.warnings] }
+            : {}),
+          ...(convertResult.hiddenExcluded
+            ? { hiddenExcluded: convertResult.hiddenExcluded }
+            : {}),
         };
 
         return {

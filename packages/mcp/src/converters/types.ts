@@ -1,10 +1,12 @@
-import type { DocumentFormat } from "@paper-md-studio/core";
+import type { DocumentFormat, HiddenExclusion } from "@paper-md-studio/core";
 
 export type McpMode = "embedded" | "remote";
 
 export interface ConverterInput {
   readonly bytes: Uint8Array;
   readonly originalName: string | null;
+  /** 엑셀의 숨긴 시트·행·열을 변환에 포함 (기본: 제외 + 경고) */
+  readonly includeHidden?: boolean;
 }
 
 export interface ConvertedImage {
@@ -22,6 +24,10 @@ export interface ConverterOutput {
   readonly elapsedMs: number;
   readonly originalName: string | null;
   readonly size: number;
+  /** 변환은 됐지만 소비자가 알아야 할 사항 (스캔 PDF, 숨김 제외 등) */
+  readonly warnings?: ReadonlyArray<string>;
+  /** 숨김 제외 규모 (엑셀 전용, 제외된 게 있을 때만) */
+  readonly hiddenExcluded?: HiddenExclusion;
 }
 
 export interface Converter {

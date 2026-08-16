@@ -15,6 +15,13 @@ const ImageMetaSchema = z.object({
   uri: z.string().optional(),
 });
 
+/** 숨김 처리로 변환에서 제외된 항목 수 (엑셀 전용) */
+export const HiddenExcludedSchema = z.object({
+  sheets: z.number().int().nonnegative(),
+  rows: z.number().int().nonnegative(),
+  cols: z.number().int().nonnegative(),
+});
+
 export const ConvertDataSchema = z.object({
   conversionId: z.string(),
   format: z.enum(["hwp", "hwpx", "doc", "docx", "pdf", "html", "xlsx", "xls"]),
@@ -25,6 +32,10 @@ export const ConvertDataSchema = z.object({
   createdAt: z.string(),
   originalName: z.string().nullable(),
   size: z.number().int().nonnegative(),
+  /** 변환은 됐지만 소비자가 알아야 할 사항 (스캔 PDF, 숨김 제외 등) */
+  warnings: z.array(z.string()).optional(),
+  /** 숨김 제외 규모 — 경고 문구를 파싱하지 않고 판단할 수 있게 구조화 */
+  hiddenExcluded: HiddenExcludedSchema.optional(),
 });
 
 export type ConvertData = z.infer<typeof ConvertDataSchema>;

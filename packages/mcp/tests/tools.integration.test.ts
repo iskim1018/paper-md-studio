@@ -150,6 +150,59 @@ describe("MCP tools integration (in-memory transport)", () => {
     expect(convertImpl).toHaveBeenCalledTimes(1);
   });
 
+  it("엑셀 숨김 경고와 hiddenExcluded를 payload로 전달하고 includeHidden으로 되돌린다", async () => {
+    convertImpl.mockImplementation(
+      async (options: ConvertOptions): Promise<ConvertResult> => ({
+        markdown: "| 표 |",
+        images: [],
+        format: "xlsx",
+        elapsed: 10,
+        ...(options.xlsx?.includeHidden
+          ? {}
+          : {
+              warnings: ['시트 "공개"의 숨겨진 열 1개를 제외했습니다.'],
+              hiddenExcluded: { sheets: 0, rows: 0, cols: 1 },
+            }),
+      }),
+    );
+    const fakeXlsx = Buffer.from("xlsx-bytes").toString("base64");
+
+    // 기본: 제외 사실이 payload에 실려야 AI 소비자가 결과의 한계를 안다
+    const excluded = await client.callTool({
+      name: "convert_document",
+      arguments: { input: { base64: fakeXlsx, filename: "재고.xlsx" } },
+    });
+    const excludedPayload = parseToolText<
+      ToolJsonPayload & {
+        warnings?: Array<string>;
+        hiddenExcluded?: { sheets: number; rows: number; cols: number };
+      }
+    >(excluded as { content: ReadonlyArray<{ type: string; text?: string }> });
+    expect(excludedPayload.warnings).toEqual([
+      '시트 "공개"의 숨겨진 열 1개를 제외했습니다.',
+    ]);
+    expect(excludedPayload.hiddenExcluded).toEqual({
+      sheets: 0,
+      rows: 0,
+      cols: 1,
+    });
+
+    // includeHidden: 옵션이 core까지 전달되고 제외 캐시를 물려받지 않는다
+    const included = await client.callTool({
+      name: "convert_document",
+      arguments: {
+        input: { base64: fakeXlsx, filename: "재고.xlsx" },
+        includeHidden: true,
+      },
+    });
+    const includedPayload = parseToolText<
+      ToolJsonPayload & { warnings?: Array<string> }
+    >(included as { content: ReadonlyArray<{ type: string; text?: string }> });
+    expect(includedPayload.cached).toBe(false);
+    expect(includedPayload.warnings).toBeUndefined();
+    expect(convertImpl).toHaveBeenCalledTimes(2);
+  });
+
   it("returns outline via get_document_outline", async () => {
     const convertResult = await client.callTool({
       name: "convert_document",

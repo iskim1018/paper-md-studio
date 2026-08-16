@@ -14,7 +14,7 @@ export interface RemoteConverterOptions {
 
 interface RestConvertData {
   conversionId: string;
-  format: "hwp" | "hwpx" | "doc" | "docx" | "pdf";
+  format: "hwp" | "hwpx" | "doc" | "docx" | "pdf" | "html" | "xlsx" | "xls";
   markdown: string;
   images: Array<{
     name: string;
@@ -28,6 +28,8 @@ interface RestConvertData {
   createdAt: string;
   originalName: string | null;
   size: number;
+  warnings?: Array<string>;
+  hiddenExcluded?: { sheets: number; rows: number; cols: number };
 }
 
 interface RestEnvelope<T> {
@@ -58,7 +60,8 @@ export class RemoteConverter implements Converter {
     const headers: Record<string, string> = {
       "Content-Type": `multipart/form-data; boundary=${boundary}`,
     };
-    const url = `${this.baseUrl}/v1/convert?images=refs`;
+    const includeHiddenParam = input.includeHidden ? "&includeHidden=true" : "";
+    const url = `${this.baseUrl}/v1/convert?images=refs${includeHiddenParam}`;
     const res = await this.fetchWithTimeout(url, {
       method: "POST",
       headers,
@@ -170,5 +173,7 @@ function restToOutput(data: RestConvertData): ConverterOutput {
     elapsedMs: data.elapsedMs,
     originalName: data.originalName,
     size: data.size,
+    ...(data.warnings?.length ? { warnings: data.warnings } : {}),
+    ...(data.hiddenExcluded ? { hiddenExcluded: data.hiddenExcluded } : {}),
   };
 }

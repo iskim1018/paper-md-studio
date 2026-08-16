@@ -70,6 +70,10 @@ export class LocalFsStorage implements StorageAdapter {
       originalName: input.originalName,
       size: input.size,
       images: imageInfos,
+      ...(input.warnings && input.warnings.length > 0
+        ? { warnings: input.warnings }
+        : {}),
+      ...(input.hiddenExcluded ? { hiddenExcluded: input.hiddenExcluded } : {}),
     };
 
     await writeFile(

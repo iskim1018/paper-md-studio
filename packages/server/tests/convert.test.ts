@@ -157,6 +157,73 @@ describe("POST /v1/convert", () => {
     }
   });
 
+  it("?includeHidden=true 는 core에 전달되고 응답에 warnings·hiddenExcluded가 실린다", async () => {
+    convertImpl.mockImplementation(
+      async (options: ConvertOptions): Promise<ConvertResult> => ({
+        markdown: "| 표 |",
+        images: [],
+        format: "xlsx",
+        elapsed: 10,
+        ...(options.xlsx?.includeHidden
+          ? {}
+          : {
+              warnings: ['시트 "공개"의 숨겨진 열 1개를 제외했습니다.'],
+              hiddenExcluded: { sheets: 0, rows: 0, cols: 1 },
+            }),
+      }),
+    );
+    const app = await buildTestApp();
+    try {
+      const bytes = Buffer.from([1, 2, 3]);
+      const { payload, contentType } = makeMultipart([
+        {
+          name: "file",
+          filename: "재고.xlsx",
+          content: bytes,
+          contentType: "application/octet-stream",
+        },
+      ]);
+
+      // 기본: 제외 + 경고 + 구조화 필드
+      const excluded = await app.inject({
+        method: "POST",
+        url: "/v1/convert",
+        headers: { "content-type": contentType },
+        payload,
+      });
+      expect(excluded.statusCode).toBe(200);
+      const excludedBody = excluded.json();
+      expect(excludedBody.data.warnings).toEqual([
+        '시트 "공개"의 숨겨진 열 1개를 제외했습니다.',
+      ]);
+      expect(excludedBody.data.hiddenExcluded).toEqual({
+        sheets: 0,
+        rows: 0,
+        cols: 1,
+      });
+
+      // includeHidden=true: 옵션이 core까지 전달되고 캐시 키도 분리된다
+      const included = await app.inject({
+        method: "POST",
+        url: "/v1/convert?includeHidden=true",
+        headers: { "content-type": contentType },
+        payload,
+      });
+      expect(included.statusCode).toBe(200);
+      const includedBody = included.json();
+      expect(includedBody.data.cached).toBe(false); // 제외 캐시를 안 물려받음
+      expect(includedBody.data.conversionId).not.toBe(
+        excludedBody.data.conversionId,
+      );
+      expect(includedBody.data.warnings).toBeUndefined();
+      expect(convertImpl).toHaveBeenCalledTimes(2);
+      const secondCall = convertImpl.mock.calls[1]?.[0] as ConvertOptions;
+      expect(secondCall.xlsx).toEqual({ includeHidden: true });
+    } finally {
+      await app.close();
+    }
+  });
+
   it("file 필드가 없으면 400을 반환한다", async () => {
     const app = await buildTestApp();
     try {

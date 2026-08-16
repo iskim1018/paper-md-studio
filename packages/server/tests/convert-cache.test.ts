@@ -178,6 +178,59 @@ describe("ConvertCache", () => {
     expect(await storage.has(sha)).toBe(false);
   });
 
+  it("includeHidden 옵션은 캐시 키를 분리한다 — 제외 캐시가 포함 요청에 나가면 안 된다", async () => {
+    const cache = new ConvertCache({ storage, tmpDir: tmpRoot });
+    const bytes = new Uint8Array([5, 5, 5]);
+
+    const excluded = await cache.convert({ bytes, originalName: "a.xlsx" });
+    const included = await cache.convert({
+      bytes,
+      originalName: "a.xlsx",
+      xlsx: { includeHidden: true },
+    });
+
+    expect(included.cached).toBe(false); // 같은 파일이어도 옵션이 다르면 MISS
+    expect(included.meta.conversionId).not.toBe(excluded.meta.conversionId);
+    expect(convertMock).toHaveBeenCalledTimes(2);
+    // core에 옵션이 실제로 전달됐는지
+    expect(calls[1]?.options.xlsx).toEqual({ includeHidden: true });
+
+    // 각 변형은 각자의 키로 HIT한다
+    const again = await cache.convert({
+      bytes,
+      originalName: "a.xlsx",
+      xlsx: { includeHidden: true },
+    });
+    expect(again.cached).toBe(true);
+    expect(convertMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("warnings·hiddenExcluded를 meta에 저장하고 캐시 HIT에서도 돌려준다", async () => {
+    // 첫 요청만 경고를 받고 캐시 히트는 못 받으면 소비자마다 다른 그림을 본다
+    const cache = new ConvertCache({ storage, tmpDir: tmpRoot });
+    const bytes = new Uint8Array([6, 6, 6]);
+    convertMock.mockImplementationOnce(async (options: ConvertOptions) => {
+      calls.push({ inputPath: options.inputPath, options });
+      await stat(options.inputPath);
+      return makeConvertResult({
+        format: "xlsx",
+        warnings: ["숨겨진 시트 1개를 제외했습니다: 내부검토"],
+        hiddenExcluded: { sheets: 1, rows: 0, cols: 0 },
+      });
+    });
+
+    const miss = await cache.convert({ bytes, originalName: "b.xlsx" });
+    const hit = await cache.convert({ bytes, originalName: "b.xlsx" });
+
+    expect(miss.meta.warnings).toEqual([
+      "숨겨진 시트 1개를 제외했습니다: 내부검토",
+    ]);
+    expect(miss.meta.hiddenExcluded).toEqual({ sheets: 1, rows: 0, cols: 0 });
+    expect(hit.cached).toBe(true);
+    expect(hit.meta.warnings).toEqual(miss.meta.warnings);
+    expect(hit.meta.hiddenExcluded).toEqual(miss.meta.hiddenExcluded);
+  });
+
   it("logger가 주입되면 cache.miss / cache.hit 이벤트를 기록한다", async () => {
     const events: Array<{ event: string; cached: boolean | undefined }> = [];
     const logger = {

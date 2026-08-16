@@ -6,8 +6,9 @@ import {
   type ConvertResult,
   convert as coreConvert,
   type DocumentFormat,
+  type XlsxConvertOptions,
 } from "@paper-md-studio/core";
-import { sha256Hex } from "../storage/conversion-id.js";
+import { conversionCacheId } from "../storage/conversion-id.js";
 import type { StorageAdapter, StoredMeta } from "../storage/types.js";
 
 export interface ConvertCacheLogger {
@@ -26,6 +27,8 @@ export interface ConvertCacheInput {
   readonly bytes: Uint8Array;
   readonly originalName: string | null;
   readonly format?: DocumentFormat;
+  /** XLSX/XLS 변환 옵션 — 캐시 키에 반영된다 (결과가 달라지므로) */
+  readonly xlsx?: XlsxConvertOptions;
 }
 
 export interface ConvertCacheResult {
@@ -94,7 +97,11 @@ export class ConvertCache {
 
   async convert(input: ConvertCacheInput): Promise<ConvertCacheResult> {
     const format = detectFormat(input.originalName, input.format);
-    const sha = sha256Hex(input.bytes);
+    // 옵션이 결과를 바꾸므로 캐시 키에 옵션을 섞는다 — 파일 해시만 쓰면
+    // "숨김 제외" 캐시가 "숨김 포함" 요청에 그대로 나간다
+    const sha = conversionCacheId(input.bytes, {
+      includeHidden: input.xlsx?.includeHidden === true,
+    });
     const start = performance.now();
 
     if (await this.storage.has(sha)) {
@@ -122,6 +129,7 @@ export class ConvertCache {
       const converted = await this.convertImpl({
         inputPath,
         imagesDirName: "images",
+        ...(input.xlsx ? { xlsx: input.xlsx } : {}),
       });
 
       const meta = await this.storage.put({
@@ -132,6 +140,10 @@ export class ConvertCache {
         elapsed: converted.elapsed,
         originalName: input.originalName,
         size: input.bytes.byteLength,
+        ...(converted.warnings?.length ? { warnings: converted.warnings } : {}),
+        ...(converted.hiddenExcluded
+          ? { hiddenExcluded: converted.hiddenExcluded }
+          : {}),
       });
 
       const elapsedMs = performance.now() - start;
