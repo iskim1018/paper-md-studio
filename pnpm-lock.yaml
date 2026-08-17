@@ -27,6 +27,11 @@ overrides:
   esbuild@>=0.27.3 <0.28.1: '>=0.28.1'
   vite: ^8.0.16
 
+patchedDependencies:
+  micromark-extension-gfm-table@2.1.1:
+    hash: 467c23698bb2fd0859b046a95f723d6e8fd28bef8dff51add9bd5b926c5834f2
+    path: patches/micromark-extension-gfm-table@2.1.1.patch
+
 importers:
 
   .:
@@ -191,12 +196,18 @@ importers:
       jsdom:
         specifier: ^29.0.2
         version: 29.0.2
+      remark-parse:
+        specifier: ^11.0.0
+        version: 11.0.0
       tailwindcss:
         specifier: ^4.1.4
         version: 4.2.2
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
+      unified:
+        specifier: ^11.0.5
+        version: 11.0.5
       vite:
         specifier: ^8.0.16
         version: 8.1.5(@types/node@25.5.2)(esbuild@0.28.1)(jiti@2.6.1)(yaml@2.8.3)
@@ -7431,7 +7442,7 @@ snapshots:
       micromark-util-symbol: 2.0.1
       micromark-util-types: 2.0.2
 
-  micromark-extension-gfm-table@2.1.1:
+  micromark-extension-gfm-table@2.1.1(patch_hash=467c23698bb2fd0859b046a95f723d6e8fd28bef8dff51add9bd5b926c5834f2):
     dependencies:
       devlop: 1.1.0
       micromark-factory-space: 2.0.1
@@ -7456,7 +7467,7 @@ snapshots:
       micromark-extension-gfm-autolink-literal: 2.1.0
       micromark-extension-gfm-footnote: 2.1.0
       micromark-extension-gfm-strikethrough: 2.1.0
-      micromark-extension-gfm-table: 2.1.1
+      micromark-extension-gfm-table: 2.1.1(patch_hash=467c23698bb2fd0859b046a95f723d6e8fd28bef8dff51add9bd5b926c5834f2)
       micromark-extension-gfm-tagfilter: 2.0.0
       micromark-extension-gfm-task-list-item: 2.1.0
       micromark-util-combine-extensions: 2.0.1
