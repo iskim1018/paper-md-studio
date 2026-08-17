@@ -7,8 +7,7 @@
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
     "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build",
-    "beforeBundleCommand": "pnpm sign:macos-resources"
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "windows": [

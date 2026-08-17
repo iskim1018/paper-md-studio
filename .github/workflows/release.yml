@@ -102,6 +102,44 @@ jobs:
       - name: Install sidecar wrapper
         run: pnpm --filter @paper-md-studio/app sidecar:install
 
+      # 리소스로 번들되는 네이티브 바이너리(.node 등)를 Developer ID 로 서명한다.
+      #
+      # 공증은 아카이브 안의 모든 Mach-O 를 검사하는데 Tauri 는 .app 껍데기만
+      # 서명한다. Tauri CLI 가 키체인을 만드는 시점은 번들링 도중이라
+      # beforeBundleCommand 훅에서는 아직 인증서를 쓸 수 없다 — 그래서 여기서
+      # 직접 키체인을 올리고 서명한 뒤 되돌린다. 서명은 Mach-O 안에 들어가므로
+      # 이후 .app 으로 복사돼도 살아남는다. 자세한 내용은 docs/RELEASE.md 참고.
+      - name: Sign bundled native binaries
+        if: matrix.label == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN="$RUNNER_TEMP/resource-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+          CERT_PATH="$RUNNER_TEMP/resource-signing.p12"
+          cleanup() {
+            security list-keychain -d user -s login.keychain-db || true
+            security delete-keychain "$KEYCHAIN" 2>/dev/null || true
+            rm -f "$CERT_PATH"
+          }
+          trap cleanup EXIT
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT_PATH" -k "$KEYCHAIN" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychain -d user -s "$KEYCHAIN" login.keychain-db
+
+          pnpm --filter @paper-md-studio/app sign:macos-resources
+
       - name: Write App Store Connect API key
         if: matrix.label == 'macOS'
         shell: bash

@@ -65,12 +65,18 @@ pdf-inspector.darwin-arm64.node
   The signature does not include a secure timestamp.
 ```
 
-`packages/app/scripts/sign-macos-resources.mjs` 가 `beforeBundleCommand`
-로 돌면서 리소스 안의 Mach-O 를 훑어 서명한다. 이 시점이면 tauri-action 이
-인증서를 키체인에 올린 뒤라 `APPLE_SIGNING_IDENTITY` 를 그대로 쓸 수 있고,
-서명한 파일이 `.app` 안으로 복사돼도 Mach-O 안의 서명은 살아남는다.
+릴리스 워크플로의 **Sign bundled native binaries** 스텝이
+`packages/app/scripts/sign-macos-resources.mjs` 로 리소스 안의 Mach-O 를 훑어
+서명한다. 서명은 Mach-O 안에 들어가므로 이후 `.app` 으로 복사돼도 살아남는다.
 
-주의할 점 두 가지:
+**왜 워크플로 스텝인가** — 처음에는 `beforeBundleCommand` 훅에 걸었는데
+`The specified item could not be found in the keychain` 으로 실패했다.
+인증서를 키체인에 올리는 주체는 tauri-action 이 아니라 **Tauri CLI 자신**이고,
+그 시점이 번들링 도중이라 훅이 도는 때에는 아직 키체인이 비어 있다. 그래서
+스텝에서 임시 키체인을 직접 만들어 서명하고 곧바로 되돌린다 (검색 목록 복원 +
+키체인 삭제). Tauri 는 이후 자기 키체인을 따로 만들어 `.app` 을 서명한다.
+
+주의할 점 세 가지:
 
 - **NAPI 바이너리는 ad-hoc(linker-signed) 상태로 배포된다.** `codesign
   --verify` 는 통과하므로 "서명돼 있나"만 보면 놓친다. 발급 기관이
@@ -79,8 +85,13 @@ pdf-inspector.darwin-arm64.node
   JRE 는 `tar.gz` 안에 있어 애초에 검사 대상이 아니다 — 지금껏 이 문제가
   드러나지 않은 이유다.
 
-새 네이티브 의존성을 리소스로 번들할 때는 이 스크립트가 잡아준다.
-로컬·Windows 빌드에서는 조용히 지나간다 (신원 없음 / darwin 아님).
+- 번들 Node 는 `com.apple.security.cs.disable-library-validation` 을 갖고
+  있어, 우리 Team ID 로 서명한 `.node` 도 정상적으로 로드한다. 이 엔타이틀먼트가
+  없는 런타임에 네이티브 애드온을 물릴 때는 서명만으로 부족하다.
+
+파일 이름을 박지 않고 리소스 전체를 훑으므로 새 네이티브 의존성이 들어와도
+자동으로 걸린다. 스크립트 자체는 darwin 이 아니거나 `APPLE_SIGNING_IDENTITY`
+가 없으면 조용히 지나가므로 로컬 빌드에서도 안전하다.
 
 ## 서명 키 (최초 1회)
 
