@@ -50,6 +50,38 @@ tauri-action이 `APPLE_*` 환경변수만 있으면 인증서 임포트 → 서�
   업데이터 아카이브 서명 단계에서 실패하지만 `.app`/`.dmg`는 생성됨).
 - 로컬 공증 확인: `xcrun notarytool submit <dmg> --key <p8> --key-id <ID> --issuer <UUID> --wait`
 
+### 리소스 안 네이티브 바이너리 서명 (2026-08-17 추가)
+
+공증은 아카이브 **안의 모든 Mach-O**를 검사한다. Tauri 는 `.app` 껍데기만
+서명하고 `Contents/Resources/` 로 복사된 바이너리는 건드리지 않으므로,
+서명되지 않은 것이 하나라도 있으면 아카이브 전체가 거부된다.
+
+v0.6.0 1차 시도가 이걸로 실패했다 — PDF 엔진 교체 때 들어온
+`@firecrawl/pdf-inspector` 의 NAPI 바이너리가 원인이었다.
+
+```
+pdf-inspector.darwin-arm64.node
+  The binary is not signed with a valid Developer ID certificate.
+  The signature does not include a secure timestamp.
+```
+
+`packages/app/scripts/sign-macos-resources.mjs` 가 `beforeBundleCommand`
+로 돌면서 리소스 안의 Mach-O 를 훑어 서명한다. 이 시점이면 tauri-action 이
+인증서를 키체인에 올린 뒤라 `APPLE_SIGNING_IDENTITY` 를 그대로 쓸 수 있고,
+서명한 파일이 `.app` 안으로 복사돼도 Mach-O 안의 서명은 살아남는다.
+
+주의할 점 두 가지:
+
+- **NAPI 바이너리는 ad-hoc(linker-signed) 상태로 배포된다.** `codesign
+  --verify` 는 통과하므로 "서명돼 있나"만 보면 놓친다. 발급 기관이
+  `Developer ID Application` 인지까지 봐야 한다.
+- 번들된 Node 는 이미 Developer ID 서명(OpenJS)이라 다시 서명하지 않는다.
+  JRE 는 `tar.gz` 안에 있어 애초에 검사 대상이 아니다 — 지금껏 이 문제가
+  드러나지 않은 이유다.
+
+새 네이티브 의존성을 리소스로 번들할 때는 이 스크립트가 잡아준다.
+로컬·Windows 빌드에서는 조용히 지나간다 (신원 없음 / darwin 아님).
+
 ## 서명 키 (최초 1회)
 
 자동 업데이트는 minisign 키로 서명된 아카이브만 설치합니다.
