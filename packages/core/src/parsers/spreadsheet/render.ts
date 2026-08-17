@@ -2,6 +2,7 @@ import { htmlToMarkdownKeepingTables } from "../../html-to-md.js";
 import type { HiddenExclusion } from "../../types.js";
 import { normalizeHtmlTablesToGfm } from "../html-tables-to-gfm.js";
 import type { CellSpan, SheetGrid } from "./grid.js";
+import { trimEmptyEdges } from "./grid.js";
 import type { VisibleGrid } from "./visibility.js";
 import { projectVisibleGrid } from "./visibility.js";
 
@@ -148,18 +149,22 @@ function renderSheet(
   excluded: HiddenExclusion,
   warnings: Array<string>,
 ): string {
+  // 내용 바깥의 빈 행·열을 먼저 걷어낸다. 숨김 집계도 잘라낸 뒤 기준이어야
+  // 내용이 없는 자리의 숨김까지 "제외했다"고 알리는 일이 없다.
+  const grid = trimEmptyEdges(sheet.grid);
+
   if (!includeHidden) {
-    excluded.rows += sheet.grid.hiddenRows.size;
-    excluded.cols += sheet.grid.hiddenCols.size;
+    excluded.rows += grid.hiddenRows.size;
+    excluded.cols += grid.hiddenCols.size;
     const warning = hiddenExclusionWarning(
       sheet.name,
-      sheet.grid.hiddenRows.size,
-      sheet.grid.hiddenCols.size,
+      grid.hiddenRows.size,
+      grid.hiddenCols.size,
     );
     if (warning) warnings.push(warning);
   }
 
-  const visible = projectVisibleGrid(sheet.grid, includeHidden);
+  const visible = projectVisibleGrid(grid, includeHidden);
   const totalRows = visible.cells.length;
   const totalCols = visible.cells[0]?.length ?? 0;
   const rows = Math.min(totalRows, MAX_ROWS_PER_SHEET);

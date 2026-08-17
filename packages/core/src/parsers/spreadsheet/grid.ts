@@ -61,6 +61,93 @@ export function toDenseGrid(
   return cells;
 }
 
+/**
+ * 내용이 없는 바깥쪽 행·열을 잘라낸다.
+ *
+ * "엑셀은 빈 행·열을 아예 쓰지 않는다"는 가정은 실물에서 깨진다. 행 높이나
+ * 테두리만 지정해도 `<row>`가 생기고, LibreOffice로 저장한 파일은 내용과
+ * 무관하게 1000행을 통째로 적어둔다 (실물 WBS 실측: 표지 시트의 실제 내용은
+ * 26행인데 기록된 행은 1000행, 통합 문서 전체로는 표 6,164행 중 4,830행이
+ * 꼬리쪽 빈 행이었다). 그대로 표로 만들면 빈 칸뿐인 줄이 수천 개 쌓여 토큰을
+ * 먹고, 에디터를 멈춰 세운다.
+ *
+ * 안쪽(내용과 내용 사이)의 빈 행은 원본의 구획일 수 있으므로 남긴다 —
+ * 바깥쪽만 자른다.
+ */
+/** 내용이 들어 있는 마지막 행·열 (0-based, 없으면 -1) */
+function findContentBounds(grid: SheetGrid): {
+  lastRow: number;
+  lastCol: number;
+} {
+  let lastRow = -1;
+  let lastCol = -1;
+
+  const mark = (row: number, col: number): void => {
+    if (row > lastRow) lastRow = row;
+    if (col > lastCol) lastCol = col;
+  };
+
+  grid.cells.forEach((row, r) => {
+    row.forEach((text, c) => {
+      if (text !== "") mark(r, c);
+    });
+  });
+
+  // 값 없이 링크만 걸린 셀도 내용이다 (렌더가 주소를 대신 보여준다)
+  for (const position of grid.hyperlinkRels.keys()) {
+    const [r = "0", c = "0"] = position.split(",");
+    mark(Number(r), Number(c));
+  }
+
+  return { lastRow, lastCol };
+}
+
+/** 잘라낸 자리까지 뻗던 병합을 남은 크기로 다시 센다 */
+function clampSpans(
+  spans: ReadonlyMap<string, CellSpan>,
+  rows: number,
+  cols: number,
+): Map<string, CellSpan> {
+  const clamped = new Map<string, CellSpan>();
+  for (const [position, span] of spans) {
+    const [rawRow = "0", rawCol = "0"] = position.split(",");
+    const row = Number(rawRow);
+    const col = Number(rawCol);
+    if (row >= rows || col >= cols) continue;
+    clamped.set(position, {
+      rowSpan: Math.min(span.rowSpan, rows - row),
+      colSpan: Math.min(span.colSpan, cols - col),
+    });
+  }
+  return clamped;
+}
+
+export function trimEmptyEdges(grid: SheetGrid): SheetGrid {
+  const { lastRow, lastCol } = findContentBounds(grid);
+  const rows = lastRow + 1;
+  const cols = lastCol + 1;
+  if (rows === grid.cells.length && cols === (grid.cells[0]?.length ?? 0)) {
+    return grid;
+  }
+
+  const inBounds = (position: string): boolean => {
+    const [r = "0", c = "0"] = position.split(",");
+    return Number(r) < rows && Number(c) < cols;
+  };
+
+  return {
+    cells: grid.cells.slice(0, rows).map((row) => row.slice(0, cols)),
+    spans: clampSpans(grid.spans, rows, cols),
+    covered: new Set([...grid.covered].filter(inBounds)),
+    hiddenRows: new Set([...grid.hiddenRows].filter((r) => r < rows)),
+    hiddenCols: new Set([...grid.hiddenCols].filter((c) => c < cols)),
+    hyperlinkRels: new Map(
+      [...grid.hyperlinkRels].filter(([position]) => inBounds(position)),
+    ),
+    drawingRelId: grid.drawingRelId,
+  };
+}
+
 /** 병합 좌표까지 포함해 격자 크기를 넓힌다 (병합만 있고 값은 없는 자리 대비) */
 export function extendBounds(
   bounds: { maxRow: number; maxCol: number },

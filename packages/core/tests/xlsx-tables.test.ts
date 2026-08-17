@@ -574,6 +574,132 @@ describe("XLSX 표 변환", () => {
     });
   });
 
+  describe("빈 가장자리 잘라내기", () => {
+    it("내용 뒤에 남은 빈 행·열을 표에 싣지 않는다", async () => {
+      // Arrange — 실물 파일은 내용과 무관하게 행을 미리 깔아둔다
+      // (LibreOffice 저장본 실측: 내용 26행 / 기록된 행 1000행)
+      const rows: Array<Array<CellSpec>> = [
+        ["항목", "값", null, null],
+        ["가", "1", null, null],
+      ];
+      for (let i = 0; i < 50; i += 1) rows.push([null, null, null, null]);
+
+      // Act
+      const { markdown } = await convertFile("꼬리빈행", [
+        { name: "시트", rows },
+      ]);
+
+      // Assert — 표는 2행 2열만 남는다 (구분선 1줄 포함해 3줄)
+      const tableLines = markdown
+        .split("\n")
+        .filter((line) => line.startsWith("|"));
+      expect(tableLines).toHaveLength(3);
+      expect(tableLines[0]).toBe("| 항목 | 값 |");
+    });
+
+    it("내용 사이의 빈 행은 원본의 구획이므로 남긴다", async () => {
+      // Arrange
+      const { markdown } = await convertFile("내부빈행", [
+        {
+          name: "시트",
+          rows: [
+            ["머리", "글"],
+            [null, null],
+            ["꼬리", "글"],
+          ],
+        },
+      ]);
+
+      // Assert
+      const tableLines = markdown
+        .split("\n")
+        .filter((line) => line.startsWith("|"));
+      expect(tableLines).toHaveLength(4);
+      expect(tableLines[2]).toBe("|  |  |");
+      expect(tableLines[3]).toBe("| 꼬리 | 글 |");
+    });
+
+    it("잘라낸 자리까지 뻗던 세로 병합은 남은 크기로 다시 센다", async () => {
+      // Arrange — 표지 시트에 흔한 "빈 행 끝까지 뻗은 병합" 패턴
+      const rows: Array<Array<CellSpec>> = [
+        ["구분", "값"],
+        [null, "둘째"],
+      ];
+      for (let i = 0; i < 30; i += 1) rows.push([null, null]);
+
+      // Act
+      const { markdown } = await convertFile("세로병합클램프", [
+        { name: "시트", rows, merges: ["A1:A32"] },
+      ]);
+
+      // Assert — rowSpan이 32로 남으면 grid 정규화가 빈 행 30개를 되살린다
+      const tableLines = markdown
+        .split("\n")
+        .filter((line) => line.startsWith("|"));
+      expect(tableLines).toHaveLength(3);
+      expect(tableLines[2]).toBe(`| ${MERGE_UP} | 둘째 |`);
+    });
+
+    it("살아남은 열을 덮는 가로 병합은 그대로 유지한다", async () => {
+      // Arrange — 제목만 병합이고 아래에 실제 3열짜리 내용이 있는 경우
+      const rows: Array<Array<CellSpec>> = [
+        ["분기별 실적", null, null],
+        ["1분기", "2분기", "3분기"],
+      ];
+      for (let i = 0; i < 30; i += 1) rows.push([null, null, null]);
+
+      // Act
+      const { markdown } = await convertFile("가로병합유지", [
+        { name: "시트", rows, merges: ["A1:C1"] },
+      ]);
+
+      // Assert
+      const tableLines = markdown
+        .split("\n")
+        .filter((line) => line.startsWith("|"));
+      expect(tableLines).toHaveLength(3);
+      expect(tableLines[0]).toBe(
+        `| 분기별 실적 | ${MERGE_LEFT} | ${MERGE_LEFT} |`,
+      );
+      expect(tableLines[2]).toBe("| 1분기 | 2분기 | 3분기 |");
+    });
+
+    it("내용이 없는 자리의 숨김은 제외 경고에 세지 않는다", async () => {
+      // Arrange & Act — 숨겨져 있으나 내용도 없는 행은 사용자가 잃은 것이 없다
+      const { warnings } = await convertFile("빈숨김", [
+        {
+          name: "시트",
+          rows: [
+            ["항목", "값"],
+            ["가", "1"],
+            [null, null],
+          ],
+          hiddenRows: [3],
+        },
+      ]);
+
+      // Assert
+      expect(warnings).toHaveLength(0);
+    });
+
+    it("모든 셀이 빈 시트는 표 없이 제목만 남긴다", async () => {
+      // Arrange & Act
+      const { markdown } = await convertFile("전부빈시트", [
+        {
+          name: "빈시트",
+          rows: [
+            [null, null],
+            [null, null],
+          ],
+        },
+      ]);
+
+      // Assert
+      expect(markdown).toContain("## 빈시트");
+      expect(markdown).not.toContain("|");
+    });
+  });
+
   describe("대형 시트", () => {
     it("행 상한을 넘으면 잘라내되 경고로 알린다 — 조용한 손실 금지", async () => {
       const rows: Array<Array<CellSpec>> = [["번호", "값"]];
