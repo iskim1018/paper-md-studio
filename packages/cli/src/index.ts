@@ -15,6 +15,7 @@ import {
   normalizePath,
   urlToSlug,
 } from "@paper-md-studio/core";
+import { removeEmptyTableRows } from "@paper-md-studio/md-utils";
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -28,6 +29,7 @@ const { values, positionals } = parseArgs({
     render: { type: "boolean" },
     "wait-selector": { type: "string" },
     "include-hidden": { type: "boolean" },
+    "remove-empty-rows": { type: "boolean" },
     timeout: { type: "string" },
     help: { type: "boolean", short: "h" },
     version: { type: "boolean", short: "v" },
@@ -51,6 +53,7 @@ paper-md-studio - 문서를 Markdown으로 변환
   --render                  SPA 렌더링 후 변환 (URL 전용, Chrome 필요)
   --wait-selector <셀렉터>  SPA 렌더링 시 대기할 CSS 셀렉터
   --include-hidden          엑셀의 숨긴 시트·행·열도 변환에 포함 (기본: 제외)
+  --remove-empty-rows       표에서 내용이 빈 행을 제거 (앱의 '빈 행 정리'와 같은 규칙)
   --timeout <ms>            네트워크·렌더링 시간 제한 (기본: 30000)
   -h, --help                도움말 표시
   -v, --version             버전 표시
@@ -85,6 +88,18 @@ function printWarnings(result: ConvertResult): void {
   if (result.hiddenExcluded) {
     console.warn("  숨긴 항목까지 변환하려면 --include-hidden 을 붙이세요.");
   }
+}
+
+/**
+ * 변환 결과에 사용자가 고른 후처리를 입힌다.
+ *
+ * 파일과 `--json` 이 같은 값을 내보내도록 두 갈래가 갈리기 **전에** 한 번만 손본다.
+ * 빈 행 제거가 기본이 아닌 이유는 빈 행이 원본의 구획인 경우가 있어서다.
+ * (한글 산출물 문서 실측: 표 행의 30~73%가 빈 행이고 그중 99%가 표 꼬리)
+ */
+function postProcess(result: ConvertResult): ConvertResult {
+  if (values["remove-empty-rows"] !== true) return result;
+  return { ...result, markdown: removeEmptyTableRows(result.markdown) };
 }
 
 function printJsonResult(result: ConvertResult, outputPath: string): void {
@@ -224,13 +239,14 @@ async function main(): Promise<void> {
     }
 
     const xlsxOptions = buildXlsxOptions();
-    const result = await convert({
+    const converted = await convert({
       inputPath: resolvedInput,
       outputDir: outputTargets.outputDir,
       imagesDirName: values["images-dir"],
       ...(htmlOptions ? { html: htmlOptions } : {}),
       ...(xlsxOptions ? { xlsx: xlsxOptions } : {}),
     });
+    const result = postProcess(converted);
 
     const { outDir, mdPath } = resolveMdPath(
       outputTargets,

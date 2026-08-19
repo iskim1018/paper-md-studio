@@ -27,6 +27,8 @@ packages/
 ├── core/    # 변환 엔진 라이브러리 (@paper-md-studio/core)
 │   └── resources/hwp-to-hwpx.jar  # HWP→HWPX Java 툴 (번들)
 ├── cli/     # CLI 인터페이스 (@paper-md-studio/cli)
+├── md-utils/# Markdown 후처리 순수 함수 (@paper-md-studio/md-utils)
+│            # app 과 cli 가 함께 쓴다 — node: API 없음
 └── app/     # Tauri GUI (Phase 3~, @paper-md-studio/app)
 
 tools/
@@ -161,3 +163,4 @@ Conventional Commits 형식:
 | 2026-08-17 | **`micromark-extension-gfm-table` 2.1.1에 위치 색인 패치** (`patches/`, pnpm `patchedDependencies`). `EditMap.add`의 선형 탐색을 `Map<at, Change>` 조회로 교체 | 큰 표에서 미리보기가 멈추는 진짜 원인이었다. 편집은 표의 셀 수만큼 생기는데 `addImplementation`이 매번 편집 목록 전체를 훑어 O(n²) — 순수 remark는 1,600행에 23ms, gfm을 켜면 20,990ms. CPU 프로파일에서 `flushCell`·`EditMap.add`가 자체 시간 대부분을 차지했다. 패치 후 1,600행 9,560ms→212ms(45배), 3,200행 43,178ms→448ms(96배)이고 **선형**이 된다. mdast 완전 일치 검증: 정렬·셀 내부 인라인·이스케이프 파이프·행별 열 수 불일치·`<br>`·표 여러 개·코드블록 안 파이프 등 10개 케이스 + 실물 문서 전체. 상류 최신(2.1.1)에 이미 있는 결함이라 업스트림 수정 대기 대신 패치를 든다. 패치 유실은 `packages/app/tests/markdown-table-perf.test.ts`(1,600행 3초 예산)가 잡는다 |
 | 2026-08-17 | PDF 기본 엔진을 `@firecrawl/pdf-inspector`(1.14.2 정확 핀, Rust/NAPI)로 전환, pdf2md는 `PAPER_MD_STUDIO_PDF_ENGINE=legacy` 탈출구 + 로드 실패 폴백으로 보존 | 실물 문서 A/B 실측: 표 감지 107/81행 vs 0행(우리는 표 전멸), 인쇄형 PDF 읽기 순서 79.4% vs 59.1%(저장본 기준 8-gram 교차 포함율), 내용 보존 동일(한글 스트림 7,272자), 결합 토큰도 inspector 승(7,034 vs 7,619). 후처리 `cleanupInspectorMarkdown`으로 점선 리더·Ÿ(한컴 불릿 CP1252 오매핑) 정리. **배포**: NAPI 로더의 전 플랫폼 `require('./*.node')` 때문에 CLI 번들에서 external 처리하고, kordoc dist의 top-level `createRequire()("cfb")`와 함께 `scripts/bundle-runtime-deps.mjs`가 dist-bundle 옆 미니 node_modules(pdf-inspector 로더+플랫폼 바이너리, cfb·adler-32·crc-32)로 동봉 — 이게 없으면 번들이 로드조차 안 된다 |
 | 2026-08-08 | PDF 파이프라인 3건 교정 — ① `mergeAdjacentRuns` 의 글꼴 일치 조건 제거 ② 제목 오승격 강등(`demoteFalseHeadings`) ③ 텍스트 없는 PDF 경고를 CLI·GUI 까지 배선 | ① 2026-08-03 수정이 한컴 PDF(단일 글꼴)에서만 통했음. Chrome·Word 산출 PDF 는 한글/숫자를 다른 글꼴에 임베드해 `제 21 조` 가 재발 — 실물 문서에서 그런 인접쌍이 712곳. ② pdf2md 가 최빈 글자 크기를 본문으로 봐서, 표가 많은 문서는 표 셀이 기준이 되어 본문·표 행이 전부 제목이 됐음. ③ 스캔본이 빈 결과를 성공으로 반환해 사용자가 원인을 알 수 없었음 — 표시 경로까지가 수정 범위 |
+| 2026-08-19 | **`removeEmptyTableRows`를 app → `packages/md-utils`로 승격**하고 CLI에 `--remove-empty-rows` 노출 | 빈 행 정리가 GUI에만 있어 CLI·server·MCP 사용자가 못 썼다. app 은 `@paper-md-studio/core` 에 의존하지 않으므로(변환을 Rust 로 함) core 로는 못 올린다 — core 는 `node:` API 를 22곳에서 써 프런트 번들에 못 들어간다. 그래서 의존성 없는 순수 함수만 담는 패키지를 따로 뒀다(`safeFetch` 를 core 로 승격했던 것과 같은 판단). 기본값은 끈 채로 둔다 — 빈 행이 원본의 구획인 경우가 있어 일괄 제거가 항상 옳지는 않다. 실측(한글 산출물 문서): 표 행의 30~73%가 빈 행이고 그중 **99%가 표 꼬리**, 플래그 적용 후 빈 데이터 행 0 |

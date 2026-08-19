@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { removeEmptyTableRows } from "../src/lib/md-cleanup";
+import { removeEmptyTableRows } from "../src/index";
 
 describe("removeEmptyTableRows", () => {
   it("내용이 있는 테이블은 그대로 둔다", () => {

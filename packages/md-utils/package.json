@@ -1,0 +1,25 @@
+{
+  "name": "@paper-md-studio/md-utils",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Markdown 후처리 유틸 - 앱과 변환 엔진이 함께 쓰는 순수 함수 모음",
+  "author": "Insung Kim",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts",
+    "dev": "tsup src/index.ts --format esm --dts --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "dist"
+  ]
+}
