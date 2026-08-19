@@ -1,3 +1,4 @@
+import { removeEmptyTableRows } from "@paper-md-studio/md-utils";
 import {
   Check,
   Copy,
@@ -14,7 +15,6 @@ import { useCallback, useState } from "react";
 import { Panel, PanelGroup } from "react-resizable-panels";
 import { useSaveShortcut } from "../hooks/use-save-shortcut";
 import { saveMarkdownAs, saveMarkdownTo } from "../lib/file-writer";
-import { removeEmptyTableRows } from "../lib/md-cleanup";
 import { fileManagerName, revealFile } from "../lib/reveal";
 import { shortcutLabel } from "../lib/shortcuts";
 import { useConvertQueueStore } from "../store/convert-queue-store";

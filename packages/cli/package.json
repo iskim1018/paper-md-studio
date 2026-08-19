@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@paper-md-studio/core": "workspace:*"
+    "@paper-md-studio/core": "workspace:*",
+    "@paper-md-studio/md-utils": "workspace:*"
   },
   "files": [
     "dist"
