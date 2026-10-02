@@ -89,6 +89,24 @@ describe("formatCellValue", () => {
     expect(formatCellValue("9876543", 3, noFmt, false)).toBe("9,876,543");
   });
 
+  it("공백 너비(_x)·채우기(*x) 지시자는 뒤 글자까지 지운다", () => {
+    // `_)`는 ")" 너비만큼 띄우라는 뜻이지 ")"를 찍으라는 뜻이 아니다 —
+    // 음수 괄호 서식과 자릿수를 맞추는 회계 양식에서 흔하다
+    const custom = new Map([
+      [176, "0_);[Red]\\(0\\)"],
+      [177, '#,##0_-"원"'],
+      [178, "*-#,##0"],
+    ]);
+    expect(formatCellValue("2", 176, custom, false)).toBe("2");
+    expect(formatCellValue("1500", 177, custom, false)).toBe("1,500원");
+    expect(formatCellValue("1500", 178, custom, false)).toBe("1,500");
+  });
+
+  it("이스케이프된 _·* 는 리터럴로 남긴다", () => {
+    const custom = new Map([[176, "0\\_\\*"]]);
+    expect(formatCellValue("7", 176, custom, false)).toBe("7_*");
+  });
+
   it("소수 자릿수를 서식대로 맞춘다", () => {
     expect(formatCellValue("1234.5", 4, noFmt, false)).toBe("1,234.50");
   });

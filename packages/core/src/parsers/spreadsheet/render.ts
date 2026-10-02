@@ -89,7 +89,9 @@ function gridToHtmlTable(
       );
     }
 
-    if (cells.length === 0) continue;
+    // 병합에 통째로 덮여 셀이 0개인 행도 <tr>을 남긴다. 건너뛰면 위 셀의
+    // rowspan이 다음 실제 행을 덮어, 그 행 내용이 오른쪽으로 밀리고 이후
+    // 행이 모두 당겨진다 (2026-10-02 실물 문서 실측)
     const rowClass = grid.hiddenRows.has(r)
       ? ` class="${HIDDEN_ROW_CLASS}"`
       : "";

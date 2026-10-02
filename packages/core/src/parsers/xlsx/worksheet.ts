@@ -18,10 +18,13 @@ import {
  * 통째로 적용되지 않는다.
  */
 
+/** 텍스트를 숫자로 바꾸거나 공백을 깎지 않는다 — 이유는 `workbook.ts`의 파서 주석 */
 const worksheetParser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   removeNSPrefix: true,
+  parseTagValue: false,
+  trimValues: false,
   isArray: (tagName) =>
     ["row", "c", "mergeCell", "hyperlink", "is", "r", "t"].includes(tagName),
 });
@@ -76,7 +79,7 @@ function cellText(cell: Record<string, unknown>, ctx: CellContext): string {
     return ctx.sharedStrings[index] ?? "";
   }
   if (type === "inlineStr") return inlineString(cell.is);
-  if (type === "b") return rawValue === "1" ? "TRUE" : "FALSE";
+  if (type === "b") return rawValue.trim() === "1" ? "TRUE" : "FALSE";
   if (type === "e" || type === "str") return rawValue;
 
   if (rawValue === "") {
@@ -85,12 +88,24 @@ function cellText(cell: Record<string, unknown>, ctx: CellContext): string {
     return formula === "" ? "" : `=${formula}`;
   }
 
+  return numericCellText(cell, rawValue, ctx);
+}
+
+/** 숫자 셀에 표시형식을 입힌다 */
+function numericCellText(
+  cell: Record<string, unknown>,
+  rawValue: string,
+  ctx: CellContext,
+): string {
   const styleIndex = Number(cell["@_s"] ?? Number.NaN);
   const formatId = Number.isInteger(styleIndex)
     ? (ctx.formats.xfFormatIds[styleIndex] ?? 0)
     : 0;
+  // JS 숫자 표기로 맞춘다 (`1E-3` → `0.001`). .xls 경로가 IEEE 값을
+  // `String(value)`로 넘기므로 같은 셀이 두 포맷에서 같은 문자열이 된다
+  const numeric = Number(rawValue);
   return formatCellValue(
-    rawValue,
+    Number.isFinite(numeric) ? String(numeric) : rawValue,
     formatId,
     ctx.formats.customFormats,
     ctx.date1904,
