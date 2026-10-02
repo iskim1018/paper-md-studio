@@ -22,7 +22,7 @@ export interface SheetGrid {
   readonly hiddenRows: ReadonlySet<number>;
   /** 숨김 처리된 열 인덱스 (0-based) */
   readonly hiddenCols: ReadonlySet<number>;
-  /** 셀 위치 → 하이퍼링크 (XLSX는 관계 ID, XLS는 URL) */
+  /** 셀 위치 → 하이퍼링크. 파서가 렌더 전에 실제 주소로 풀어 둔다 */
   readonly hyperlinkRels: ReadonlyMap<string, string>;
   /** 시트에 붙은 그림(drawing) 관계 ID. 없으면 null */
   readonly drawingRelId: string | null;
@@ -71,20 +71,79 @@ export function toDenseGrid(
  * 꼬리쪽 빈 행이었다). 그대로 표로 만들면 빈 칸뿐인 줄이 수천 개 쌓여 토큰을
  * 먹고, 에디터를 멈춰 세운다.
  *
+ * 앞쪽(위·왼쪽)도 같다. 한국 양식은 A열·1행을 여백으로 비워두는 일이 흔한데,
+ * 남겨두면 모든 행 앞에 빈 칸이 붙고 표 머리가 빈 행이 된다.
+ *
  * 안쪽(내용과 내용 사이)의 빈 행은 원본의 구획일 수 있으므로 남긴다 —
  * 바깥쪽만 자른다.
  */
-/** 내용이 들어 있는 마지막 행·열 (0-based, 없으면 -1) */
-function findContentBounds(grid: SheetGrid): {
-  lastRow: number;
-  lastCol: number;
-} {
+export function trimEmptyEdges(grid: SheetGrid): SheetGrid {
+  const bounds = findContentBounds(grid);
+  if (!bounds) return emptyLike(grid);
+
+  const { firstRow, lastRow, firstCol, lastCol } = bounds;
+  const rows = lastRow - firstRow + 1;
+  const cols = lastCol - firstCol + 1;
+  if (
+    firstRow === 0 &&
+    firstCol === 0 &&
+    rows === grid.cells.length &&
+    cols === (grid.cells[0]?.length ?? 0)
+  ) {
+    return grid;
+  }
+
+  /** 원래 좌표 → 잘라낸 뒤 좌표 (범위 밖이면 null) */
+  const shift = (position: string): string | null => {
+    const { row, col } = splitKey(position);
+    const r = row - firstRow;
+    const c = col - firstCol;
+    return r >= 0 && r < rows && c >= 0 && c < cols ? cellKey(r, c) : null;
+  };
+
+  const { spans, anchors } = clipSpans(grid.spans, bounds);
+  const covered = new Set<string>();
+  for (const position of grid.covered) {
+    const moved = shift(position);
+    // 앞쪽이 잘린 병합은 가려졌던 칸이 새 시작점이 된다
+    if (moved !== null && !anchors.has(moved)) covered.add(moved);
+  }
+
+  return {
+    cells: grid.cells
+      .slice(firstRow, lastRow + 1)
+      .map((row) => row.slice(firstCol, lastCol + 1)),
+    spans,
+    covered,
+    hiddenRows: shiftIndices(grid.hiddenRows, firstRow, rows),
+    hiddenCols: shiftIndices(grid.hiddenCols, firstCol, cols),
+    hyperlinkRels: new Map(
+      [...grid.hyperlinkRels].flatMap(([position, rel]) => {
+        const moved = shift(position);
+        return moved === null ? [] : [[moved, rel] as const];
+      }),
+    ),
+    drawingRelId: grid.drawingRelId,
+  };
+}
+
+const splitKey = (position: string): { row: number; col: number } => {
+  const [r = "0", c = "0"] = position.split(",");
+  return { row: Number(r), col: Number(c) };
+};
+
+/** 내용이 들어 있는 행·열 범위 (0-based 양끝 포함, 내용이 없으면 null) */
+function findContentBounds(grid: SheetGrid): ContentBounds | null {
+  let firstRow = Number.POSITIVE_INFINITY;
+  let firstCol = Number.POSITIVE_INFINITY;
   let lastRow = -1;
   let lastCol = -1;
 
   const mark = (row: number, col: number): void => {
-    if (row > lastRow) lastRow = row;
-    if (col > lastCol) lastCol = col;
+    firstRow = Math.min(firstRow, row);
+    firstCol = Math.min(firstCol, col);
+    lastRow = Math.max(lastRow, row);
+    lastCol = Math.max(lastCol, col);
   };
 
   grid.cells.forEach((row, r) => {
@@ -95,55 +154,69 @@ function findContentBounds(grid: SheetGrid): {
 
   // 값 없이 링크만 걸린 셀도 내용이다 (렌더가 주소를 대신 보여준다)
   for (const position of grid.hyperlinkRels.keys()) {
-    const [r = "0", c = "0"] = position.split(",");
-    mark(Number(r), Number(c));
+    const { row, col } = splitKey(position);
+    mark(row, col);
   }
 
-  return { lastRow, lastCol };
+  return lastRow < 0 ? null : { firstRow, lastRow, firstCol, lastCol };
 }
 
-/** 잘라낸 자리까지 뻗던 병합을 남은 크기로 다시 센다 */
-function clampSpans(
+interface ContentBounds {
+  readonly firstRow: number;
+  readonly lastRow: number;
+  readonly firstCol: number;
+  readonly lastCol: number;
+}
+
+/**
+ * 병합을 남는 영역과 겹치는 부분으로 다시 센다.
+ * 잘린 쪽으로 뻗던 병합은 크기가 줄고, 앞쪽이 잘린 병합은 시작점이 옮겨진다
+ * (rowSpan을 그대로 두면 grid 정규화가 잘라낸 빈 행을 되살린다).
+ */
+function clipSpans(
   spans: ReadonlyMap<string, CellSpan>,
-  rows: number,
-  cols: number,
-): Map<string, CellSpan> {
-  const clamped = new Map<string, CellSpan>();
+  bounds: ContentBounds,
+): { spans: Map<string, CellSpan>; anchors: Set<string> } {
+  const clipped = new Map<string, CellSpan>();
+  const anchors = new Set<string>();
   for (const [position, span] of spans) {
-    const [rawRow = "0", rawCol = "0"] = position.split(",");
-    const row = Number(rawRow);
-    const col = Number(rawCol);
-    if (row >= rows || col >= cols) continue;
-    clamped.set(position, {
-      rowSpan: Math.min(span.rowSpan, rows - row),
-      colSpan: Math.min(span.colSpan, cols - col),
-    });
+    const { row, col } = splitKey(position);
+    const top = Math.max(row, bounds.firstRow);
+    const left = Math.max(col, bounds.firstCol);
+    const bottom = Math.min(row + span.rowSpan - 1, bounds.lastRow);
+    const right = Math.min(col + span.colSpan - 1, bounds.lastCol);
+    if (top > bottom || left > right) continue;
+
+    const key = cellKey(top - bounds.firstRow, left - bounds.firstCol);
+    const rowSpan = bottom - top + 1;
+    const colSpan = right - left + 1;
+    anchors.add(key);
+    // 한 칸으로 줄어든 병합은 더 이상 병합이 아니다
+    if (rowSpan > 1 || colSpan > 1) clipped.set(key, { rowSpan, colSpan });
   }
-  return clamped;
+  return { spans: clipped, anchors };
 }
 
-export function trimEmptyEdges(grid: SheetGrid): SheetGrid {
-  const { lastRow, lastCol } = findContentBounds(grid);
-  const rows = lastRow + 1;
-  const cols = lastCol + 1;
-  if (rows === grid.cells.length && cols === (grid.cells[0]?.length ?? 0)) {
-    return grid;
-  }
+/** 인덱스 집합을 잘라낸 범위로 옮긴다 */
+function shiftIndices(
+  indices: ReadonlySet<number>,
+  offset: number,
+  size: number,
+): Set<number> {
+  return new Set(
+    [...indices].map((i) => i - offset).filter((i) => i >= 0 && i < size),
+  );
+}
 
-  const inBounds = (position: string): boolean => {
-    const [r = "0", c = "0"] = position.split(",");
-    return Number(r) < rows && Number(c) < cols;
-  };
-
+/** 내용이 없는 시트 — 표 없이 제목만 남긴다 */
+function emptyLike(grid: SheetGrid): SheetGrid {
   return {
-    cells: grid.cells.slice(0, rows).map((row) => row.slice(0, cols)),
-    spans: clampSpans(grid.spans, rows, cols),
-    covered: new Set([...grid.covered].filter(inBounds)),
-    hiddenRows: new Set([...grid.hiddenRows].filter((r) => r < rows)),
-    hiddenCols: new Set([...grid.hiddenCols].filter((c) => c < cols)),
-    hyperlinkRels: new Map(
-      [...grid.hyperlinkRels].filter(([position]) => inBounds(position)),
-    ),
+    cells: [],
+    spans: new Map(),
+    covered: new Set(),
+    hiddenRows: new Set(),
+    hiddenCols: new Set(),
+    hyperlinkRels: new Map(),
     drawingRelId: grid.drawingRelId,
   };
 }

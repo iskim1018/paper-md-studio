@@ -727,6 +727,75 @@ describe("XLSX 표 변환", () => {
       expect(warnings).toHaveLength(0);
     });
 
+    it("앞쪽 빈 행·열(여백)도 잘라 첫 내용 행이 표 머리가 된다", async () => {
+      // Arrange — 한국 양식은 A열·1행을 여백으로 비워두는 일이 흔하다.
+      // 남겨두면 모든 행 앞에 빈 칸이 붙고 표 머리가 빈 행이 된다
+      const { markdown } = await convertFile("앞여백", [
+        {
+          name: "시트",
+          rows: [
+            [null, null, null],
+            [null, "제목", "값"],
+            [null, "가", "1"],
+          ],
+        },
+      ]);
+
+      // Assert
+      const tableLines = markdown
+        .split("\n")
+        .filter((line) => line.startsWith("|"));
+      expect(tableLines).toEqual([
+        "| 제목 | 값 |",
+        "| --- | --- |",
+        "| 가 | 1 |",
+      ]);
+    });
+
+    it("앞쪽 여백을 자르면 병합도 같이 옮긴다", async () => {
+      // Arrange
+      const { markdown } = await convertFile("앞여백병합", [
+        {
+          name: "시트",
+          rows: [
+            [null, null, null],
+            [null, "보고서", null],
+            [null, "가", "1"],
+          ],
+          merges: ["B2:C2"],
+        },
+      ]);
+
+      // Assert
+      const tableLines = markdown
+        .split("\n")
+        .filter((line) => line.startsWith("|"));
+      expect(tableLines).toEqual([
+        `| 보고서 | ${MERGE_LEFT} |`,
+        "| --- | --- |",
+        "| 가 | 1 |",
+      ]);
+    });
+
+    it("앞쪽 여백의 숨김은 제외 경고에 세지 않는다", async () => {
+      // Arrange & Act — 여백 행·열을 숨겨둔 양식. 잃은 내용이 없다
+      const { warnings } = await convertFile("앞여백숨김", [
+        {
+          name: "시트",
+          rows: [
+            [null, null, null],
+            [null, "항목", "값"],
+            [null, "가", "1"],
+          ],
+          hiddenRows: [1],
+          hiddenCols: [1],
+        },
+      ]);
+
+      // Assert
+      expect(warnings).toHaveLength(0);
+    });
+
     it("모든 셀이 빈 시트는 표 없이 제목만 남긴다", async () => {
       // Arrange & Act
       const { markdown } = await convertFile("전부빈시트", [
