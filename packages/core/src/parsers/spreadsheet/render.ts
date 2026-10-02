@@ -121,12 +121,12 @@ function hiddenExclusionWarning(
 
 export interface RenderableSheet {
   readonly name: string;
-  readonly grid: SheetGrid;
   /**
-   * 셀 위치 → 실제 링크 주소. 포맷마다 푸는 방법이 달라(XLSX는 관계 파일,
-   * XLS는 레코드 내부) 이미 푼 결과를 받는다.
+   * 링크는 `grid.hyperlinkRels`에 실제 주소로 풀어 넣어 둔다. 좌표를 따로 받지
+   * 않는 이유: 가장자리 잘라내기·숨김 재투영이 격자 좌표를 옮기므로, 격자 밖에
+   * 원래 좌표로 들고 있으면 링크가 엉뚱한 셀에 붙는다.
    */
-  readonly hyperlinkTargets?: ReadonlyMap<string, string>;
+  readonly grid: SheetGrid;
   /** 표 뒤에 붙일 추가 HTML (이미지 등) */
   readonly extraHtml?: ReadonlyArray<string>;
 }
@@ -179,11 +179,7 @@ function renderSheet(
   }
 
   const parts = [`<h2>${escapeHtml(sheet.name)}</h2>`];
-  const table = gridToHtmlTable(
-    visible,
-    sheet.hyperlinkTargets ?? visible.hyperlinkRels,
-    { rows, cols },
-  );
+  const table = gridToHtmlTable(visible, visible.hyperlinkRels, { rows, cols });
   if (table) parts.push(table);
   parts.push(...(sheet.extraHtml ?? []));
   return parts.join("\n");
