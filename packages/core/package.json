@@ -32,7 +32,7 @@
     "@opendocsg/pdf2md": "^0.2.6",
     "cfb": "1.2.2",
     "fast-xml-parser": "^5.7.0",
-    "fflate": "^0.8.2",
+    "fflate": "^0.8.3",
     "kordoc": "4.7.2",
     "linkedom": "^0.18.13",
     "mammoth": "^1.12.0",

@@ -64,6 +64,34 @@ Tauri 의 `minimumSystemVersion: "12.0"` 범위인 macOS 12 는 Safari 17.6 이 
 > 올릴 때도 ① 실렌더 확인과 ② **modern/legacy 빌드의 브라우저 바닥 대조**
 > (릴리스 노트의 supported browsers vs `minimumSystemVersion`)를 반드시 할 것.
 
+## 0-2. 2차 대응 (2026-10-02) — 62건 → 0건 ✅
+
+8/8 이후 새로 공개된 권고로 CI `Security audit` 단계가 다시 실패했다(low 4·moderate 30·high 28,
+패키지 18개). 전부 **같은 메이저 안의 패치·마이너**로 해결돼 §0 원칙을 그대로 적용했다.
+
+| 구분 | 패키지 | 조치 |
+|------|--------|------|
+| 직접 의존성 하한 상향 | fastify `^5.12.5`(server) · fflate `^0.8.3`(core·server) · dompurify `^3.4.16`(app) · vitest·@vitest/coverage-v8 `^4.1.11`(루트) | 선언 자체를 올려 override 없이 해결 |
+| 기존 override 갱신 | @xmldom/xmldom `^0.8.15` · hono `^4.13.7` · fast-uri `^4.1.5` · ip-address `^10.7.1` · undici `^7.29.1` · qs `^6.16.0` · dompurify `^3.4.16` · adm-zip `^0.6.1` · sharp `^0.35.4` · brace-expansion 키 `@>=3.0.0 <5.0.12` → `^5.0.12` | `>=` 로 남아 있던 값(fast-uri·hono·ip-address·qs·dompurify)도 이 기회에 계열 고정(`^`)으로 바꿨다 |
+| override 추가 | browserslist `^4.28.7` · baseline-browser-mapping `^2.11.0` · markdown-it `^14.3.1` | lockfile 에 각각 단일 메이저(4.x·2.x·14.x)만 있어 하한 없는 키로도 다른 계열을 끌어올리지 않음을 확인 |
+
+**함정 1건** — adm-zip 권고 GHSA-vwc7-r8mq-g2x9 는 감사 출력에 `patched: <0.0.0`(수정판 없음)으로
+찍히지만 취약 범위가 `>=0.5.9 <=0.6.0` 이라 0.6.1 로 해소된다. 메타데이터 표기만 보고 "수정 불가"로
+분류하지 말 것.
+
+**검증**
+
+| 항목 | 결과 |
+|------|------|
+| `pnpm audit` | 0건 |
+| lockfile 수렴 | 대상 17종 전부 단일 버전. 메이저 변경 0. 새로 들어온 `fast-json-stringify@7.0.1` 은 fastify 5.12 가 직접 요구(기존 6.3.0 은 `@fastify/fast-json-stringify-compiler` 경유로 공존) |
+| build · typecheck · lint | exit 0 (lint 경고 16건은 기존분) |
+| `pnpm test` | 91 files / 818 passed |
+| REST (fastify·Swagger UI·brace-expansion) | 서버 기동 → `/docs`·`/docs/json` 200, 정적 자산 7종 200, `POST /v1/convert`(합성 xlsx) 성공 |
+| MCP stdio | `initialize` · `tools/list`(3종) · `convert_document`(합성 xlsx) 정상 |
+| MCP HTTP 경로 의존성 | SDK 가 해석하는 hono 4.13.12 라우팅 200, `StreamableHTTPServerTransport` 생성, ip-address 10.7.3 서브넷 판정, fast-uri 4.2.1 IDN 파싱, qs 6.16.0 중첩 파싱 |
+| DOCX (mammoth → @xmldom/xmldom) | 합성 docx(제목·본문·병합 표) 변환 정상 — `sample.docx` 부재로 유닛 테스트는 skip 이라 별도 확인 |
+
 ## 1. 당시 상태와 확인 방법
 
 CI 잡 두 개 중 `Lint · Typecheck · Test` 만 실패하며, 그 안에서도 마지막
