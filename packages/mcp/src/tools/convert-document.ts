@@ -27,6 +27,12 @@ const inputShape = {
     .describe(
       "엑셀(XLSX/XLS)의 숨긴 시트·행·열을 변환에 포함할지. 기본은 제외하며, 무엇이 빠졌는지 warnings·hiddenExcluded 로 알립니다.",
     ),
+  removeEmptyRows: z
+    .boolean()
+    .default(false)
+    .describe(
+      "표에서 내용이 빈 행을 지울지. 한글·엑셀 산출물은 표 꼬리에 빈 행이 많아 켜면 토큰이 크게 줄어듭니다. 기본은 원본 그대로 (빈 행이 원본의 구획일 수 있음).",
+    ),
 } as const;
 
 export function registerConvertDocumentTool(
@@ -88,6 +94,7 @@ export function registerConvertDocumentTool(
           bytes: resolved.bytes,
           originalName: resolved.originalName,
           ...(args.includeHidden ? { includeHidden: true } : {}),
+          ...(args.removeEmptyRows ? { removeEmptyRows: true } : {}),
         });
 
         const rewriteMode: McpImageMode = args.images;

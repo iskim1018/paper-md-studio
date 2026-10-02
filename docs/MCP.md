@@ -78,7 +78,7 @@ REST 서버는 `@paper-md-studio/server` 를 별도 호스트에서 실행하세
 
 ```bash
 pnpm install
-pnpm --filter @paper-md-studio/core --filter @paper-md-studio/server --filter @paper-md-studio/mcp build
+pnpm --filter @paper-md-studio/md-utils --filter @paper-md-studio/core --filter @paper-md-studio/server --filter @paper-md-studio/mcp build
 ```
 
 결과: `packages/mcp/dist/bin.js` — `#!/usr/bin/env node` shebang 포함 실행 파일.
@@ -144,6 +144,10 @@ pnpm --filter @paper-md-studio/core --filter @paper-md-studio/server --filter @p
 - `"refs"` (기본) — Markdown 내 이미지 링크를 `conv://{conversionId}/images/{name}` URI 로 치환. LLM 이 필요할 때만 이미지를 fetch.
 - `"inline"` — `data:image/png;base64,...` 로 치환. `PAPER_MD_MCP_MAX_INLINE_KB` 초과 시 오류.
 - `"omit"` — 이미지를 `_[이미지: alt]_` placeholder 로 대체. 텍스트만 필요할 때.
+
+변환 옵션 (둘 다 기본 `false`, 캐시 키에 반영되어 `conversionId` 가 달라진다):
+- `includeHidden` — 엑셀(XLSX/XLS)의 숨긴 시트·행·열을 포함. 기본은 제외하고 `warnings`·`hiddenExcluded` 로 알린다.
+- `removeEmptyRows` — 표에서 내용이 빈 행을 지운다. 한글·엑셀 산출물은 표 꼬리에 빈 행이 많아 토큰이 크게 준다. 같은 `conversionId` 로 부르는 `get_document_outline`·`get_document_chunk` 도 정리된 본문을 쓴다.
 
 응답 예시:
 ```json
@@ -228,7 +232,7 @@ Line range (0-indexed):
 ## 수동 검증 (MCP Inspector)
 
 ```bash
-pnpm --filter @paper-md-studio/mcp build
+pnpm --filter @paper-md-studio/md-utils --filter @paper-md-studio/core --filter @paper-md-studio/server --filter @paper-md-studio/mcp build
 npx @modelcontextprotocol/inspector node packages/mcp/dist/bin.js
 ```
 

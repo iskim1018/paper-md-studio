@@ -37,6 +37,7 @@ export class EmbeddedConverter implements Converter {
       bytes: input.bytes,
       originalName: input.originalName,
       ...(input.includeHidden ? { xlsx: { includeHidden: true } } : {}),
+      ...(input.removeEmptyRows ? { removeEmptyRows: true } : {}),
     });
     return {
       conversionId: result.meta.conversionId,

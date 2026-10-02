@@ -8,6 +8,7 @@ import {
   type DocumentFormat,
   type XlsxConvertOptions,
 } from "@paper-md-studio/core";
+import { removeEmptyTableRows } from "@paper-md-studio/md-utils";
 import { conversionCacheId } from "../storage/conversion-id.js";
 import type { StorageAdapter, StoredMeta } from "../storage/types.js";
 
@@ -29,6 +30,12 @@ export interface ConvertCacheInput {
   readonly format?: DocumentFormat;
   /** XLSX/XLS 변환 옵션 — 캐시 키에 반영된다 (결과가 달라지므로) */
   readonly xlsx?: XlsxConvertOptions;
+  /**
+   * 표에서 내용이 빈 행을 지운 결과를 저장한다 — 캐시 키에 반영된다.
+   * 응답 직전이 아니라 저장 전에 지워야 conversionId 로 다시 읽는 경로
+   * (GET /v1/conversions/:id, MCP 개요·청크 도구)도 같은 markdown 을 본다.
+   */
+  readonly removeEmptyRows?: boolean;
 }
 
 export interface ConvertCacheResult {
@@ -101,6 +108,7 @@ export class ConvertCache {
     // "숨김 제외" 캐시가 "숨김 포함" 요청에 그대로 나간다
     const sha = conversionCacheId(input.bytes, {
       includeHidden: input.xlsx?.includeHidden === true,
+      removeEmptyRows: input.removeEmptyRows === true,
     });
     const start = performance.now();
 
@@ -131,11 +139,14 @@ export class ConvertCache {
         imagesDirName: "images",
         ...(input.xlsx ? { xlsx: input.xlsx } : {}),
       });
+      const markdown = input.removeEmptyRows
+        ? removeEmptyTableRows(converted.markdown)
+        : converted.markdown;
 
       const meta = await this.storage.put({
         sha256: sha,
         format: converted.format,
-        markdown: converted.markdown,
+        markdown,
         images: converted.images,
         elapsed: converted.elapsed,
         originalName: input.originalName,
@@ -157,7 +168,7 @@ export class ConvertCache {
 
       return {
         meta,
-        markdown: converted.markdown,
+        markdown,
         cached: false,
         elapsedMs,
       };

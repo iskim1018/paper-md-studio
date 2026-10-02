@@ -54,6 +54,42 @@ describe("RemoteConverter.convert", () => {
     expect(headers["Content-Type"]).toMatch(/multipart\/form-data; boundary=/);
   });
 
+  it("변환 옵션을 쿼리 파라미터로 REST 서버에 넘긴다", async () => {
+    // remote 모드는 옵션을 쿼리로만 전달한다 — 빠지면 서버가 기본값으로 변환한다
+    const fetchImpl = vi.fn(async (_url, _init) =>
+      jsonResponse({
+        success: true,
+        data: {
+          conversionId: "b".repeat(64),
+          format: "xlsx",
+          markdown: "| 표 |",
+          images: [],
+          cached: false,
+          elapsedMs: 5,
+          createdAt: "2026-10-02T00:00:00Z",
+          originalName: "표.xlsx",
+          size: 3,
+        },
+      }),
+    );
+    const remote = new RemoteConverter({
+      baseUrl: "http://localhost:3000",
+      fetchImpl,
+    });
+
+    await remote.convert({
+      bytes: new Uint8Array([1, 2, 3]),
+      originalName: "표.xlsx",
+      includeHidden: true,
+      removeEmptyRows: true,
+    });
+
+    const [calledUrl] = fetchImpl.mock.calls[0] ?? [];
+    expect(String(calledUrl)).toBe(
+      "http://localhost:3000/v1/convert?images=refs&includeHidden=true&removeEmptyRows=true",
+    );
+  });
+
   it("throws on 4xx envelope error", async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse(

@@ -224,6 +224,75 @@ describe("POST /v1/convert", () => {
     }
   });
 
+  it("?removeEmptyRows=true 는 빈 표 행을 지운 markdown 을 돌려준다", async () => {
+    convertImpl.mockImplementation(
+      async (): Promise<ConvertResult> => ({
+        markdown: "| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |\n|  |  |\n|  |  |",
+        images: [],
+        format: "xlsx",
+        elapsed: 10,
+      }),
+    );
+    const app = await buildTestApp();
+    try {
+      const { payload, contentType } = makeMultipart([
+        {
+          name: "file",
+          filename: "표.xlsx",
+          content: Buffer.from([4, 5, 6]),
+          contentType: "application/octet-stream",
+        },
+      ]);
+      const request = (url: string) =>
+        app.inject({
+          method: "POST",
+          url,
+          headers: { "content-type": contentType },
+          payload,
+        });
+
+      const kept = await request("/v1/convert");
+      const removed = await request("/v1/convert?removeEmptyRows=true");
+
+      expect(kept.json().data.markdown).toBe(
+        "| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |\n|  |  |\n|  |  |",
+      );
+      expect(removed.statusCode).toBe(200);
+      expect(removed.json().data.markdown).toBe(
+        "| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |",
+      );
+      expect(removed.json().data.conversionId).not.toBe(
+        kept.json().data.conversionId,
+      );
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("removeEmptyRows 에 true/false 외의 값을 주면 400 을 반환한다", async () => {
+    const app = await buildTestApp();
+    try {
+      const { payload, contentType } = makeMultipart([
+        {
+          name: "file",
+          filename: "표.xlsx",
+          content: Buffer.from([1]),
+          contentType: "application/octet-stream",
+        },
+      ]);
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/convert?removeEmptyRows=1",
+        headers: { "content-type": contentType },
+        payload,
+      });
+      expect(res.statusCode).toBe(400);
+      expect(convertImpl).not.toHaveBeenCalled();
+    } finally {
+      await app.close();
+    }
+  });
+
   it("file 필드가 없으면 400을 반환한다", async () => {
     const app = await buildTestApp();
     try {

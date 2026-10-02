@@ -2,6 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { conversionCacheId } from "../src/storage/conversion-id.js";
 import { LocalFsStorage, sha256Hex } from "../src/storage/index.js";
 
 describe("LocalFsStorage", () => {
@@ -171,5 +172,29 @@ describe("LocalFsStorage", () => {
         size: 0,
       }),
     ).rejects.toThrow("잘못된 SHA-256 해시 형식");
+  });
+});
+
+describe("conversionCacheId", () => {
+  it("옵션이 없으면 파일 해시 그대로다 — 기존 캐시 id 가 바뀌면 안 된다", () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    expect(conversionCacheId(bytes)).toBe(sha256Hex(bytes));
+    expect(
+      conversionCacheId(bytes, {
+        includeHidden: false,
+        removeEmptyRows: false,
+      }),
+    ).toBe(sha256Hex(bytes));
+  });
+
+  it("옵션 조합마다 서로 다른 id 를 만든다", () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    const ids = new Set([
+      conversionCacheId(bytes),
+      conversionCacheId(bytes, { includeHidden: true }),
+      conversionCacheId(bytes, { removeEmptyRows: true }),
+      conversionCacheId(bytes, { includeHidden: true, removeEmptyRows: true }),
+    ]);
+    expect(ids.size).toBe(4);
   });
 });

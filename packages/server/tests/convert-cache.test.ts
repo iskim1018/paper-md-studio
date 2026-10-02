@@ -205,6 +205,45 @@ describe("ConvertCache", () => {
     expect(convertMock).toHaveBeenCalledTimes(2);
   });
 
+  it("removeEmptyRows 는 저장 전에 빈 표 행을 지우고 캐시 키를 분리한다", async () => {
+    // 저장본을 정리해야 conversionId 로 다시 읽는 경로(GET·MCP 청크)도 같은 결과를 본다
+    const cache = new ConvertCache({ storage, tmpDir: tmpRoot });
+    const bytes = new Uint8Array([7, 7, 7]);
+    convertMock.mockImplementation(async (options: ConvertOptions) => {
+      calls.push({ inputPath: options.inputPath, options });
+      return makeConvertResult({
+        markdown: "| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |\n|  |  |\n|  |  |",
+        format: "xlsx",
+      });
+    });
+
+    const kept = await cache.convert({ bytes, originalName: "a.xlsx" });
+    const removed = await cache.convert({
+      bytes,
+      originalName: "a.xlsx",
+      removeEmptyRows: true,
+    });
+
+    expect(kept.markdown).toBe(
+      "| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |\n|  |  |\n|  |  |",
+    ); // 기본은 원본 그대로
+    expect(removed.markdown).toBe("| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |");
+    expect(removed.cached).toBe(false);
+    expect(removed.meta.conversionId).not.toBe(kept.meta.conversionId);
+    expect(await storage.getMarkdown(removed.meta.conversionId)).toBe(
+      "| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |",
+    );
+
+    const again = await cache.convert({
+      bytes,
+      originalName: "a.xlsx",
+      removeEmptyRows: true,
+    });
+    expect(again.cached).toBe(true);
+    expect(again.markdown).toBe("| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |");
+    expect(convertMock).toHaveBeenCalledTimes(2);
+  });
+
   it("warnings·hiddenExcluded를 meta에 저장하고 캐시 HIT에서도 돌려준다", async () => {
     // 첫 요청만 경고를 받고 캐시 히트는 못 받으면 소비자마다 다른 그림을 본다
     const cache = new ConvertCache({ storage, tmpDir: tmpRoot });

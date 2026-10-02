@@ -20,6 +20,8 @@ export function makeConversionId(sha256: string): string {
 /** 변환 결과에 영향을 주는 옵션 — 캐시 키에 반드시 반영해야 한다 */
 export interface ConversionOptions {
   readonly includeHidden?: boolean;
+  /** 표의 빈 행을 지운 결과를 저장한다 */
+  readonly removeEmptyRows?: boolean;
 }
 
 /**
@@ -37,6 +39,9 @@ export function conversionCacheId(
   const hash = createHash("sha256");
   if (options.includeHidden === true) {
     hash.update("opt:includeHidden ");
+  }
+  if (options.removeEmptyRows === true) {
+    hash.update("opt:removeEmptyRows ");
   }
   hash.update(bytes);
   return hash.digest("hex");

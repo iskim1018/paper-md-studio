@@ -36,6 +36,8 @@ const QuerySchema = z.object({
     .optional(),
   /** 엑셀의 숨긴 시트·행·열을 변환에 포함 (기본: 제외 + 경고) */
   includeHidden: z.enum(["true", "false"]).optional(),
+  /** 표에서 내용이 빈 행을 지운다 (기본: 원본 그대로) */
+  removeEmptyRows: z.enum(["true", "false"]).optional(),
 });
 
 export interface RegisterConvertRouteOptions {
@@ -318,7 +320,7 @@ export async function registerConvertRoute(
       tags: ["convert"],
       summary: "문서 업로드 및 Markdown 변환",
       description:
-        '두 가지 입력 방식: (1) `multipart/form-data` 의 `file` 필드로 파일 업로드. (2) `application/json` 바디에 `{ "url": "https://..." }` 전달 — 서버가 URL 을 fetch 해서 변환 (SSRF 방어 포함). 동일 파일(SHA-256 일치) 재요청 시 캐시 히트 응답. `?images=urls|inline|refs|omit` 로 이미지 전달 방식을, `?includeHidden=true` 로 엑셀의 숨긴 시트·행·열 포함 여부를 선택합니다 (기본은 제외 — 무엇이 빠졌는지 `warnings`·`hiddenExcluded` 로 알립니다).',
+        '두 가지 입력 방식: (1) `multipart/form-data` 의 `file` 필드로 파일 업로드. (2) `application/json` 바디에 `{ "url": "https://..." }` 전달 — 서버가 URL 을 fetch 해서 변환 (SSRF 방어 포함). 동일 파일(SHA-256 일치) 재요청 시 캐시 히트 응답. `?images=urls|inline|refs|omit` 로 이미지 전달 방식을, `?includeHidden=true` 로 엑셀의 숨긴 시트·행·열 포함 여부를 선택합니다 (기본은 제외 — 무엇이 빠졌는지 `warnings`·`hiddenExcluded` 로 알립니다). `?removeEmptyRows=true` 는 표에서 내용이 빈 행을 지웁니다 (기본은 원본 그대로 — 빈 행이 원본의 구획일 수 있어서).',
       querystring: QuerySchema,
       response: {
         200: ConvertSuccessSchema,
@@ -347,9 +349,11 @@ export async function registerConvertRoute(
       if (!parsed.ok) {
         return reply.code(parsed.status).send(apiError(parsed.error));
       }
-      const { images: mode = "urls", includeHidden } = req.query as z.infer<
-        typeof QuerySchema
-      >;
+      const {
+        images: mode = "urls",
+        includeHidden,
+        removeEmptyRows,
+      } = req.query as z.infer<typeof QuerySchema>;
 
       try {
         const result = await convertCache.convert({
@@ -358,6 +362,7 @@ export async function registerConvertRoute(
           ...(includeHidden === "true"
             ? { xlsx: { includeHidden: true } }
             : {}),
+          ...(removeEmptyRows === "true" ? { removeEmptyRows: true } : {}),
         });
 
         const rewritten = await rewriteMarkdown({

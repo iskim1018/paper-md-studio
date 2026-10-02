@@ -61,7 +61,10 @@ export class RemoteConverter implements Converter {
       "Content-Type": `multipart/form-data; boundary=${boundary}`,
     };
     const includeHiddenParam = input.includeHidden ? "&includeHidden=true" : "";
-    const url = `${this.baseUrl}/v1/convert?images=refs${includeHiddenParam}`;
+    const removeEmptyRowsParam = input.removeEmptyRows
+      ? "&removeEmptyRows=true"
+      : "";
+    const url = `${this.baseUrl}/v1/convert?images=refs${includeHiddenParam}${removeEmptyRowsParam}`;
     const res = await this.fetchWithTimeout(url, {
       method: "POST",
       headers,

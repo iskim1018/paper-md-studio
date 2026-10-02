@@ -7,6 +7,8 @@ export interface ConverterInput {
   readonly originalName: string | null;
   /** 엑셀의 숨긴 시트·행·열을 변환에 포함 (기본: 제외 + 경고) */
   readonly includeHidden?: boolean;
+  /** 표에서 내용이 빈 행을 지운다 (기본: 원본 그대로) */
+  readonly removeEmptyRows?: boolean;
 }
 
 export interface ConvertedImage {
