@@ -199,6 +199,51 @@ describe("XLSX 표 변환", () => {
     expect(markdown).not.toContain("<table");
   });
 
+  it("병합에 통째로 덮인 행이 있어도 아래 행이 밀리지 않는다", async () => {
+    // A1:B3 병합이면 2·3행에는 그릴 셀이 하나도 없다. 그 행을 건너뛰면
+    // rowspan=3 이 4행을 덮어 4행 내용이 오른쪽으로 밀리고 이후 행이 모두 당겨진다
+    const markdown = await convertSheets("덮인행", [
+      {
+        name: "표지",
+        rows: [
+          ["산출물", null],
+          [null, null],
+          [null, null],
+          ["프로젝트명", "샘플 사업"],
+          ["문서번호", "DOC-001"],
+        ],
+        merges: ["A1:B3"],
+      },
+    ]);
+
+    // 밀린 줄(`| ↑ | ↑ | 프로젝트명 | …`)도 부분 문자열로는 통과하므로 줄 단위로 비교한다
+    const tableLines = markdown
+      .split("\n")
+      .filter((line) => line.startsWith("|") && !line.startsWith("| ---"));
+    expect(tableLines).toEqual([
+      `| 산출물 | ${MERGE_LEFT} |`,
+      `| ${MERGE_UP} | ${MERGE_UP} |`,
+      `| ${MERGE_UP} | ${MERGE_UP} |`,
+      "| 프로젝트명 | 샘플 사업 |",
+      "| 문서번호 | DOC-001 |",
+    ]);
+  });
+
+  it("숫자처럼 생긴 텍스트 셀을 숫자로 바꾸지 않는다", async () => {
+    // 코드·사번의 앞자리 0, 버전 문자열, 지수처럼 읽히는 품번이 조용히 바뀌면 안 된다
+    const markdown = await convertSheets("숫자모양텍스트", [
+      {
+        name: "코드",
+        rows: [
+          ["코드", "버전", "품번"],
+          ["007", "1.50", "1e3"],
+        ],
+      },
+    ]);
+
+    expect(markdown).toContain("| 007 | 1.50 | 1e3 |");
+  });
+
   it("모든 행의 열 수가 같아 GFM 표가 깨지지 않는다", async () => {
     const markdown = await convertSheets("행폭", [
       {

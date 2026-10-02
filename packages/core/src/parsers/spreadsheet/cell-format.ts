@@ -46,14 +46,19 @@ const MAC_1904_OFFSET_DAYS = 1462;
 const MS_PER_DAY = 86_400_000;
 
 /**
- * 서식 코드에서 리터럴(따옴표 문자열·대괄호 구역·백슬래시 이스케이프)을 걷어낸다.
+ * 서식 코드의 리터럴 토큰: 따옴표 문자열 · 대괄호 구역 · 백슬래시 이스케이프 ·
+ * 공백 너비(`_x`) · 채우기(`*x`). 뒤의 둘은 다음 글자까지가 한 토큰이다 —
+ * `_)`는 ")" 너비만큼 띄우라는 뜻이지 ")"를 찍으라는 뜻이 아니다.
+ * 왼쪽부터 한 번에 훑어야 `"a_b"`·`\_` 안의 `_`를 지시자로 오인하지 않는다.
+ */
+const LITERAL_TOKEN_RE = /"([^"]*)"|\[[^\]]*\]|\\(.)|[_*].?/g;
+
+/**
+ * 서식 코드에서 리터럴을 걷어낸다.
  * `"date"#,##0`의 date를 날짜 토큰으로 오인하지 않기 위한 전처리다.
  */
 function stripLiterals(code: string): string {
-  return code
-    .replace(/"[^"]*"/g, "")
-    .replace(/\[[^\]]*\]/g, "")
-    .replace(/\\./g, "");
+  return code.replace(LITERAL_TOKEN_RE, "");
 }
 
 /** 서식 코드가 여러 구역(양수;음수;0;문자)일 때 첫 구역만 쓴다 */
@@ -146,12 +151,13 @@ function literalAffixes(code: string): { prefix: string; suffix: string } {
     }
   }
 
+  // 따옴표·이스케이프는 글자를 살리고, 대괄호 구역·_x·*x 는 지운다
   const unquote = (part: string): string =>
     part
-      .replace(/\[[^\]]*\]/g, "")
-      .replace(/"([^"]*)"/g, "$1")
-      .replace(/\\(.)/g, "$1")
-      .replace(/[*_]/g, "")
+      .replace(
+        LITERAL_TOKEN_RE,
+        (_match, quoted?: string, escaped?: string) => quoted ?? escaped ?? "",
+      )
       .trim();
 
   return {

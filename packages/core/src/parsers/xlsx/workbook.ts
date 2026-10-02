@@ -2,10 +2,18 @@ import { XMLParser } from "fast-xml-parser";
 
 /** 워크북(xl/workbook.xml)·공유 문자열·관계(.rels) 파싱 */
 
+/**
+ * fast-xml-parser 기본값은 텍스트를 숫자로 바꾸고(`parseTagValue`) 앞뒤 공백을
+ * 깎는다(`trimValues`). 셀 텍스트에는 둘 다 손상이다 — `007`이 `7`이 되고,
+ * 서식 런 경계의 공백·줄바꿈이 사라져 `1. 첫째⏎2.`가 `1첫째2.`가 된다.
+ * 요소 사이 들여쓰기는 `#text`로 남지만 읽는 쪽이 `t`·`r`만 보므로 섞이지 않는다.
+ */
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: "@_",
   removeNSPrefix: true,
+  parseTagValue: false,
+  trimValues: false,
   isArray: (tagName) =>
     ["sheet", "Relationship", "si", "r", "t"].includes(tagName),
 });
