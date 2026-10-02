@@ -203,6 +203,68 @@ describe("MCP tools integration (in-memory transport)", () => {
     expect(convertImpl).toHaveBeenCalledTimes(2);
   });
 
+  it("removeEmptyRows 로 빈 표 행을 지운 markdown 을 돌려준다", async () => {
+    convertImpl.mockImplementation(
+      async (): Promise<ConvertResult> => ({
+        markdown: "| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |\n|  |  |\n|  |  |",
+        images: [],
+        format: "xlsx",
+        elapsed: 10,
+      }),
+    );
+    const fakeXlsx = Buffer.from("table-bytes").toString("base64");
+
+    const result = await client.callTool({
+      name: "convert_document",
+      arguments: {
+        input: { base64: fakeXlsx, filename: "표.xlsx" },
+        removeEmptyRows: true,
+      },
+    });
+    const payload = parseToolText<ToolJsonPayload>(
+      result as { content: ReadonlyArray<{ type: string; text?: string }> },
+    );
+
+    expect(payload.markdown).toBe("| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |");
+  });
+
+  it("removeEmptyRows 로 변환한 문서는 get_document_chunk 도 정리된 본문을 준다", async () => {
+    // 저장 전에 정리하는 이유 — conversionId 로 다시 읽는 도구가 같은 본문을 봐야 한다
+    convertImpl.mockImplementation(
+      async (): Promise<ConvertResult> => ({
+        markdown:
+          "## 섹션 A\n\n| 항목 | 값 |\n| --- | --- |\n| 가 | 1 |\n|  |  |\n",
+        images: [],
+        format: "xlsx",
+        elapsed: 10,
+      }),
+    );
+    const converted = await client.callTool({
+      name: "convert_document",
+      arguments: {
+        input: {
+          base64: Buffer.from("chunk-bytes").toString("base64"),
+          filename: "표.xlsx",
+        },
+        removeEmptyRows: true,
+      },
+    });
+    const { conversionId } = parseToolText<ToolJsonPayload>(
+      converted as { content: ReadonlyArray<{ type: string; text?: string }> },
+    );
+
+    const chunk = await client.callTool({
+      name: "get_document_chunk",
+      arguments: { conversionId, anchor: "섹션-a" },
+    });
+    const { markdown } = parseToolText<{ markdown: string }>(
+      chunk as { content: ReadonlyArray<{ type: string; text?: string }> },
+    );
+
+    expect(markdown).toContain("| 가 | 1 |");
+    expect(markdown).not.toContain("|  |  |");
+  });
+
   it("returns outline via get_document_outline", async () => {
     const convertResult = await client.callTool({
       name: "convert_document",

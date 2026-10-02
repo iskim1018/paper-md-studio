@@ -62,6 +62,10 @@ curl -X POST http://localhost:3000/v1/convert \
 | 이름 | 값 | 기본 | 설명 |
 |------|-----|------|------|
 | `images` | `urls` / `inline` / `refs` / `omit` | `urls` | 이미지 전달 방식 (아래 참조) |
+| `includeHidden` | `true` / `false` | `false` | 엑셀(XLSX/XLS)의 숨긴 시트·행·열을 포함. 기본은 제외하고 `warnings`·`hiddenExcluded` 로 알린다 |
+| `removeEmptyRows` | `true` / `false` | `false` | 표에서 내용이 빈 행을 지운다. 기본은 원본 그대로 (빈 행이 원본의 구획일 수 있음) |
+
+변환 결과를 바꾸는 옵션(`includeHidden`·`removeEmptyRows`)은 캐시 키에 반영된다 — 같은 파일이라도 옵션이 다르면 `conversionId` 가 다르고, 그 id 로 다시 읽는 `GET /v1/conversions/:id` 도 해당 옵션의 결과를 돌려준다.
 
 **이미지 모드**
 

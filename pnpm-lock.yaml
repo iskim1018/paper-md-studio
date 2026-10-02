@@ -306,6 +306,9 @@ importers:
       '@paper-md-studio/core':
         specifier: workspace:*
         version: link:../core
+      '@paper-md-studio/md-utils':
+        specifier: workspace:*
+        version: link:../md-utils
       fastify:
         specifier: ^5.12.5
         version: 5.12.5
