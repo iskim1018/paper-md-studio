@@ -8,6 +8,8 @@
  * 모든 오류는 이 모듈을 거쳐 `HwpConversionError`(코드 + 한국어 메시지)가 된다.
  */
 
+import { HWPML_VERSION_REJECTION } from "@paper-md-studio/md-utils";
+
 export type HwpErrorCode =
   | "EMPTY"
   | "UNSUPPORTED"
@@ -84,7 +86,7 @@ export const RHWP_PATTERNS = {
   drmProtected: "오류코드: DRM_PROTECTED",
   passwordRequired: "비밀번호가 필요한 암호 문서",
   passwordMismatch: "비밀번호가 일치하지 않",
-  hwpmlVersion: /지원하지 않는 HWPML 버전입니다: ?(.*)$/,
+  hwpmlVersion: HWPML_VERSION_REJECTION,
 } as const;
 
 /** 사용자에게 보여주면 안 되는 내부 정보(엔진 이름·API 이름) */
@@ -103,7 +105,7 @@ export function sanitizeDetail(raw: string): string | undefined {
 }
 
 /** `WebAssembly.RuntimeError` (core 의 lib 설정에는 WebAssembly 타입이 없어 이름으로 본다) */
-function isWasmRuntimeError(err: unknown): boolean {
+export function isWasmRuntimeError(err: unknown): boolean {
   return err instanceof Error && err.name === "RuntimeError";
 }
 
@@ -131,14 +133,16 @@ function classifyRhwpMessage(message: string): HwpConversionError {
       `문서 버전: ${version[1] || "없음"}`,
     );
   }
-  const detail = sanitizeDetail(message);
   const body = message.startsWith(RHWP_INVALID_FILE_PREFIX)
     ? message.slice(RHWP_INVALID_FILE_PREFIX.length)
     : message;
-  if (CORRUPTED_PREFIXES.some((prefix) => body.startsWith(prefix))) {
-    return new HwpConversionError("CORRUPTED", detail);
+  // 손상은 영역 이름만 싣는다 — 뒤따르는 세부는 Rust std::io·cfb·flate2 의 영어
+  // 문구("failed to fill whole buffer" 등)라 사용자에게 쓸모가 없다.
+  const area = CORRUPTED_PREFIXES.find((prefix) => body.startsWith(prefix));
+  if (area !== undefined) {
+    return new HwpConversionError("CORRUPTED", area);
   }
-  return new HwpConversionError("CONVERSION_FAILED", detail);
+  return new HwpConversionError("CONVERSION_FAILED", sanitizeDetail(message));
 }
 
 /**

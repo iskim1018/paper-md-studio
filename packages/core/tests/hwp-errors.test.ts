@@ -81,13 +81,35 @@ describe("toHwpConversionError — rhwp 문자열 오류 분류", () => {
     expect(error.message).toContain("문서 버전: 2.8");
   });
 
-  it("손상 오류에는 접두어를 뗀 세부 내용을 붙인다", () => {
+  it("손상 오류에는 어느 영역이 손상됐는지(영역 이름)만 붙인다", () => {
     const error = toHwpConversionError(
       "유효하지 않은 파일: CFB 오류: 스트림 없음: FileHeader",
     );
 
     expect(error.message).toBe(
-      "문서 파일이 손상되어 읽을 수 없습니다. (CFB 오류: 스트림 없음: FileHeader)",
+      "문서 파일이 손상되어 읽을 수 없습니다. (CFB 오류)",
+    );
+  });
+
+  it.each([
+    [
+      "유효하지 않은 파일: HWP 3.0 오류: 입출력 오류가 발생했습니다: failed to fill whole buffer",
+      "HWP 3.0 오류",
+    ],
+    [
+      "유효하지 않은 파일: CFB 오류: 압축 해제 실패: corrupt deflate stream",
+      "CFB 오류",
+    ],
+    [
+      "유효하지 않은 파일: HML 오류: 잘못된 HML XML입니다: syntax error: tag not closed",
+      "HML 오류",
+    ],
+  ])("손상 오류에 엔진의 영어 문구를 싣지 않는다: %s", (raw, label) => {
+    const error = toHwpConversionError(raw);
+
+    expect(error.code).toBe("CORRUPTED");
+    expect(error.message).toBe(
+      `문서 파일이 손상되어 읽을 수 없습니다. (${label})`,
     );
   });
 });

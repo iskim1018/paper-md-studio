@@ -167,11 +167,27 @@ export function deflateBomb(megabytes: number): Uint8Array {
   return new Uint8Array(Buffer.concat([...parts, finalBlock]));
 }
 
-/** 같은 폭탄을 zlib 헤더(0x78 0x9C)로 감싼 것 — rhwp 는 zlib 감싼 스트림도 푼다 */
-export function zlibWrappedBomb(megabytes: number): Uint8Array {
+/**
+ * RFC 1950 zlib 헤더 두 바이트. 창 크기(CINFO = windowBits - 8)가 작아도 유효한
+ * 헤더다 — 첫 바이트가 0x78 이 아닐 수 있다(windowBits 13 → 0x58).
+ */
+export function zlibHeader(windowBits = 15): Uint8Array {
+  const cmf = ((windowBits - 8) << 4) | 0x08;
+  const flg = (31 - ((cmf << 8) % 31)) % 31;
+  return new Uint8Array([cmf, flg]);
+}
+
+/**
+ * 같은 폭탄을 zlib 헤더로 감싼 것 — rhwp 는 zlib 감싼 스트림도 푼다. 0 만 내는
+ * 폭탄은 거리 1 짜리 반복이라 어떤 창 크기의 헤더를 붙여도 유효하다.
+ */
+export function zlibWrappedBomb(
+  megabytes: number,
+  windowBits = 15,
+): Uint8Array {
   return new Uint8Array(
     Buffer.concat([
-      Buffer.from([0x78, 0x9c]),
+      zlibHeader(windowBits),
       deflateBomb(megabytes),
       Buffer.alloc(4),
     ]),
@@ -209,6 +225,16 @@ function xorDistributionPayload(payload: Uint8Array): Uint8Array {
 
 const DISTRIBUTE_DOC_DATA_TAG = 0x10 + 12;
 
+export interface ViewTextOptions {
+  /**
+   * 레코드 헤더를 확장형(12비트 크기 칸 0xFFF + u32 크기 256)으로 쓴다. rhwp 는
+   * 이때 암호문을 **4 + 크기** 위치에서 읽는다(`header_size = size >= 0xfff ? 8 : 4`)
+   * — 실제 헤더는 8바이트라 페이로드 끝 4바이트가 암호문 앞 4바이트와 겹친다.
+   * 키는 페이로드 앞쪽(최대 35번째 바이트)에 있어 겹치는 4바이트와 무관하다.
+   */
+  readonly extendedHeader?: boolean;
+}
+
 /**
  * 배포용 문서 ViewText 스트림을 만든다 (한글의 배포용 저장과 같은 구조):
  * DISTRIBUTE_DOC_DATA 레코드(256바이트, XOR 변환된 시드·AES 키) + AES-128-ECB 본문.
@@ -216,6 +242,7 @@ const DISTRIBUTE_DOC_DATA_TAG = 0x10 + 12;
 export function encryptViewText(
   section: Uint8Array,
   seed = 0x1234abcd,
+  options: ViewTextOptions = {},
 ): Uint8Array {
   const plainPayload = new Uint8Array(256).map((_, i) => (i * 37 + 11) & 0xff);
   Buffer.from(plainPayload.buffer).writeUInt32LE(seed >>> 0, 0);
@@ -226,23 +253,49 @@ export function encryptViewText(
   const cipher = createCipheriv("aes-128-ecb", key, null);
   cipher.setAutoPadding(false);
   const body = Buffer.concat([cipher.update(padded), cipher.final()]);
+  const payload = xorDistributionPayload(plainPayload);
+  if (options.extendedHeader) {
+    const header = Buffer.alloc(8);
+    header.writeUInt32LE((DISTRIBUTE_DOC_DATA_TAG | (0xfff << 20)) >>> 0, 0);
+    header.writeUInt32LE(256, 4);
+    return new Uint8Array(
+      Buffer.concat([header, payload.subarray(0, 256 - 4), body]),
+    );
+  }
   const header = Buffer.alloc(4);
   header.writeUInt32LE((DISTRIBUTE_DOC_DATA_TAG | (256 << 20)) >>> 0, 0);
-  return new Uint8Array(
-    Buffer.concat([header, xorDistributionPayload(plainPayload), body]),
-  );
+  return new Uint8Array(Buffer.concat([header, payload, body]));
 }
 
 /** 일반 HWP 5.0 → 배포용(본문을 ViewText 로 암호화, 플래그 0x04) */
 export function toDistributionDocument(
   data: Uint8Array,
   section?: Uint8Array,
+  options: ViewTextOptions = {},
 ): Uint8Array {
   const container = readContainer(data);
   const body = section ?? streamBytes(container, "/BodyText/Section0");
-  const viewText = encryptViewText(body);
+  const viewText = encryptViewText(body, undefined, options);
   const withView = replaceStream(container, "/ViewText/Section0", viewText);
   return patchHwp5Flags(withView, HWP5_FLAG.distribution);
+}
+
+/** 스트림 하나를 다른 경로로 옮긴다 (예: BodyText/Section0 → 루트 /Section0) */
+export function moveHwp5Stream(
+  data: Uint8Array,
+  from: string,
+  to: string,
+): Uint8Array {
+  const container = readContainer(data);
+  const content = streamBytes(container, from);
+  CFB.utils.cfb_del(container, from);
+  CFB.utils.cfb_add(container, to, Buffer.from(content));
+  return writeContainer(container);
+}
+
+/** 스트림 원본 바이트 (테스트에서 압축된 본문을 꺼낼 때) */
+export function readHwp5Stream(data: Uint8Array, path: string): Uint8Array {
+  return streamBytes(readContainer(data), path);
 }
 
 /** HWP 3.0 고정 헤더(30+128+1008 바이트) + 본문 */

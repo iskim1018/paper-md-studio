@@ -6,18 +6,27 @@
  * 각 오류를 일으켜 우리가 기대는 문구와 분류 결과를 함께 고정한다. 쓰는 API 가
  * 사라지거나 이름이 바뀌어도 여기서 먼저 깨진다.
  */
+import { deflateSync, inflateRawSync } from "node:zlib";
+import { unzipSync } from "fflate";
 import { beforeAll, describe, expect, it } from "vitest";
+import { decryptDistributionStream } from "../src/parsers/hwp/distribution.js";
 import {
   RHWP_INVALID_FILE_PREFIX,
   RHWP_PATTERNS,
   toHwpConversionError,
 } from "../src/parsers/hwp/errors.js";
-import { loadRhwp } from "../src/parsers/hwp/rhwp-loader.js";
+import { measureInflatedSize } from "../src/parsers/hwp/inflate-guard.js";
+import { convertWithRhwp, loadRhwp } from "../src/parsers/hwp/rhwp-loader.js";
 import {
   buildCfb,
   createEncryptedHwp5,
   createHwp5,
+  encryptViewText,
   hwpmlDocument,
+  moveHwp5Stream,
+  readHwp5Stream,
+  replaceHwp5Stream,
+  toDistributionDocument,
 } from "./helpers/hwp-fixtures.js";
 
 type Rhwp = Awaited<ReturnType<typeof loadRhwp>>;
@@ -173,5 +182,64 @@ describe("@rhwp/core 오류 문구 계약", () => {
 
     expect(raw).toContain(`${RHWP_INVALID_FILE_PREFIX}HWP 3.0 오류`);
     expect(toHwpConversionError(raw).code).toBe("CORRUPTED");
+  });
+});
+
+/** rhwp 로 HWPX 를 만들어 본문 XML 을 꺼낸다 */
+async function convertedSection(data: Uint8Array): Promise<string> {
+  const { hwpx } = await convertWithRhwp(data);
+  const section = unzipSync(hwpx)["Contents/section0.xml"];
+  return new TextDecoder().decode(section ?? new Uint8Array());
+}
+
+/**
+ * 압축 폭탄 사전 검사(inflate-guard·precheck·distribution)는 "rhwp 가 실제로 푸는
+ * 바이트"를 재야 한다. rhwp 가 무엇을 푸는지가 바뀌면 검사가 조용히 비켜 가므로,
+ * 우리가 기대는 rhwp 동작을 실제 엔진으로 고정한다.
+ */
+describe("@rhwp/core 압축·스트림 해석 계약 (사전 검사의 전제)", () => {
+  it("창 크기가 작은 zlib 헤더(첫 바이트 0x58)로 감싼 본문도 푼다", async () => {
+    // Arrange — 본문 레코드를 windowBits 13 zlib 으로 다시 감싼다
+    const hwp = await createHwp5("작은 창 zlib");
+    const records = inflateRawSync(readHwp5Stream(hwp, "/BodyText/Section0"));
+    const wrapped = deflateSync(records, { windowBits: 13 });
+    const patched = replaceHwp5Stream(hwp, "/BodyText/Section0", wrapped);
+
+    // Act
+    const xml = await convertedSection(patched);
+
+    // Assert — rhwp 가 풀었으니 사전 검사도 재야 한다
+    expect(wrapped[0]).toBe(0x58);
+    expect(xml).toContain("작은 창 zlib");
+    expect(measureInflatedSize(wrapped, 1024 * 1024)).toBe(records.length);
+  });
+
+  it("BodyText/Section0 이 없으면 루트의 /Section0 을 본문으로 읽는다", async () => {
+    const hwp = await createHwp5("루트 섹션");
+    const moved = moveHwp5Stream(hwp, "/BodyText/Section0", "/Section0");
+
+    expect(await convertedSection(moved)).toContain("루트 섹션");
+  });
+
+  it("배포용 ViewText 확장형 헤더(크기 < 0xFFF)는 암호문을 4+크기 위치에서 읽는다", async () => {
+    // Arrange — rhwp 규칙대로 배치한 배포용 문서
+    const hwp = await createHwp5("확장 헤더 배포용");
+    const compressed = readHwp5Stream(hwp, "/BodyText/Section0");
+    const distribution = toDistributionDocument(hwp, compressed, {
+      extendedHeader: true,
+    });
+    const viewText = encryptViewText(compressed, undefined, {
+      extendedHeader: true,
+    });
+
+    // Act
+    const xml = await convertedSection(distribution);
+    const decrypted = decryptDistributionStream(viewText);
+
+    // Assert — rhwp 가 읽은 본문과 사전 검사가 복호화한 바이트가 같다
+    expect(xml).toContain("확장 헤더 배포용");
+    expect(Buffer.from(decrypted ?? []).subarray(0, compressed.length)).toEqual(
+      Buffer.from(compressed),
+    );
   });
 });

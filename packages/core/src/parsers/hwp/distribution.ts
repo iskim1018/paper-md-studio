@@ -8,7 +8,9 @@
  *
  * 변환 엔진은 이걸 풀어 압축을 해제하므로, 압축 폭탄 검사도 같은 데이터를 봐야
  * 한다 — 안 그러면 배포용 플래그만 켜고 ViewText 에 폭탄을 숨기면 검사를 비껴간다.
- * 여기서는 풀기만 하고, 구조가 맞지 않으면 null 을 돌려 판단을 엔진에 넘긴다.
+ * 그래서 암호문 위치·끝 조각 처리까지 rhwp(v0.8.6 `decrypt_viewtext_payload`)를
+ * 그대로 따른다. 계약 테스트(hwp-rhwp-contract)가 실제 엔진과 같은 바이트를 얻는지
+ * 고정한다. 구조가 맞지 않으면 null 을 돌린다(엔진도 이때는 문서를 열지 못한다).
  */
 
 import { createDecipheriv } from "node:crypto";
@@ -17,6 +19,10 @@ const DISTRIBUTE_DOC_DATA_TAG = 0x10 + 12;
 const PAYLOAD_BYTES = 256;
 const AES_BLOCK = 16;
 const SEED_BYTES = 4;
+/** 12비트 크기 칸이 이 값이면 뒤에 u32 크기가 따라온다(확장형 헤더) */
+const EXTENDED_SIZE = 0xfff;
+const SHORT_HEADER_BYTES = 4;
+const EXTENDED_HEADER_BYTES = 8;
 
 interface RecordHeader {
   readonly tag: number;
@@ -39,14 +45,46 @@ function readRecordHeader(data: Uint8Array): RecordHeader | null {
     return null;
   }
   const word = readU32(data, 0);
-  const size = (word >>> 20) & 0xfff;
-  if (size !== 0xfff) {
-    return { tag: word & 0x3ff, size, headerBytes: 4 };
+  const size = (word >>> 20) & EXTENDED_SIZE;
+  if (size !== EXTENDED_SIZE) {
+    return { tag: word & 0x3ff, size, headerBytes: SHORT_HEADER_BYTES };
   }
-  if (data.length < 8) {
+  if (data.length < EXTENDED_HEADER_BYTES) {
     return null;
   }
-  return { tag: word & 0x3ff, size: readU32(data, 4), headerBytes: 8 };
+  return {
+    tag: word & 0x3ff,
+    size: readU32(data, SHORT_HEADER_BYTES),
+    headerBytes: EXTENDED_HEADER_BYTES,
+  };
+}
+
+/**
+ * 암호문 시작 위치 — rhwp 규칙 그대로. 실제 헤더 길이가 아니라 **크기 값**으로
+ * 헤더 길이를 정한다(`size >= 0xfff ? 8 : 4`). 확장형 헤더에 0xFFF 미만 크기를
+ * 적으면 실제 헤더(8)와 어긋나 4바이트 앞에서 읽는데, 우리가 다르게 읽으면 AES 블록
+ * 정렬이 틀어져 쓰레기를 재게 되고 폭탄이 검사를 비켜 간다.
+ */
+function ciphertextOffset(size: number): number {
+  return (
+    (size >= EXTENDED_SIZE ? EXTENDED_HEADER_BYTES : SHORT_HEADER_BYTES) + size
+  );
+}
+
+/** AES-128-ECB 복호화. 끝의 16바이트 미만 조각은 rhwp 처럼 0 으로 채워 한 블록으로 푼다 */
+function decryptAesEcb(encrypted: Uint8Array, key: Uint8Array): Uint8Array {
+  const aligned = encrypted.length - (encrypted.length % AES_BLOCK);
+  const tail = new Uint8Array(aligned === encrypted.length ? 0 : AES_BLOCK);
+  tail.set(encrypted.subarray(aligned));
+  const decipher = createDecipheriv("aes-128-ecb", key, null);
+  decipher.setAutoPadding(false);
+  return new Uint8Array(
+    Buffer.concat([
+      decipher.update(encrypted.subarray(0, aligned)),
+      decipher.update(tail),
+      decipher.final(),
+    ]),
+  );
 }
 
 /** MSVC rand() 호환 선형 합동 생성기 (0 ~ 0x7FFF) */
@@ -77,18 +115,19 @@ function decodePayload(payload: Uint8Array): Uint8Array {
   return out;
 }
 
-/** ViewText 원본 → 복호화된 (아직 압축된) 본문. 구조가 다르면 null */
+/**
+ * ViewText 원본 → 복호화된 (아직 압축된) 본문. 구조가 다르면 null — 첫 레코드가
+ * DISTRIBUTE_DOC_DATA 가 아니거나, 페이로드가 256바이트 미만이거나 잘렸을 때다
+ * (rhwp 도 이 셋에서는 문서를 열지 못한다). 암호문이 비면 빈 배열(엔진과 같다).
+ */
 export function decryptDistributionStream(raw: Uint8Array): Uint8Array | null {
   const header = readRecordHeader(raw);
   if (
     header === null ||
     header.tag !== DISTRIBUTE_DOC_DATA_TAG ||
-    header.size < PAYLOAD_BYTES
+    header.size < PAYLOAD_BYTES ||
+    header.headerBytes + header.size > raw.length
   ) {
-    return null;
-  }
-  const payloadEnd = header.headerBytes + header.size;
-  if (payloadEnd > raw.length) {
     return null;
   }
   const payload = decodePayload(
@@ -96,15 +135,5 @@ export function decryptDistributionStream(raw: Uint8Array): Uint8Array | null {
   );
   const keyOffset = SEED_BYTES + ((payload[0] ?? 0) & 0x0f);
   const key = payload.subarray(keyOffset, keyOffset + AES_BLOCK);
-  const encrypted = raw.subarray(payloadEnd);
-  const alignedLength = encrypted.length - (encrypted.length % AES_BLOCK);
-  if (alignedLength === 0) {
-    return null;
-  }
-  const decipher = createDecipheriv("aes-128-ecb", key, null);
-  decipher.setAutoPadding(false);
-  const aligned = encrypted.subarray(0, alignedLength);
-  return new Uint8Array(
-    Buffer.concat([decipher.update(aligned), decipher.final()]),
-  );
+  return decryptAesEcb(raw.subarray(ciphertextOffset(header.size)), key);
 }

@@ -1,8 +1,21 @@
 /**
  * HWPML(XML 기반 .hwp) 텍스트 다루기 — 인코딩 판별, 루트 판별, 버전 재작성.
  *
- * 의존성 없는 순수 함수만 둔다(판별기가 이 모듈을 쓴다).
+ * 변환 경로(core)와 앱 미리보기(app)가 같은 규칙으로 버전을 대체해야 같은 파일이
+ * 한쪽에서만 열리는 일이 없다. 그래서 `node:` API 없는 순수 함수로 이 패키지에 둔다.
  */
+
+/**
+ * rhwp 가 받는 HWPML 버전(2.1·2.9·2.91) 중 대체에 쓰는 값. rhwp 의 HML 리더는
+ * 버전 값으로 분기하지 않고(태그 이름으로만 해석) 버전은 메타데이터로만 흘린다.
+ */
+export const HWPML_FALLBACK_VERSION = "2.91";
+
+/**
+ * rhwp 가 목록에 없는 버전을 거부할 때의 문구. 1번 그룹은 원래 버전(비면 없음).
+ * core 계약 테스트(hwp-rhwp-contract)가 실제 rhwp 로 이 문구를 고정한다.
+ */
+export const HWPML_VERSION_REJECTION = /지원하지 않는 HWPML 버전입니다: ?(.*)$/;
 
 export type XmlEncoding = "utf-8" | "utf-16le" | "utf-16be";
 

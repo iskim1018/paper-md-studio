@@ -1,6 +1,7 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { deflateRawSync } from "node:zlib";
 import { strToU8, zipSync } from "fflate";
 import {
   afterAll,
@@ -47,6 +48,14 @@ async function parseBytes(
   const path = join(tmpDir, name);
   await writeFile(path, data);
   return new HwpParser().parse(path, { imagesDirName: "doc_images" });
+}
+
+/** 우리가 붙이는 영역 이름 — 이것 말고 영어가 메시지에 있으면 엔진 문구가 샌 것 */
+const OWN_LABELS =
+  /HWPX|HWP|CFB|HML|OLE2|FileHeader|DocInfo|BodyText|ZIP|XML|Contents\/section\d+\.xml/g;
+
+function expectNoEngineEnglish(message: string): void {
+  expect(message.replace(OWN_LABELS, "")).not.toMatch(/[A-Za-z]/);
 }
 
 /** 변환 실패를 받아 Error 인지·한국어 메시지인지 확인하고 돌려준다 */
@@ -148,6 +157,32 @@ describe("HwpParser — HWP 5.0 (rhwp 경로)", () => {
     }
   });
 
+  it("본문 압축이 깨진 HWP5 는 엔진의 영어 문구 없이 손상으로 알린다", async () => {
+    const plain = await createHwp5("깨진 본문");
+    const broken = replaceHwp5Stream(
+      plain,
+      "/BodyText/Section0",
+      new Uint8Array(512).fill(0x07),
+    );
+
+    const { code, message } = await parseError("깨진본문.hwp", broken);
+
+    expect(code).toBe("CORRUPTED");
+    expectNoEngineEnglish(message);
+  });
+
+  it("잘린 HWP5 도 한국어 손상 오류", async () => {
+    const plain = await createHwp5("잘린 문서");
+
+    const { code, message } = await parseError(
+      "잘린.hwp",
+      plain.subarray(0, Math.floor(plain.length / 2)),
+    );
+
+    expect(code).toBe("CORRUPTED");
+    expectNoEngineEnglish(message);
+  });
+
   it("FileHeader 없이 Workbook 만 있으면 엑셀이라고 알려준다", async () => {
     const xls = buildCfb({ Workbook: new Uint8Array(64) });
 
@@ -212,6 +247,22 @@ describe("HwpParser — HWP 3.0", () => {
     expect(code).toBe("CORRUPTED");
   });
 
+  it.each([
+    40, 100, 200, 1000,
+  ])("%i바이트에서 잘린 HWP3 는 엔진의 영어 입출력 문구 없이 손상으로 알린다", async (cut) => {
+    const full = buildHwp3(
+      deflateRawSync(Buffer.from("옛 문서 본문".repeat(200))),
+    );
+
+    const { code, message } = await parseError(
+      `잘린옛문서${cut}.hwp`,
+      full.subarray(0, cut),
+    );
+
+    expect(code).toBe("CORRUPTED");
+    expectNoEngineEnglish(message);
+  });
+
   it("암호 표시가 있으면 ENCRYPTED", async () => {
     const hwp3 = buildHwp3(new Uint8Array(16), { passwordFlag: 2 });
 
@@ -239,6 +290,36 @@ describe("HwpParser — HWPX 를 .hwp 로 저장한 파일", () => {
     // Assert
     expect(fromHwp.markdown).toContain("확장자만 다름");
     expect(fromHwp.markdown).toBe(fromHwpx.markdown);
+  });
+
+  it("본문 XML 이 깨진 HWPX(.hwp 이름)는 입력 손상(CORRUPTED)으로 알린다", async () => {
+    const zip = zipSync({
+      "Contents/section0.xml": strToU8("<hs:sec><hp:p><!-- 닫히지 않은 주석"),
+    });
+
+    const { code, message } = await parseError("깨진xml.hwp", zip);
+
+    expect(code).toBe("CORRUPTED");
+    expectNoEngineEnglish(message);
+  });
+
+  it("목록은 읽히지만 압축 데이터가 깨진 HWPX(.hwp 이름)도 CORRUPTED", async () => {
+    // Arrange — 첫 압축 블록 형식을 잘못된 값(11)으로 바꾼다
+    const name = "Contents/section0.xml";
+    const zip = zipSync({
+      [name]: [strToU8("<hs:sec>본문</hs:sec>".repeat(50)), { level: 9 }],
+    });
+    const header = Buffer.from(zip.buffer, zip.byteOffset, zip.byteLength);
+    const dataStart = 30 + header.readUInt16LE(26) + header.readUInt16LE(28);
+    const broken = Uint8Array.from(zip);
+    broken[dataStart] = 0xff;
+
+    // Act
+    const { code, message } = await parseError("깨진압축.hwp", broken);
+
+    // Assert
+    expect(code).toBe("CORRUPTED");
+    expectNoEngineEnglish(message);
   });
 
   it("HWPX 가 아닌 ZIP(DOCX 등)은 그 사실을 알려준다", async () => {

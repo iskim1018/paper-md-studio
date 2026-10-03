@@ -239,6 +239,9 @@ importers:
       '@opendocsg/pdf2md':
         specifier: ^0.2.6
         version: 0.2.6(@napi-rs/canvas@0.1.97)
+      '@paper-md-studio/md-utils':
+        specifier: workspace:*
+        version: link:../md-utils
       '@rhwp/core':
         specifier: 0.8.6
         version: 0.8.6
