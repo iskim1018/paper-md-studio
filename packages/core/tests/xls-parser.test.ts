@@ -6,6 +6,12 @@ import { MERGE_LEFT, MERGE_UP } from "../src/parsers/html-tables-to-gfm.js";
 import { convert, convertToHtml } from "../src/pipeline.js";
 import type { XlsBuildOptions, XlsSheetSpec } from "./helpers/biff-writer.js";
 import { buildXls } from "./helpers/biff-writer.js";
+import {
+  buildOle2,
+  ENDOFCHAIN,
+  FATSECT,
+  rootEntry,
+} from "./helpers/ole2-builder.js";
 
 /**
  * XLS(BIFF8) 자체 파서 계약 테스트.
@@ -233,6 +239,25 @@ describe("XLS 변환", () => {
 
     await expect(convert({ inputPath: path })).rejects.toThrow(
       /지원하지 않는 XLS 판/,
+    );
+  });
+
+  it("적대적 OLE2(FAT 순환)는 CFB.read 전에 한국어 오류로 거부한다", async () => {
+    // cfb 라면 잡을 수 없는 OOM 으로 죽는 입력을 사전 검증기가 먼저 막는다
+    const path = join(tmpDir, "악성.xls");
+    await writeFile(
+      path,
+      buildOle2({
+        sectorCount: 5,
+        fatSectors: [0],
+        fat: [FATSECT, ENDOFCHAIN, 3, 4, 3],
+        dirStart: 1,
+        entries: [rootEntry(1), { name: "S", type: 2, start: 3, size: 8192 }],
+      }),
+    );
+
+    await expect(convert({ inputPath: path })).rejects.toThrow(
+      /XLS 파일이 손상/,
     );
   });
 });

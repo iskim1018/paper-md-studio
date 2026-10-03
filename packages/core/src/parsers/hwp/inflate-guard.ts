@@ -53,9 +53,16 @@ export const PRECHECK_WORK_PER_SOURCE_BYTE = 8;
 const MIN_PRECHECK_WORK_BYTES = MIB;
 
 export interface InflateCandidate {
+  /** 원본 스트림 바이트 (배포용 ViewText 는 복호화 전 상태) */
   readonly data: Uint8Array;
   /** 본문 레코드 상한을 받는 스트림인지 (첨부 외 전부) */
   readonly isRecord: boolean;
+  /**
+   * 배포용 ViewText 를 엔진처럼 복호화하는 함수. 주면 크기를 재기 전에 복호화한다
+   * — 복호화는 스트림 수 상한을 통과한 뒤, 작업 예산에 달면서, 같은 원본 view 당
+   * 한 번만 한다(`resolveSource`). 구조가 복호화 대상이 아니면 null 을 돌려준다.
+   */
+  readonly decrypt?: (data: Uint8Array) => Uint8Array | null;
 }
 
 interface Bound {
@@ -105,17 +112,17 @@ function workMeter(sourceBytes: number): ChargeWork {
   };
 }
 
-/** 같은 버퍼·위치·길이의 view 는 같은 바이트다 — 잰 크기를 다시 쓴다 */
-class MeasureCache {
-  private readonly byBuffer = new Map<ArrayBufferLike, Map<string, number>>();
+/** 같은 버퍼·위치·길이의 view 를 키로 값을 재사용한다 (크기·복호화 결과 공유) */
+class ViewMap<T> {
+  private readonly byBuffer = new Map<ArrayBufferLike, Map<string, T>>();
 
-  get(data: Uint8Array): number | undefined {
-    return this.byBuffer.get(data.buffer)?.get(MeasureCache.key(data));
+  get(data: Uint8Array): T | undefined {
+    return this.byBuffer.get(data.buffer)?.get(ViewMap.key(data));
   }
 
-  set(data: Uint8Array, size: number): void {
-    const views = this.byBuffer.get(data.buffer) ?? new Map<string, number>();
-    views.set(MeasureCache.key(data), size);
+  set(data: Uint8Array, value: T): void {
+    const views = this.byBuffer.get(data.buffer) ?? new Map<string, T>();
+    views.set(ViewMap.key(data), value);
     this.byBuffer.set(data.buffer, views);
   }
 
@@ -134,6 +141,34 @@ function assertCandidateCount(count: number): void {
 }
 
 /**
+ * 재야 할 실제 바이트를 고른다. 배포용 ViewText 는 엔진처럼 복호화한 뒤 재므로
+ * 여기서 복호화한다 — **스트림 수 상한을 통과한 뒤에, 작업 예산에 복호화 바이트를
+ * 달면서, 같은 원본 view 는 한 번만** 한다(리뷰 지적 #3). 같은 체인을 가리키는
+ * 항목 수백 개가 저마다 새 버퍼로 복호화돼 메모리를 삼키던 문제를 막는다. 복호화
+ * 구조가 아니면(null) 원본 그대로 잰다.
+ */
+function resolveSource(
+  candidate: InflateCandidate,
+  decryptCache: ViewMap<Uint8Array | null>,
+  charge: ChargeWork,
+): Uint8Array {
+  const { data, decrypt } = candidate;
+  if (!decrypt) {
+    return data;
+  }
+  const cached = decryptCache.get(data);
+  if (cached !== undefined) {
+    return cached ?? data;
+  }
+  const decrypted = decrypt(data);
+  decryptCache.set(data, decrypted);
+  if (decrypted !== null) {
+    charge(decrypted.length);
+  }
+  return decrypted ?? data;
+}
+
+/**
  * 상한(스트림·본문·전체) 중 하나라도 넘으면 TOO_LARGE, 검사 작업량·스트림 수가
  * 비정상이면 CORRUPTED 를 던진다. `sourceBytes` 는 원본 파일 크기.
  */
@@ -143,21 +178,24 @@ export function assertInflateWithinLimits(
 ): void {
   assertCandidateCount(candidates.length);
   const charge = workMeter(sourceBytes);
-  const cache = new MeasureCache();
+  const sizeCache = new ViewMap<number>();
+  const decryptCache = new ViewMap<Uint8Array | null>();
   let total = 0;
   let records = 0;
-  for (const { data, isRecord } of candidates) {
-    const bound = bindingBound(isRecord, total, records);
+  for (const candidate of candidates) {
+    const source = resolveSource(candidate, decryptCache, charge);
+    const bound = bindingBound(candidate.isRecord, total, records);
     const size =
-      cache.get(data) ?? measureInflatedSize(data, bound.remaining, charge);
+      sizeCache.get(source) ??
+      measureInflatedSize(source, bound.remaining, charge);
     if (size > bound.remaining) {
       throw new HwpConversionError(
         "TOO_LARGE",
         `압축 해제 상한 ${bound.label} 초과`,
       );
     }
-    cache.set(data, size);
+    sizeCache.set(source, size);
     total += size;
-    records += isRecord ? size : 0;
+    records += candidate.isRecord ? size : 0;
   }
 }

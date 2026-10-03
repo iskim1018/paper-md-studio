@@ -10,6 +10,7 @@
  */
 
 import CFB from "cfb";
+import { assertSafeOle2, Ole2GuardError } from "../ole2/guard.js";
 import { decryptDistributionStream } from "./distribution.js";
 import { HwpConversionError } from "./errors.js";
 import {
@@ -59,11 +60,26 @@ function toBytes(content: unknown): Uint8Array {
     : Uint8Array.from(content as ArrayLike<number>);
 }
 
+/** OLE2 사전 검증 — 거부 사유를 .hwp 오류 코드로 옮긴다 */
+function assertSafeOle2Guarded(data: Uint8Array): void {
+  try {
+    assertSafeOle2(data);
+  } catch (err) {
+    if (err instanceof Ole2GuardError) {
+      throw new HwpConversionError(err.reason, err.message);
+    }
+    throw err;
+  }
+}
+
 /**
  * 컨테이너의 스트림을 모은다. 대소문자만 다른 같은 경로가 둘이면 손상으로
  * 본다 — 정상 문서엔 없고, 엔진이 우리가 검사하지 않은 쪽을 읽을 수 있다.
  */
 function readStreams(data: Uint8Array): Array<HwpStream> {
+  // cfb 가 적대적 OLE2(순환 FAT·DIFAT·디렉터리, 중간 체인 항목 다수)에서 잡을 수
+  // 없는 OOM 으로 죽는 것을 막는다 — CFB.read 보다 반드시 먼저 돈다.
+  assertSafeOle2Guarded(data);
   let container: ReturnType<typeof CFB.read>;
   try {
     const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
@@ -139,8 +155,10 @@ function isRecordStream(path: string): boolean {
 /**
  * 풀어 볼 스트림 목록. 문서 압축 플래그와 무관하게 모두 본다 — 첨부(BinData)는
  * 항목별로 압축될 수 있고, 압축이 아닌 데이터는 0 으로 세어 거짓 양성이 없다.
- * 배포용 문서의 ViewText 는 엔진처럼 복호화한 뒤 재고, 복호화 구조가 아니면 원본
- * 그대로 잰다 — 건너뛰면 검사하지 않은 바이트가 생긴다.
+ * 배포용 문서의 ViewText 는 엔진처럼 복호화한 뒤 재야 하지만(건너뛰면 검사하지
+ * 않은 바이트가 생긴다), **복호화는 여기서 미리 하지 않고** 복호화 함수만 실어
+ * 보낸다 — 스트림 수 상한·작업 예산·중복 제거를 거친 뒤에 풀어야 수백 항목이
+ * 같은 체인을 가리킬 때 메모리가 터지지 않는다(리뷰 지적 #3, `inflate-guard.ts`).
  */
 function inflateCandidates(
   streams: ReadonlyArray<HwpStream>,
@@ -151,11 +169,11 @@ function inflateCandidates(
     if (UNCOMPRESSED_STREAMS.has(path)) {
       return [];
     }
-    const data =
+    const decrypt =
       isDistribution && path.startsWith("viewtext/")
-        ? (decryptDistributionStream(raw) ?? raw)
-        : raw;
-    return [{ data, isRecord: isRecordStream(path) }];
+        ? decryptDistributionStream
+        : undefined;
+    return [{ data: raw, isRecord: isRecordStream(path), decrypt }];
   });
 }
 

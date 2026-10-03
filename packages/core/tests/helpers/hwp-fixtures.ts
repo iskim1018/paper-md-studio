@@ -194,6 +194,43 @@ export function zlibWrappedBomb(
   );
 }
 
+/** 주어진 바이트의 Adler-32 (RFC 1950 꼬리) */
+function adler32(data: Uint8Array): number {
+  let a = 1;
+  let b = 0;
+  for (const byte of data) {
+    a = (a + byte) % 65521;
+    b = (b + a) % 65521;
+  }
+  return ((b << 16) | a) >>> 0;
+}
+
+/**
+ * 작은 창(windowBits)을 선언한 zlib 헤더 + **창보다 먼 거리**를 참조하는 raw
+ * deflate 본문 + 올바른 Adler-32. 주기 1KB 패턴을 반복해 거리 ≈1KB(기본 창 512B
+ * 밖) 역참조가 생긴다. Node 의 inflateSync 는 헤더 창을 강제해 중간에 멈추지만
+ * (그래서 옛 검사는 과소평가했다), miniz(rhwp)·inflateRawSync 는 32KB 창으로
+ * 끝까지 푼다. 반환 스트림은 작지만 `repeats * 1024` 바이트로 풀린다.
+ */
+export function farBackrefZlibStream(
+  repeats: number,
+  windowBits = 9,
+): { stream: Uint8Array; inflatedSize: number } {
+  const period = 1024;
+  const unit = Buffer.alloc(period);
+  for (let i = 0; i < period; i++) {
+    unit[i] = (i * 7 + 3) & 0xff;
+  }
+  const plain = Buffer.concat(Array.from({ length: repeats }, () => unit));
+  const body = deflateRawSync(plain, { level: 9 });
+  const tail = Buffer.alloc(4);
+  tail.writeUInt32BE(adler32(plain), 0);
+  return {
+    stream: new Uint8Array(Buffer.concat([zlibHeader(windowBits), body, tail])),
+    inflatedSize: plain.length,
+  };
+}
+
 /** MSVC rand() — 배포용 문서 키 스트림 생성기 */
 function msvcRand(seed: number): () => number {
   let state = seed >>> 0;

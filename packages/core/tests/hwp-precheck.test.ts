@@ -24,6 +24,12 @@ import {
   toDistributionDocument,
   zlibWrappedBomb,
 } from "./helpers/hwp-fixtures.js";
+import {
+  buildOle2,
+  ENDOFCHAIN,
+  FATSECT,
+  rootEntry,
+} from "./helpers/ole2-builder.js";
 
 const MIB = 1024 * 1024;
 
@@ -94,6 +100,20 @@ describe("precheckHwp5 — 컨테이너·헤더", () => {
     const patched = replaceHwp5Stream(plain, "/FileHeader", header);
 
     expect(codeOf(() => precheckHwp5(patched))).toBe("CORRUPTED");
+  });
+
+  it("적대적 OLE2(FAT 순환)는 CFB.read 전에 손상으로 거부한다", () => {
+    // 섹터 2→3→4→3 순환을 가리키는 항목 — cfb 라면 잡을 수 없는 OOM 으로 죽는다
+    const hostile = buildOle2({
+      sectorCount: 5,
+      fatSectors: [0],
+      fat: [FATSECT, ENDOFCHAIN, 3, 4, 3],
+      dirStart: 1,
+      entries: [rootEntry(1), { name: "S", type: 2, start: 3, size: 8192 }],
+    });
+    const start = performance.now();
+    expect(codeOf(() => precheckHwp5(hostile))).toBe("CORRUPTED");
+    expect(performance.now() - start).toBeLessThan(500);
   });
 });
 

@@ -7,7 +7,7 @@ import {
   measureInflatedSize,
   PRECHECK_WORK_PER_SOURCE_BYTE,
 } from "../src/parsers/hwp/inflate-guard.js";
-import { deflateBomb } from "./helpers/hwp-fixtures.js";
+import { deflateBomb, farBackrefZlibStream } from "./helpers/hwp-fixtures.js";
 
 const MIB = 1024 * 1024;
 
@@ -50,6 +50,18 @@ describe("measureInflatedSize — 풀다 깨지는 스트림", () => {
 
     expect(size).toBeGreaterThanOrEqual(2 * MIB);
     expect(size).toBeLessThanOrEqual(4 * MIB);
+  });
+
+  it("작은 창을 선언한 zlib 헤더라도 창 밖 역참조까지 끝까지 센다 (리뷰 #1)", () => {
+    // rhwp(miniz)는 헤더의 창 선언을 무시하고 32KB 창으로 끝까지 푼다. 옛 검사는
+    // Node inflateSync 가 헤더 창(512B)을 강제해 중간에 멈춰 과소평가했다.
+    const { stream, inflatedSize } = farBackrefZlibStream(200, 9);
+
+    const size = measureInflatedSize(stream, 512 * MIB);
+
+    expect(inflatedSize).toBe(200 * 1024);
+    // 전체 크기를 센다 — 옛 코드는 창을 강제당해 ~32KB 만 셌다
+    expect(size).toBeGreaterThanOrEqual(inflatedSize);
   });
 });
 
@@ -126,5 +138,62 @@ describe("assertInflateWithinLimits — 사전 검사 자체의 작업량", () =
     const source = section.length + attachment.length;
 
     expect(() => assertInflateWithinLimits(candidates, source)).not.toThrow();
+  });
+});
+
+describe("assertInflateWithinLimits — 배포용 ViewText 복호화 (리뷰 #3)", () => {
+  it("스트림 수 상한을 복호화보다 먼저 본다 — 상한 초과면 복호화하지 않는다", () => {
+    let decryptCalls = 0;
+    const decrypt = (raw: Uint8Array): Uint8Array => {
+      decryptCalls += 1;
+      return raw;
+    };
+    const many = Array.from({ length: MAX_INFLATE_CANDIDATES + 1 }, () => ({
+      data: new Uint8Array([0]),
+      isRecord: false,
+      decrypt,
+    }));
+
+    expect(codeOf(() => assertInflateWithinLimits(many, 100 * MIB))).toBe(
+      "CORRUPTED",
+    );
+    expect(decryptCalls).toBe(0);
+  });
+
+  it("같은 체인을 가리키는 수백 항목은 한 번만 복호화한다 (메모리 유계)", () => {
+    // 2MB 암호 스트림을 800 항목이 가리킨다 — 항목마다 새 버퍼로 복호화하면
+    // ≈1.6GB 를 잡았다. view 로 중복을 걸러 한 번만 복호화하는지 본다.
+    const raw = new Uint8Array(2 * MIB).fill(0x11);
+    let decryptCalls = 0;
+    const decrypt = (data: Uint8Array): Uint8Array => {
+      decryptCalls += 1;
+      return Uint8Array.from(data); // 압축 아님 → 크기 0 으로 셈
+    };
+    const candidates = Array.from({ length: 800 }, () => ({
+      data: raw,
+      isRecord: true,
+      decrypt,
+    }));
+    const start = performance.now();
+
+    assertInflateWithinLimits(candidates, raw.length);
+
+    expect(decryptCalls).toBe(1);
+    expect(performance.now() - start).toBeLessThan(1000);
+  });
+
+  it("복호화 바이트도 작업 예산에 달아 파일 크기 대비 과도하면 거부한다", () => {
+    // 64KB 파일(예산 1MB) 인데 복호화가 2MB 를 내놓으면 손상으로 본다
+    const raw = new Uint8Array(64 * 1024).fill(0x22);
+    const decrypt = (): Uint8Array => new Uint8Array(2 * MIB).fill(0x33);
+
+    expect(
+      codeOf(() =>
+        assertInflateWithinLimits(
+          [{ data: raw, isRecord: true, decrypt }],
+          raw.length,
+        ),
+      ),
+    ).toBe("CORRUPTED");
   });
 });

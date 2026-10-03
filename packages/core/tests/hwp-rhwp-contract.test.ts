@@ -214,6 +214,28 @@ describe("@rhwp/core 압축·스트림 해석 계약 (사전 검사의 전제)",
     expect(measureInflatedSize(wrapped, 1024 * 1024)).toBe(records.length);
   });
 
+  it("헤더가 선언한 창보다 먼 역참조가 있어도 rhwp 는 32KB 창으로 끝까지 푼다 (리뷰 #1)", async () => {
+    // Arrange — 반복 본문을 창 15 로 압축하면 거리 ≈1KB(선언 창 512B 밖) 역참조가
+    // 생긴다. 헤더만 windowBits 9 로 바꿔 선언 창과 실제 거리를 어긋나게 한다.
+    const marker = "창밖역참조 ";
+    const hwp = await createHwp5(marker.repeat(4000));
+    const records = inflateRawSync(readHwp5Stream(hwp, "/BodyText/Section0"));
+    const far = deflateSync(records, { level: 9 });
+    far[0] = 0x18; // CINFO=1 → 창 512B 선언 (실제 거리는 그보다 멀다)
+    let flg = 0;
+    while (((far[0] << 8) | flg) % 31 !== 0) flg++;
+    far[1] = flg;
+    const patched = replaceHwp5Stream(hwp, "/BodyText/Section0", far);
+
+    // Act
+    const xml = await convertedSection(patched);
+
+    // Assert — Node inflateSync 는 선언 창을 강제해 중간에 멈추지만 rhwp 는 끝까지
+    // 풀어 본문이 살아 있다. 사전 검사(measureInflatedSize)도 전체 크기를 재야 한다.
+    expect(xml).toContain(marker.trim());
+    expect(measureInflatedSize(far, 512 * 1024 * 1024)).toBe(records.length);
+  });
+
   it("BodyText/Section0 이 없으면 루트의 /Section0 을 본문으로 읽는다", async () => {
     const hwp = await createHwp5("루트 섹션");
     const moved = moveHwp5Stream(hwp, "/BodyText/Section0", "/Section0");
