@@ -1,6 +1,7 @@
-import { deflateRawSync } from "node:zlib";
+import { deflateRawSync, deflateSync } from "node:zlib";
 import { beforeAll, describe, expect, it } from "vitest";
 import { decryptDistributionStream } from "../src/parsers/hwp/distribution.js";
+import { measureInflatedSize } from "../src/parsers/hwp/inflate-guard.js";
 import {
   MAX_RECORD_INFLATED_BYTES,
   MAX_STREAM_INFLATED_BYTES,
@@ -17,6 +18,7 @@ import {
   deflateBomb,
   encryptViewText,
   HWP5_FLAG,
+  moveHwp5Stream,
   patchHwp5Flags,
   replaceHwp5Stream,
   toDistributionDocument,
@@ -161,6 +163,19 @@ describe("precheckHwp5 — 압축 폭탄", () => {
     expect(codeOf(() => precheckHwp5(bomb))).toBe("TOO_LARGE");
   });
 
+  it.each([
+    9, 10, 11, 12, 13, 14,
+  ])("창 크기가 작은 zlib 헤더(windowBits %i, 첫 바이트 ≠ 0x78)로 감싼 폭탄도 잡는다", (windowBits) => {
+    // rhwp 는 raw 가 실패하면 zlib 으로 다시 푼다 — 유효한 zlib 헤더면 창 크기와 무관하다
+    const bomb = replaceHwp5Stream(
+      plain,
+      "/BodyText/Section0",
+      zlibWrappedBomb(256, windowBits),
+    );
+
+    expect(codeOf(() => precheckHwp5(bomb))).toBe("TOO_LARGE");
+  });
+
   it("BinData 폭탄도 잡는다", () => {
     const bomb = replaceHwp5Stream(
       plain,
@@ -181,6 +196,44 @@ describe("precheckHwp5 — 압축 폭탄", () => {
 
   it("배포용 문서의 암호화된 ViewText 안 폭탄도 복호화해 잡는다", () => {
     const bomb = toDistributionDocument(plain, deflateBomb(256));
+
+    expect(codeOf(() => precheckHwp5(bomb))).toBe("TOO_LARGE");
+  });
+
+  it("확장형 레코드 헤더(크기 < 0xFFF)의 ViewText 도 rhwp 와 같은 위치에서 복호화해 잡는다", () => {
+    // rhwp 는 이때 암호문을 8+크기가 아니라 4+크기에서 읽는다 — 블록 정렬이 4바이트 어긋난다
+    const bomb = toDistributionDocument(plain, deflateBomb(256), {
+      extendedHeader: true,
+    });
+
+    expect(codeOf(() => precheckHwp5(bomb))).toBe("TOO_LARGE");
+  });
+
+  it("배포용 문서의 ViewText 가 복호화 구조가 아니면 원본 그대로 잰다", () => {
+    const view = replaceHwp5Stream(
+      plain,
+      "/ViewText/Section0",
+      deflateBomb(256),
+    );
+    const bomb = patchHwp5Flags(view, HWP5_FLAG.distribution);
+
+    expect(codeOf(() => precheckHwp5(bomb))).toBe("TOO_LARGE");
+  });
+
+  it("루트의 /SectionN 도 본문 레코드로 센다 — rhwp 는 BodyText 가 없으면 그걸 본문으로 읽는다", () => {
+    // 80MB: 스트림당 100MB 안이지만 본문 64MB 를 넘는다
+    const moved = moveHwp5Stream(plain, "/BodyText/Section0", "/Section0");
+    const bomb = replaceHwp5Stream(moved, "/Section0", deflateBomb(80));
+
+    expect(codeOf(() => precheckHwp5(bomb))).toBe("TOO_LARGE");
+  });
+
+  it("첨부(BinData)가 아닌 스트림은 모두 본문 레코드 상한을 받는다", () => {
+    const bomb = replaceHwp5Stream(
+      plain,
+      "/Scripts/DefaultJScript",
+      deflateBomb(80),
+    );
 
     expect(codeOf(() => precheckHwp5(bomb))).toBe("TOO_LARGE");
   });
@@ -238,11 +291,9 @@ describe("precheckHwp5 — 압축 폭탄", () => {
 });
 
 describe("decryptDistributionStream", () => {
-  it("배포용 ViewText 를 복호화하면 원래 (압축된) 본문이 앞에 온다", () => {
-    const section = deflateRawSync(
-      Buffer.from("배포용 본문 레코드".repeat(20)),
-    );
+  const section = deflateRawSync(Buffer.from("배포용 본문 레코드".repeat(20)));
 
+  it("배포용 ViewText 를 복호화하면 원래 (압축된) 본문이 앞에 온다", () => {
     const decrypted = decryptDistributionStream(encryptViewText(section));
 
     expect(decrypted).not.toBeNull();
@@ -251,12 +302,37 @@ describe("decryptDistributionStream", () => {
     );
   });
 
-  it("페이로드가 잘렸거나 암호화 본문이 없으면 null", () => {
+  it("확장형 헤더(크기 < 0xFFF)면 암호문을 rhwp 처럼 4+크기 위치에서 읽는다", () => {
+    const viewText = encryptViewText(section, undefined, {
+      extendedHeader: true,
+    });
+
+    const decrypted = decryptDistributionStream(viewText);
+
+    expect(Buffer.from(decrypted ?? []).subarray(0, section.length)).toEqual(
+      section,
+    );
+  });
+
+  it("끝의 16바이트 미만 조각도 rhwp 처럼 0 으로 채워 복호화한다", () => {
+    const full = encryptViewText(section);
+    const cut = full.subarray(0, full.length - 5);
+
+    const decrypted = decryptDistributionStream(cut);
+
+    expect(decrypted?.length).toBe(Math.ceil((cut.length - 260) / 16) * 16);
+    const whole = Math.floor((cut.length - 260) / 16) * 16;
+    expect(Buffer.from(decrypted ?? []).subarray(0, whole)).toEqual(
+      Buffer.from(section).subarray(0, whole),
+    );
+  });
+
+  it("암호화 본문이 없으면 빈 결과, 페이로드가 잘렸으면 null", () => {
     const full = encryptViewText(new Uint8Array(32));
     const payloadOnly = full.subarray(0, 4 + 256);
     const truncatedPayload = full.subarray(0, 100);
 
-    expect(decryptDistributionStream(payloadOnly)).toBeNull();
+    expect(decryptDistributionStream(payloadOnly)).toEqual(new Uint8Array(0));
     expect(decryptDistributionStream(truncatedPayload)).toBeNull();
   });
 
@@ -285,9 +361,40 @@ describe("precheckHwp3", () => {
     expect(codeOf(() => precheckHwp3(hwp3))).toBe("TOO_LARGE");
   });
 
+  it("본문은 문단 레코드라 본문 레코드 상한(64MB)을 받는다", () => {
+    const hwp3 = buildHwp3(deflateBomb(80));
+
+    expect(codeOf(() => precheckHwp3(hwp3))).toBe("TOO_LARGE");
+  });
+
   it("헤더가 잘린 파일은 여기서 판단하지 않는다 (변환 엔진이 손상으로 알린다)", () => {
     const truncated = buildHwp3(new Uint8Array(0)).subarray(0, 200);
 
     expect(precheckHwp3(truncated)).toEqual([]);
+  });
+});
+
+describe("measureInflatedSize", () => {
+  const text = Buffer.from("hello world ".repeat(1000));
+
+  it.each([
+    9, 10, 11, 12, 13, 14, 15,
+  ])("유효한 zlib 헤더(windowBits %i)면 창 크기와 무관하게 잰다", (windowBits) => {
+    const wrapped = deflateSync(text, { windowBits });
+
+    expect(measureInflatedSize(wrapped, MIB)).toBe(text.length);
+  });
+
+  it("raw deflate 도 잰다", () => {
+    expect(measureInflatedSize(deflateRawSync(text), MIB)).toBe(text.length);
+  });
+
+  it("압축 데이터가 아니면 0, 상한을 넘으면 Infinity", () => {
+    expect(measureInflatedSize(new Uint8Array([0xff, 0xff, 0xff]), MIB)).toBe(
+      0,
+    );
+    expect(measureInflatedSize(deflateBomb(2), MIB)).toBe(
+      Number.POSITIVE_INFINITY,
+    );
   });
 });

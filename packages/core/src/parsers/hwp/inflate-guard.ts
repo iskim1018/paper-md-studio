@@ -6,7 +6,9 @@
  * 그 프로세스(서버·MCP)는 끝까지 3GB 를 안고 간다(실측). 그래서 Node zlib 로
  * 상한(maxOutputLength)을 걸고 먼저 풀어 크기만 잰다.
  *
- * - raw deflate 와 zlib 감싼 스트림 둘 다 잰다 — rhwp 는 둘 다 푼다(실측).
+ * - raw deflate 와 zlib 감싼 스트림 둘 다 잰다 — rhwp 는 raw 가 실패하면 zlib 으로
+ *   다시 푼다(실측). zlib 은 RFC 1950 헤더가 유효하면 창 크기와 무관하게 시도한다
+ *   (rhwp 의 miniz_oxide 는 창 256B~32KB 를 모두 받는다 — 첫 바이트가 0x78 만은 아니다).
  * - `finishFlush: Z_SYNC_FLUSH` 로 끝이 잘린 스트림도 풀린 만큼 센다.
  * - 압축 데이터가 아니면(풀다 실패하면) 0 으로 친다 — 거짓 양성은 낼 수 없다.
  *   상한을 넘는 출력은 실제 deflate 스트림만 만들 수 있기 때문이다.
@@ -34,7 +36,24 @@ export const MAX_RECORD_INFLATED_BYTES = 64 * MIB;
  */
 export const MAX_TOTAL_INFLATED_BYTES = 512 * MIB;
 
-const ZLIB_HEADER_BYTE = 0x78;
+/** zlib(RFC 1950) 압축 방식 8 = deflate, 창 크기 지수(CINFO) 상한 7 = 32KB */
+const ZLIB_METHOD_DEFLATE = 8;
+const ZLIB_MAX_CINFO = 7;
+const ZLIB_HEADER_CHECK = 31;
+
+/** RFC 1950 헤더 검사 — zlib·miniz_oxide 가 받는 헤더면 true */
+export function isZlibHeader(data: Uint8Array): boolean {
+  const cmf = data[0];
+  const flg = data[1];
+  if (cmf === undefined || flg === undefined) {
+    return false;
+  }
+  return (
+    (cmf & 0x0f) === ZLIB_METHOD_DEFLATE &&
+    cmf >> 4 <= ZLIB_MAX_CINFO &&
+    ((cmf << 8) | flg) % ZLIB_HEADER_CHECK === 0
+  );
+}
 
 type InflateFn = (
   data: Uint8Array,
@@ -68,8 +87,9 @@ function tryInflate(
 export function measureInflatedSize(data: Uint8Array, limit: number): number {
   const safeLimit = Math.max(1, Math.floor(limit));
   const raw = tryInflate(inflateRawSync, data, safeLimit);
-  const wrapped =
-    data[0] === ZLIB_HEADER_BYTE ? tryInflate(inflateSync, data, safeLimit) : 0;
+  const wrapped = isZlibHeader(data)
+    ? tryInflate(inflateSync, data, safeLimit)
+    : 0;
   return Math.max(raw, wrapped);
 }
 

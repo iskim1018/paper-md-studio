@@ -125,18 +125,22 @@ function assertNotProtected(flags: number): void {
   }
 }
 
+/**
+ * 본문 레코드 상한을 받는 스트림 — 첨부(BinData) 말고 전부. rhwp 는 DocInfo·
+ * BodyText·ViewText 뿐 아니라 BodyText 가 없을 때의 루트 `/SectionN` 도 본문
+ * 레코드로 읽는다(v0.8.6 `read_body_text_section_raw`). 엔진이 어느 경로를 레코드로
+ * 읽는지 하나하나 따라가면 다음 버전에서 또 어긋나므로, 첨부만 빼고 모두 레코드로
+ * 본다 — 정상 문서의 나머지 스트림(Scripts·DocOptions 등)은 수 KB 라 영향이 없다.
+ */
 function isRecordStream(path: string): boolean {
-  return (
-    path === "docinfo" ||
-    path.startsWith("bodytext/") ||
-    path.startsWith("viewtext/")
-  );
+  return !path.startsWith("bindata/");
 }
 
 /**
  * 풀어 볼 스트림 목록. 문서 압축 플래그와 무관하게 모두 본다 — 첨부(BinData)는
  * 항목별로 압축될 수 있고, 압축이 아닌 데이터는 0 으로 세어 거짓 양성이 없다.
- * 배포용 문서의 ViewText 는 엔진처럼 복호화한 뒤 잰다.
+ * 배포용 문서의 ViewText 는 엔진처럼 복호화한 뒤 재고, 복호화 구조가 아니면 원본
+ * 그대로 잰다 — 건너뛰면 검사하지 않은 바이트가 생긴다.
  */
 function inflateCandidates(
   streams: ReadonlyArray<HwpStream>,
@@ -149,9 +153,9 @@ function inflateCandidates(
     }
     const data =
       isDistribution && path.startsWith("viewtext/")
-        ? decryptDistributionStream(raw)
+        ? (decryptDistributionStream(raw) ?? raw)
         : raw;
-    return data === null ? [] : [{ data, isRecord: isRecordStream(path) }];
+    return [{ data, isRecord: isRecordStream(path) }];
   });
 }
 
@@ -177,8 +181,8 @@ function readU16(data: Uint8Array, offset: number): number {
 
 /**
  * HWP 3.0 사전 검사. 본문은 고정 헤더·정보 블록 뒤에 raw deflate 로 통째로
- * 압축돼 있다(헤더 @154 압축 표시). 헤더가 잘린 파일은 판단하지 않고 엔진의
- * 손상 오류에 맡긴다.
+ * 압축돼 있다(헤더 @154 압축 표시). 엔진은 이걸 문단 레코드로 읽으므로 본문
+ * 레코드 상한을 건다. 헤더가 잘린 파일은 판단하지 않고 엔진의 손상 오류에 맡긴다.
  */
 export function precheckHwp3(data: Uint8Array): Array<string> {
   if (
@@ -194,7 +198,7 @@ export function precheckHwp3(data: Uint8Array): Array<string> {
     HWP3.fixedHeaderBytes + readU16(data, HWP3.infoBlockLengthOffset);
   if (bodyOffset < data.length) {
     assertInflateWithinLimits([
-      { data: data.subarray(bodyOffset), isRecord: false },
+      { data: data.subarray(bodyOffset), isRecord: true },
     ]);
   }
   return [];
