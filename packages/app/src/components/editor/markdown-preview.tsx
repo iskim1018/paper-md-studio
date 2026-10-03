@@ -1,35 +1,9 @@
-import { useMemo, useRef } from "react";
-import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
-import rehypeRaw from "rehype-raw";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
-import remarkGfm from "remark-gfm";
+import { useLayoutEffect, useRef } from "react";
+import { useMarkdownHtml } from "../../hooks/use-markdown-html";
 import { usePanelSearch } from "../../hooks/use-panel-search";
 import { resolveLocalAssetUrl } from "../../lib/asset-url";
+import { Spinner, ViewerLoading } from "../ui/spinner";
 import { SearchBar } from "./search-bar";
-
-/**
- * GitHub 기본 sanitize 스키마에 우리 변환 결과가 사용하는 인라인 HTML을
- * 추가 허용한다.
- * - `br`: 표 셀 안 줄바꿈 (HWPX 중첩 표 평탄화에서 사용)
- * - `td/th`의 `colspan`/`rowspan`: 부모 표 병합 셀 보존
- */
-const sanitizeSchema = {
-  ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), "br"],
-  attributes: {
-    ...(defaultSchema.attributes ?? {}),
-    td: [
-      ...((defaultSchema.attributes?.td as Array<unknown>) ?? []),
-      "colspan",
-      "rowspan",
-    ],
-    th: [
-      ...((defaultSchema.attributes?.th as Array<unknown>) ?? []),
-      "colspan",
-      "rowspan",
-    ],
-  },
-};
 
 interface MarkdownPreviewProps {
   readonly markdown: string;
@@ -41,35 +15,48 @@ interface MarkdownPreviewProps {
 }
 
 /**
- * react-markdown 기반 읽기 전용 Markdown 프리뷰.
- * GFM (테이블, 체크박스, 취소선)을 remark-gfm으로 활성화한다.
+ * 상대 이미지 경로를 Tauri asset URL 로 바꾼다. 링크(href) 등 다른 속성은
+ * 건드리지 않는다. 화면에 붙기 전(`<template>` 안)에 바꿔야 잘못된 경로로
+ * 요청이 먼저 나가지 않는다.
+ */
+function rewriteImageSources(root: ParentNode, basePath: string): void {
+  for (const img of Array.from(root.querySelectorAll("img"))) {
+    const src = img.getAttribute("src");
+    if (src) img.setAttribute("src", resolveLocalAssetUrl(src, basePath));
+  }
+}
+
+/**
+ * 읽기 전용 Markdown 프리뷰 (GFM: 표·체크박스·취소선).
+ *
+ * Markdown → 정화된 HTML 은 Web Worker 가 만들고(`useMarkdownHtml`), 여기서는
+ * 결과를 붙이기만 한다. 큰 표는 행 묶음으로 나뉘어 와서 화면 밖 묶음은
+ * 브라우저가 그리지 않는다(`lib/markdown-html`). 결과 HTML 이 바뀔 때만 DOM 을
+ * 갈아끼우므로 검색 입력·스토어 갱신 같은 재렌더가 문서를 다시 처리하지 않는다.
  *
  * 스타일링은 CSS var 기반 타이포그래피를 CSS에서 정의하며
  * 컨테이너에 `markdown-body` 클래스를 부여해 전역 스코프를 준다.
- *
- * basePath가 주어지면 이미지 src의 상대 경로를 webview가 접근할 수 있는
- * Tauri asset URL로 변환한다. 다른 속성(href 등)은 기본 sanitization만 적용.
  */
 export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
-  const urlTransform = useMemo(() => {
-    if (!basePath) return undefined;
-    return (url: string, key: string, node: Readonly<{ tagName: string }>) => {
-      const sanitized = defaultUrlTransform(url);
-      if (sanitized === undefined || sanitized === null) return sanitized;
-      // 이미지(img.src, source.srcset 등)에 한해 로컬 경로를 asset URL로 치환.
-      const isImageSrc = key === "src" && node.tagName === "img";
-      if (!isImageSrc) return sanitized;
-      return resolveLocalAssetUrl(sanitized, basePath);
-    };
-  }, [basePath]);
+  const { html, error, isPending } = useMarkdownHtml(markdown);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { visible, focusToken, search, close } = usePanelSearch({
     containerRef,
     contentRef,
-    resetKey: markdown,
+    // 검색은 붙어 있는 DOM 을 훑으므로 Markdown 이 아니라 붙인 HTML 기준으로 다시 센다
+    resetKey: html,
   });
+
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content || html === null) return;
+    const template = document.createElement("template");
+    template.innerHTML = html;
+    if (basePath) rewriteImageSources(template.content, basePath);
+    content.replaceChildren(template.content);
+  }, [html, basePath]);
 
   // 스크롤은 contentRef(자식)에서 발생시키고, containerRef는 positioned
   // wrapper로만 둔다. 이렇게 해야 absolute로 띄운 SearchBar가 스크롤과
@@ -95,18 +82,33 @@ export function MarkdownPreview({ markdown, basePath }: MarkdownPreviewProps) {
         clear={search.clear}
         onClose={close}
       />
+      {/* 내용은 useLayoutEffect 가 직접 붙인다 — React 자식을 두지 않는다 */}
       <div
         ref={contentRef}
         className="markdown-body h-full overflow-y-auto px-[26px] py-[22px] text-sm leading-relaxed"
-      >
-        <ReactMarkdown
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
-          urlTransform={urlTransform}
+        data-testid="markdown-preview-content"
+      />
+      {html === null && !error && (
+        <div className="absolute inset-0">
+          <ViewerLoading label="미리보기를 만드는 중..." />
+        </div>
+      )}
+      {html !== null && isPending && (
+        <div
+          className="pointer-events-none absolute right-4 bottom-3 text-[var(--color-muted)]"
+          data-testid="markdown-preview-pending"
         >
-          {markdown}
-        </ReactMarkdown>
-      </div>
+          <Spinner size={14} />
+        </div>
+      )}
+      {error && (
+        <div
+          className="absolute inset-x-0 top-0 border-b border-[var(--color-border)] bg-[var(--color-error)]/10 px-[18px] py-1.5 text-xs text-[var(--color-error)]"
+          data-testid="markdown-preview-error"
+        >
+          미리보기를 만들지 못했습니다: {error}
+        </div>
+      )}
     </div>
   );
 }

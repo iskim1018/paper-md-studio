@@ -83,7 +83,7 @@ describe("resolveLocalAssetUrl", () => {
   });
 
   it("decodes percent-encoded src so non-ASCII filenames are not double-encoded", () => {
-    // react-markdown이 URL을 encodeURI한 상태로 넘기는 것을 시뮬레이션.
+    // Markdown 파서가 URL을 encodeURI한 상태로 넘기는 것을 시뮬레이션.
     const encoded = `./${encodeURI("문서_images")}/foo.png`;
     const result = resolveLocalAssetUrl(encoded, "/Users/me/Documents/문서.md");
     // convertFileSrc는 raw 절대경로를 받아 한 번만 인코딩해야 한다.

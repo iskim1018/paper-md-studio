@@ -39,7 +39,7 @@ packages/app/sidecar-shim/target/
 packages/cli/dist-bundle/
 
 # Playwright
-playwright-report/
+playwright-report*/
 test-results/
 
 # Test fixture samples — 이 폴더에는 "공개 가능한" 샘플만 둔다.

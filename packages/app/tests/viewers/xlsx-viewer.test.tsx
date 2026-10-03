@@ -116,3 +116,32 @@ describe("XlsxViewer", () => {
     });
   });
 });
+
+describe("XlsxViewer 큰 시트", () => {
+  it("행이 많은 시트는 행 묶음으로 나눠 그리고, 숨김 범례 집계는 원래 셀 기준이다", async () => {
+    const rows = Array.from({ length: 450 }, (_, r) => {
+      if (r === 99) {
+        return '<tr><td rowspan="3" class="xlsx-hidden-col">병합</td><td>b</td></tr>';
+      }
+      if (r === 100 || r === 101) return "<tr><td>b</td></tr>";
+      return `<tr><td>${r}</td><td>b</td></tr>`;
+    });
+    convertFileToHtml.mockResolvedValue(
+      `<h2>큰 시트</h2><table>${rows.join("")}</table>`,
+    );
+
+    render(<XlsxViewer filePath="/docs/큰.xlsx" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("xlsx-hidden-legend")).toBeTruthy();
+    });
+    const scroller = screen.getByTestId("xlsx-scroller");
+    expect(scroller.querySelectorAll(".table-chunk").length).toBe(5);
+    expect(scroller.querySelectorAll("tr").length).toBe(450);
+    // 병합의 이어지는 칸이 숨김 클래스를 복사해도 시트 앵커·범례는 그대로다
+    expect(scroller.querySelector("#xlsx-sheet-0")?.textContent).toBe(
+      "큰 시트",
+    );
+    expect(scroller.querySelectorAll(".table-span-cont").length).toBe(1);
+  });
+});

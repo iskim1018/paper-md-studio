@@ -47,3 +47,36 @@ describe("MarkdownPreview image src rewriting", () => {
     expect(img.getAttribute("src")).toBe("./images/foo.png");
   });
 });
+
+describe("MarkdownPreview 처리 횟수", () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it("같은 Markdown 으로 다시 그려도 문서를 다시 처리하지 않는다", async () => {
+    // 검색 입력·스토어 갱신마다 2.7MB 문서를 다시 파싱하던 회귀를 막는다
+    const markdownHtml = await import("../src/lib/markdown-html");
+    const spy = vi.spyOn(markdownHtml, "renderMarkdownToHtml");
+    const { rerender } = render(<MarkdownPreview markdown="# 제목" />);
+    rerender(<MarkdownPreview markdown="# 제목" />);
+    rerender(<MarkdownPreview markdown="# 제목" />);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    rerender(<MarkdownPreview markdown="# 바뀐 제목" />);
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("heading").textContent).toBe("바뀐 제목");
+  });
+
+  it("큰 표는 행 묶음으로 나뉘어 붙는다", () => {
+    const lines = ["| 번호 |", "| --- |"];
+    for (let r = 0; r < 450; r += 1) lines.push(`| ${r} |`);
+
+    render(<MarkdownPreview markdown={lines.join("\n")} />);
+
+    const content = screen.getByTestId("markdown-preview-content");
+    expect(content.querySelectorAll(".table-chunk").length).toBe(5);
+    expect(content.querySelectorAll("tbody tr").length).toBe(450);
+  });
+});

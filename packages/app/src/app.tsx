@@ -85,18 +85,34 @@ interface ResizableLayoutProps {
   readonly showResult: boolean;
 }
 
+/** 탐색 트리는 이름만 보이면 되므로 좁게, 남는 폭은 두 뷰어가 나눠 갖는다 */
+const FILE_LIST_DEFAULT_SIZE = 18;
+const FILE_LIST_MIN_SIZE = 12;
+const VIEWER_MIN_SIZE = 20;
+/**
+ * 저장된 패널 비율의 형식 판. 기본 비율을 바꿨을 때 올리면 예전에 저장된 비율
+ * 대신 새 기본값이 한 번 적용된다 (v2: 25/37/38 → 18/41/41, 2026-10-03).
+ */
+const PANEL_LAYOUT_VERSION = 2;
+
 function ResizableLayout({
   showFileList,
   showPreview,
   showResult,
 }: ResizableLayoutProps) {
+  const viewerCount = Number(showPreview) + Number(showResult);
+  const fileListSize =
+    viewerCount === 0 ? 100 : showFileList ? FILE_LIST_DEFAULT_SIZE : 0;
+  // 보이는 패널의 기본값 합이 늘 100 이 되게 한다 — 아니면 라이브러리가 임의로 보정한다
+  const viewerSize = viewerCount === 0 ? 0 : (100 - fileListSize) / viewerCount;
+
   const panels: Array<PanelDef> = [];
   if (showFileList) {
     panels.push({
       id: "filelist",
       order: 1,
-      defaultSize: 25,
-      minSize: 15,
+      defaultSize: fileListSize,
+      minSize: FILE_LIST_MIN_SIZE,
       node: <FileListPanel />,
     });
   }
@@ -104,8 +120,8 @@ function ResizableLayout({
     panels.push({
       id: "preview",
       order: 2,
-      defaultSize: 37,
-      minSize: 20,
+      defaultSize: viewerSize,
+      minSize: VIEWER_MIN_SIZE,
       node: <PreviewPanel />,
     });
   }
@@ -113,8 +129,8 @@ function ResizableLayout({
     panels.push({
       id: "result",
       order: 3,
-      defaultSize: 38,
-      minSize: 20,
+      defaultSize: viewerSize,
+      minSize: VIEWER_MIN_SIZE,
       node: <ResultPanel />,
     });
   }
@@ -126,7 +142,7 @@ function ResizableLayout({
 
   // PanelGroup의 autoSaveId로 사용자 manual resize 비율 보존.
   // 보이는 패널 조합이 바뀌면 autoSaveId도 바뀌어 새 비율이 따로 저장됨.
-  const autoSaveId = `paper-md-studio:panels:${panels.map((p) => p.id).join("-")}`;
+  const autoSaveId = `paper-md-studio:panels:v${PANEL_LAYOUT_VERSION}:${panels.map((p) => p.id).join("-")}`;
 
   return (
     <PanelGroup

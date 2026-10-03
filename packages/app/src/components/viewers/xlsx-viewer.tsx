@@ -1,45 +1,75 @@
 import { EyeOff, Table2, XCircle } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { convertFileToHtml } from "../../lib/converter";
-import { sanitizeViewerHtml } from "../../lib/sanitize";
+import { chunkLargeDomTables } from "../../lib/dom-table-chunks";
+import { sanitizeViewerHtmlToFragment } from "../../lib/sanitize";
+import type { TableSizingOptions } from "../../lib/table-sizing";
 import { ViewerLoading } from "../ui/spinner";
 
 interface XlsxViewerProps {
   readonly filePath: string;
 }
 
-type LoadState =
-  | { readonly status: "loading" }
-  | { readonly status: "done"; readonly html: string }
-  | { readonly status: "error"; readonly message: string };
-
 /** 시트 제목(h2)에 앵커를 심어 탭에서 바로 이동할 수 있게 한다. */
 const SHEET_ID_PREFIX = "xlsx-sheet-";
 
-interface ParsedWorkbook {
-  readonly html: string;
+/**
+ * 큰 시트를 묶음으로 나눌 때의 열 폭·높이 어림 기준.
+ * styles.css 의 `.xlsx-preview` 셀 규칙(14px, 줄 높이 20px, 여백 3px 8px,
+ * 테두리 1px, 최대 폭 320px)과 맞춘다.
+ */
+const XLSX_TABLE_SIZING: TableSizingOptions = {
+  fontPx: 14,
+  horizontalPaddingPx: 18,
+  verticalPaddingPx: 7,
+  lineHeightPx: 20,
+  minColumnPx: 40,
+  maxColumnPx: 320,
+};
+
+interface PreparedWorkbook {
+  /** 화면에 붙일 시트 묶음 (정화·앵커·큰 표 묶음 처리 완료) */
+  readonly content: HTMLElement;
   readonly sheetNames: ReadonlyArray<string>;
   readonly hiddenCount: number;
 }
 
-/**
- * sanitize된 HTML에서 시트 제목을 뽑고 앵커 id를 심는다.
- * DOMParser로 다루므로 문자열 정규식보다 중첩·인코딩에 안전하다.
- */
-function parseWorkbookHtml(html: string): ParsedWorkbook {
-  const doc = new DOMParser().parseFromString(html, "text/html");
-  const headings = [...doc.querySelectorAll("h2")];
+type LoadState =
+  | { readonly status: "loading" }
+  | { readonly status: "done"; readonly workbook: PreparedWorkbook }
+  | { readonly status: "error"; readonly message: string };
 
+/**
+ * 변환 엔진의 HTML 을 화면에 붙일 수 있는 상태로 만든다.
+ *
+ * 정화 결과를 DOM 조각으로 받아 그 자리에서 시트 앵커를 심고, 큰 표는 행
+ * 묶음으로 나눈다 — 수천 행 시트를 한 표로 그리면 레이아웃만 1.7초가 걸려
+ * 파일을 고르는 순간 앱이 멈췄다(`dom-table-chunks` 참고). React 가 아닌 DOM 으로
+ * 다루는 이유: 시트 하나에 셀이 수만 개라 가상 DOM 을 거칠 이유가 없다.
+ */
+function prepareWorkbook(html: string): PreparedWorkbook {
+  const fragment = sanitizeViewerHtmlToFragment(html);
+  const headings = Array.from(fragment.querySelectorAll("h2"));
   headings.forEach((heading, index) => {
     heading.id = `${SHEET_ID_PREFIX}${index}`;
   });
 
-  const hiddenCount = doc.querySelectorAll(
+  // 묶음으로 나누면 병합의 이어지는 칸이 숨김 클래스를 복사하므로 그 전에 센다
+  const hiddenCount = fragment.querySelectorAll(
     ".xlsx-hidden-row, .xlsx-hidden-col",
   ).length;
+  chunkLargeDomTables(fragment, XLSX_TABLE_SIZING);
 
+  const content = document.createElement("div");
+  content.append(fragment);
   return {
-    html: doc.body.innerHTML,
+    content,
     sheetNames: headings.map((h) => h.textContent?.trim() ?? ""),
     hiddenCount,
   };
@@ -65,7 +95,7 @@ export function XlsxViewer({ filePath }: XlsxViewerProps) {
     convertFileToHtml(filePath, { includeHidden: true })
       .then((html) => {
         if (cancelled) return;
-        setState({ status: "done", html: sanitizeViewerHtml(html) });
+        setState({ status: "done", workbook: prepareWorkbook(html) });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -79,10 +109,13 @@ export function XlsxViewer({ filePath }: XlsxViewerProps) {
     };
   }, [filePath]);
 
-  const workbook = useMemo<ParsedWorkbook | null>(
-    () => (state.status === "done" ? parseWorkbookHtml(state.html) : null),
-    [state],
-  );
+  const workbook = state.status === "done" ? state.workbook : null;
+
+  // 준비한 DOM 을 그대로 옮겨 붙인다. 같은 요소를 다시 붙이는 것은 이동일 뿐이라
+  // 개발 모드의 effect 이중 실행에도 안전하다
+  useLayoutEffect(() => {
+    if (workbook) scrollRef.current?.replaceChildren(workbook.content);
+  }, [workbook]);
 
   const scrollToSheet = useCallback((index: number) => {
     const target = scrollRef.current?.querySelector(
@@ -133,8 +166,6 @@ export function XlsxViewer({ filePath }: XlsxViewerProps) {
         ref={scrollRef}
         className="xlsx-preview flex-1 overflow-auto p-4 text-sm"
         data-testid="xlsx-scroller"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: sanitizeViewerHtml(DOMPurify)로 정화된 HTML만 주입
-        dangerouslySetInnerHTML={{ __html: workbook?.html ?? "" }}
       />
 
       {/* 시트가 여러 개일 때만 탭을 둔다 — 한 장짜리엔 군더더기다 */}
