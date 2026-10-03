@@ -1,12 +1,17 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ConvertOptions, ConvertResult } from "@paper-md-studio/core";
+import {
+  type ConvertOptions,
+  type ConvertResult,
+  HwpConversionError,
+} from "@paper-md-studio/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConvertCache } from "../src/cache/index.js";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
-import { LocalFsStorage, sha256Hex } from "../src/storage/index.js";
+import { conversionCacheId } from "../src/storage/conversion-id.js";
+import { LocalFsStorage } from "../src/storage/index.js";
 
 interface Part {
   readonly name: string;
@@ -92,7 +97,7 @@ describe("POST /v1/convert", () => {
     const app = await buildTestApp();
     try {
       const bytes = Buffer.from([1, 2, 3, 4]);
-      const sha = sha256Hex(new Uint8Array(bytes));
+      const sha = conversionCacheId(new Uint8Array(bytes));
       const { payload, contentType } = makeMultipart([
         {
           name: "file",
@@ -288,6 +293,41 @@ describe("POST /v1/convert", () => {
       });
       expect(res.statusCode).toBe(400);
       expect(convertImpl).not.toHaveBeenCalled();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("입력 탓인 HWP 오류는 422, 변환기 실패는 500 으로 구분한다", async () => {
+    // 암호·손상 문서는 다시 보내도 같다 — 500 이면 클라이언트가 재시도한다
+    const app = await buildTestApp();
+    try {
+      const { payload, contentType } = makeMultipart([
+        {
+          name: "file",
+          filename: "보호.hwp",
+          content: Buffer.from([9, 9, 9]),
+          contentType: "application/octet-stream",
+        },
+      ]);
+      const request = () =>
+        app.inject({
+          method: "POST",
+          url: "/v1/convert",
+          headers: { "content-type": contentType },
+          payload,
+        });
+
+      convertImpl.mockRejectedValueOnce(new HwpConversionError("ENCRYPTED"));
+      const encrypted = await request();
+      convertImpl.mockRejectedValueOnce(
+        new HwpConversionError("CONVERSION_FAILED"),
+      );
+      const failed = await request();
+
+      expect(encrypted.statusCode).toBe(422);
+      expect(encrypted.json().error).toContain("암호로 보호된 문서");
+      expect(failed.statusCode).toBe(500);
     } finally {
       await app.close();
     }

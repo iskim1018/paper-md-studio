@@ -67,17 +67,17 @@ describe.each(VARIANTS)("HWPX 문서 순서·누락 내용 (%s)", (_label, wrap)
       expect(out).toContain("| 앞글<br>(표 1×2)<br>칸1 · 칸2 |");
     });
 
-    it("글자-수식-글자 순서를 지킨다 (LaTeX 변환 실패 시 코드로)", async () => {
+    it("글자-수식-글자 순서를 지키고 수식은 LaTeX 로 낸다", async () => {
+      // 변환 실패 시 코드로 남기는 대체 경로는 hwpx-equation-render.test.ts 가
+      // 변환기를 모의해 따로 고정한다
       const result = await parse(
         paragraph(
           "<run><t>x는 </t><equation><script>{1} over\n  {2}</script><shapeComment>수식입니다.</shapeComment></equation><t> 이다</t></run>",
         ),
       );
 
-      expect(result.markdown).toBe("x는 `{1} over {2}` 이다");
-      expect(result.warnings).toContain(
-        "수식 1개는 LaTeX로 바꾸지 못해 원본 수식 스크립트를 코드로 남겼습니다.",
-      );
+      expect(result.markdown).toBe("x는 $\\frac{1}{2}$ 이다");
+      expect(result.warnings ?? []).toEqual([]);
     });
 
     it("셀 안 수식 스크립트의 '|'는 표를 깨지 않는다", async () => {
@@ -88,7 +88,7 @@ describe.each(VARIANTS)("HWPX 문서 순서·누락 내용 (%s)", (_label, wrap)
         ]),
       );
 
-      expect(out).toContain("| `\\|x\\|` | 옆칸 |");
+      expect(out).toContain("| $\\vert x \\vert$ | 옆칸 |");
       expect(new Set(unescapedPipeCounts(out))).toEqual(new Set([3]));
     });
   });

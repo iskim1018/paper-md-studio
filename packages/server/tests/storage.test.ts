@@ -176,15 +176,24 @@ describe("LocalFsStorage", () => {
 });
 
 describe("conversionCacheId", () => {
-  it("옵션이 없으면 파일 해시 그대로다 — 기존 캐시 id 가 바뀌면 안 된다", () => {
+  it("같은 파일·옵션·변환기 개정이면 언제나 같은 id 를 만든다", () => {
     const bytes = new Uint8Array([1, 2, 3]);
-    expect(conversionCacheId(bytes)).toBe(sha256Hex(bytes));
+    expect(conversionCacheId(bytes)).toBe(conversionCacheId(bytes));
     expect(
       conversionCacheId(bytes, {
         includeHidden: false,
         removeEmptyRows: false,
       }),
-    ).toBe(sha256Hex(bytes));
+    ).toBe(conversionCacheId(bytes));
+    expect(conversionCacheId(bytes)).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("변환기 개정이 바뀌면 id 도 바뀐다 — 파서를 고친 뒤 옛 결과가 캐시에서 나가지 않게", () => {
+    const bytes = new Uint8Array([1, 2, 3]);
+    expect(conversionCacheId(bytes, {}, "rev-a")).not.toBe(
+      conversionCacheId(bytes, {}, "rev-b"),
+    );
+    expect(conversionCacheId(bytes)).not.toBe(sha256Hex(bytes));
   });
 
   it("옵션 조합마다 서로 다른 id 를 만든다", () => {

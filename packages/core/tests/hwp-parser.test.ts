@@ -413,7 +413,7 @@ describe("HwpParser — HWPX 해석 단계 오류", () => {
   });
 
   it("한국어가 아닌 파서 오류는 한국어 메시지로 감싼다", async () => {
-    vi.spyOn(HwpxParser.prototype, "parse").mockRejectedValue(
+    vi.spyOn(HwpxParser.prototype, "parseBytes").mockRejectedValue(
       new Error("invalid zip data"),
     );
     const hwp = await createHwp5("감싸기");
@@ -426,7 +426,7 @@ describe("HwpParser — HWPX 해석 단계 오류", () => {
 
   it("이미 한국어인 파서 오류는 그대로 둔다", async () => {
     const original = new Error("암호화된 HWPX 입니다.");
-    vi.spyOn(HwpxParser.prototype, "parse").mockRejectedValue(original);
+    vi.spyOn(HwpxParser.prototype, "parseBytes").mockRejectedValue(original);
     const hwp = await createHwp5("그대로");
 
     await expect(parseBytes("그대로.hwp", hwp)).rejects.toBe(original);

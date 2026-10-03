@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { CONVERTER_REVISION } from "@paper-md-studio/core";
 
 /** 파일 바이트의 SHA-256 해시를 16진수 문자열로 반환한다. */
 export function sha256Hex(data: Uint8Array): string {
@@ -31,12 +32,17 @@ export interface ConversionOptions {
  * "숨김 제외" 결과가 캐시에 있을 때 "숨김 포함" 요청도 그걸 돌려받는다.
  * 옵션을 해시에 섞어 새 64자리 hex 를 만들므로 conversionId 형식 검증·shard·
  * 서명 URL 은 전부 그대로 동작한다.
+ *
+ * 변환기 개정(`CONVERTER_REVISION`)도 섞는다 — 파서를 고친 뒤에도 예전 결과가
+ * 캐시에서 나가지 않도록. 개정이 바뀌면 기존 캐시는 한 번 전부 무효가 된다.
  */
 export function conversionCacheId(
   bytes: Uint8Array,
   options: ConversionOptions = {},
+  revision: string = CONVERTER_REVISION,
 ): string {
   const hash = createHash("sha256");
+  hash.update(`rev:${revision} `);
   if (options.includeHidden === true) {
     hash.update("opt:includeHidden ");
   }

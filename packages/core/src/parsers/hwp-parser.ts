@@ -1,6 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFile } from "node:fs/promises";
 import { unzipSync } from "fflate";
 import type { ParseOptions, ParseResult, Parser } from "../types.js";
 import { detectHwpFormat, readLegacyVersion } from "./hwp/detect.js";
@@ -42,11 +40,11 @@ const HANGUL = /[가-힣]/;
  * 여야 하므로, 한국어가 아닌 오류(zip·XML 라이브러리 문구 등)는 감싼다.
  */
 async function runHwpxParser(
-  path: string,
+  data: Uint8Array,
   options: ParseOptions,
 ): Promise<ParseResult> {
   try {
-    return await new HwpxParser().parse(path, options);
+    return await new HwpxParser().parseBytes(data, options);
   } catch (err) {
     if (err instanceof Error && HANGUL.test(err.message)) {
       throw err;
@@ -56,24 +54,6 @@ async function runHwpxParser(
       "CONVERSION_FAILED",
       `HWPX 해석 실패: ${detail}`,
     );
-  }
-}
-
-/**
- * rhwp 가 내보낸 HWPX 를 HwpxParser 로 읽는다.
- * HwpxParser 가 바이트 입력(parseBytes)을 받게 되면 임시 파일 없이 이 함수만 바꾼다.
- */
-async function parseHwpxBytes(
-  hwpx: Uint8Array,
-  options: ParseOptions,
-): Promise<ParseResult> {
-  const tmpDir = await mkdtemp(join(tmpdir(), "paper-md-studio-hwp-"));
-  try {
-    const tmpPath = join(tmpDir, "document.hwpx");
-    await writeFile(tmpPath, hwpx);
-    return await runHwpxParser(tmpPath, options);
-  } finally {
-    await rm(tmpDir, { recursive: true, force: true });
   }
 }
 
@@ -96,7 +76,7 @@ async function parseViaRhwp(
   options: ParseOptions,
 ): Promise<ParseResult> {
   const { hwpx, warnings } = await convert();
-  const result = await parseHwpxBytes(hwpx, options);
+  const result = await runHwpxParser(hwpx, options);
   return withWarnings(result, [...precheckWarnings, ...warnings]);
 }
 
@@ -105,7 +85,6 @@ async function parseViaRhwp(
  * DOCX·XLSX 도 ZIP 이므로 HWPX 본문 폴더(Contents/)가 있는지 먼저 본다.
  */
 async function parseZipAsHwpx(
-  inputPath: string,
   data: Uint8Array,
   options: ParseOptions,
 ): Promise<ParseResult> {
@@ -126,7 +105,7 @@ async function parseZipAsHwpx(
       "HWPX 가 아닌 ZIP 문서(DOCX·XLSX 등)입니다. 확장자를 확인해주세요",
     );
   }
-  return await runHwpxParser(inputPath, options);
+  return await runHwpxParser(data, options);
 }
 
 /** 보안 컨테이너 머리말 판별에 넘길 앞부분 크기 */
@@ -174,7 +153,7 @@ export class HwpParser implements Parser {
       case "unknown":
         return await rejectUnknown(data);
       case "zip":
-        return await parseZipAsHwpx(inputPath, data, options);
+        return await parseZipAsHwpx(data, options);
       case "hwpml":
         return await parseViaRhwp(
           () => convertHwpmlWithRhwp(data),

@@ -1,3 +1,4 @@
+export { CONVERTER_REVISION } from "./converter-revision.js";
 export type {
   DownloadImagesOptions,
   DownloadImagesResult,
@@ -37,6 +38,8 @@ export type {
 } from "./net/safe-fetch.js";
 export { isBlockedIp, safeFetch, validateFetchUrl } from "./net/safe-fetch.js";
 export { normalizePath, normalizeToNFC } from "./normalize.js";
+export type { HwpErrorCode } from "./parsers/hwp/errors.js";
+export { HwpConversionError } from "./parsers/hwp/errors.js";
 export type { HtmlResult } from "./pipeline.js";
 export { convert, convertToHtml } from "./pipeline.js";
 export type {

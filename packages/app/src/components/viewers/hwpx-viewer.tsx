@@ -15,6 +15,7 @@ import {
 import { useSearchToggle } from "../../hooks/use-search-toggle";
 import { nextFrame } from "../../lib/frame";
 import { type HwpDocument, loadHwpDocument } from "../../lib/rhwp";
+import { describeRhwpError } from "../../lib/rhwp-error";
 import { SearchBar } from "../editor/search-bar";
 import { Spinner, ViewerLoading } from "../ui/spinner";
 import {
@@ -333,8 +334,8 @@ export function HwpxViewer({ filePath }: HwpxViewerProps) {
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const message = err instanceof Error ? err.message : "알 수 없는 오류";
-        setError(`HWP 로드 실패: ${message}`);
+        // rhwp 는 대부분 문자열을 던진다 — Error 만 보면 원인이 사라진다
+        setError(`HWP 로드 실패: ${describeRhwpError(err)}`);
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
