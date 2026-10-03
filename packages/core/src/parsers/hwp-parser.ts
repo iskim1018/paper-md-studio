@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { unzipSync } from "fflate";
 import type { ParseOptions, ParseResult, Parser } from "../types.js";
 import { detectHwpFormat, readLegacyVersion } from "./hwp/detect.js";
 import { HwpConversionError, toHwpConversionError } from "./hwp/errors.js";
@@ -9,6 +8,7 @@ import {
   convertWithRhwp,
   type RhwpResult,
 } from "./hwp/rhwp-loader.js";
+import { HwpxLimitError, listEntries } from "./hwpx/package.js";
 import { HwpxParser } from "./hwpx-parser.js";
 
 const HANGUL = /[가-힣]/;
@@ -24,6 +24,11 @@ async function runHwpxParser(
   try {
     return await new HwpxParser().parseBytes(data, options);
   } catch (err) {
+    // HWPX 자원 상한 초과는 입력 탓(과대)이므로 TOO_LARGE 로 옮긴다 — 서버가 422 로
+    // 응답해 재시도를 막는다. rhwp 가 만든 HWPX 가 상한을 넘는 경우(큰 .hwp)도 같다.
+    if (err instanceof HwpxLimitError) {
+      throw new HwpConversionError("TOO_LARGE", err.message);
+    }
     if (err instanceof Error && HANGUL.test(err.message)) {
       throw err;
     }
@@ -76,15 +81,16 @@ async function parseZipAsHwpx(
   data: Uint8Array,
   options: ParseOptions,
 ): Promise<ParseResult> {
-  const names: Array<string> = [];
+  // HWPX 패키지 목록과 **같은 항목 수 상한**으로 읽는다 — 예전엔 상한 없이 세어,
+  // zip64 끝 레코드가 항목 0xFFFFFFFF 개라고 적은 102바이트 .hwp 가 40초를 썼다
+  // (리뷰 지적 #9). 상한 초과(HwpxLimitError)는 TOO_LARGE 로 옮긴다.
+  let names: Array<string>;
   try {
-    unzipSync(data, {
-      filter: (file) => {
-        names.push(file.name);
-        return false;
-      },
-    });
-  } catch {
+    names = listEntries(data).map((entry) => entry.name);
+  } catch (err) {
+    if (err instanceof HwpxLimitError) {
+      throw new HwpConversionError("TOO_LARGE", err.message);
+    }
     throw new HwpConversionError("CORRUPTED", "ZIP 구조를 읽을 수 없습니다");
   }
   if (!names.some((name) => name.toLowerCase().startsWith("contents/"))) {
@@ -96,6 +102,9 @@ async function parseZipAsHwpx(
   try {
     return await new HwpxParser().parseBytes(data, options);
   } catch (err) {
+    if (err instanceof HwpxLimitError) {
+      throw new HwpConversionError("TOO_LARGE", err.message);
+    }
     throw new HwpConversionError(
       "CORRUPTED",
       koreanLead(err) ?? "HWPX 내용을 해석할 수 없습니다",

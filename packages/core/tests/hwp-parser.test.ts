@@ -330,6 +330,30 @@ describe("HwpParser — HWPX 를 .hwp 로 저장한 파일", () => {
     expect(code).toBe("UNSUPPORTED");
     expect(message).toContain("HWPX 가 아닌 ZIP");
   });
+
+  it("zip64 가 항목 0xFFFFFFFF 개라고 적은 102바이트 .hwp 는 빠르게 거부한다 (리뷰 #9)", async () => {
+    // 예전엔 항목 수 상한이 없어 40초를 썼다. HWPX 목록과 같은 상한을 쓴다.
+    const buf = new Uint8Array(4 + 56 + 20 + 22);
+    const v = new DataView(buf.buffer);
+    v.setUint32(0, 0x04034b50, true); // PK\x03\x04
+    const ze = 4;
+    v.setUint32(ze, 0x06064b50, true); // zip64 끝 레코드
+    v.setUint32(ze + 32, 0xffffffff, true); // 항목 수 = 0xFFFFFFFF
+    const loc = ze + 56;
+    v.setUint32(loc, 0x07064b50, true); // zip64 끝 로케이터
+    v.setUint32(loc + 8, ze, true);
+    const e = loc + 20;
+    v.setUint32(e, 0x06054b50, true); // EOCD
+    v.setUint16(e + 8, 0xffff, true);
+    v.setUint32(e + 16, 0xffffffff, true);
+
+    const start = performance.now();
+    const { code } = await parseError("zip64거짓.hwp", buf);
+    const elapsed = performance.now() - start;
+
+    expect(code).toBe("TOO_LARGE");
+    expect(elapsed).toBeLessThan(2000);
+  });
 });
 
 describe("HwpParser — 한글 문서가 아닌 입력", () => {

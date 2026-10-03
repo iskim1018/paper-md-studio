@@ -1,5 +1,5 @@
 import { basename, extname } from "node:path";
-import { HwpConversionError } from "@paper-md-studio/core";
+import { HwpConversionError, HwpxLimitError } from "@paper-md-studio/core";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { ConvertCache } from "../cache/index.js";
@@ -441,6 +441,11 @@ function isFileTooLargeError(err: unknown): boolean {
  */
 function conversionErrorStatus(err: unknown): 422 | 500 {
   if (err instanceof HwpConversionError && err.code !== "CONVERSION_FAILED") {
+    return 422;
+  }
+  // HWPX 자원 상한 초과(.hwpx 직접 경로)도 입력 탓이라 422 — .hwp 경로는 core 가
+  // 이미 HwpConversionError('TOO_LARGE') 로 옮긴다.
+  if (err instanceof HwpxLimitError) {
     return 422;
   }
   return 500;
