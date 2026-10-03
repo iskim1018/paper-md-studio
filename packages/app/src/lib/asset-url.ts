@@ -26,7 +26,7 @@ function getSeparator(filePath: string): "/" | "\\" {
 }
 
 /**
- * react-markdown(mdast→hast)이 URL을 percent-encoding한 상태로 넘기므로
+ * Markdown 파서(micromark)가 URL을 percent-encoding한 상태로 넘기므로
  * 절대 경로 조합 전에 한 번 디코드한다. 이걸 빠뜨리면 한글 등 비ASCII 파일명이
  * `convertFileSrc`에서 다시 인코딩되어 `%25EB%25AC%25B8...`처럼 더블 인코딩되고,
  * asset 프로토콜이 파일을 찾지 못해 깨진 이미지(?)로 표시된다.

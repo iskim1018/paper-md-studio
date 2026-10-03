@@ -310,6 +310,9 @@ export function ResultPanel() {
       <div className="min-h-0 flex-1 overflow-hidden">
         {mode === "preview" && (
           <MarkdownPreview
+            // 파일마다 새로 만든다 — 재사용하면 새 결과가 오기 전까지 이전 파일
+            // 내용이 새 파일의 이미지 경로로 다시 붙고, 그 사이 이전 문서가 남는다
+            key={`preview-${selectedFile.id}`}
             markdown={displayedMarkdown}
             basePath={selectedFile.result.outputPath}
           />
@@ -355,6 +358,7 @@ export function ResultPanel() {
                 data-testid="split-preview"
               >
                 <MarkdownPreview
+                  key={`split-preview-${selectedFile.id}`}
                   markdown={displayedMarkdown}
                   basePath={selectedFile.result.outputPath}
                 />

@@ -11,10 +11,25 @@ import DOMPurify from "dompurify";
 const ALLOWED_URI_REGEXP =
   /^(?:(?:https?|data|blob):|[^a-z]|[a-z+.-]+(?:[^a-z+.\-:]|$))/i;
 
+const VIEWER_CONFIG = {
+  ADD_TAGS: ["img"],
+  ADD_ATTR: ["src", "alt"],
+  ALLOWED_URI_REGEXP,
+};
+
 export function sanitizeViewerHtml(html: string): string {
+  return DOMPurify.sanitize(html, VIEWER_CONFIG);
+}
+
+/**
+ * `sanitizeViewerHtml` 과 같은 규칙으로 정화하되 DOM 조각으로 돌려준다.
+ *
+ * 정화 결과를 다시 손볼 뷰어(엑셀 시트의 큰 표 묶음 등)는 문자열로 받으면
+ * 직렬화 → 재파싱을 한 번 더 치른다. 수 MB 문서에서는 그 자체가 수십~수백 ms다.
+ */
+export function sanitizeViewerHtmlToFragment(html: string): DocumentFragment {
   return DOMPurify.sanitize(html, {
-    ADD_TAGS: ["img"],
-    ADD_ATTR: ["src", "alt"],
-    ALLOWED_URI_REGEXP,
+    ...VIEWER_CONFIG,
+    RETURN_DOM_FRAGMENT: true,
   });
 }

@@ -138,7 +138,7 @@
   }
 }
 
-/* Markdown 프리뷰(react-markdown) + Milkdown WYSIWYG 공통 타이포그래피.
+/* Markdown 프리뷰(lib/markdown-html) + Milkdown WYSIWYG 공통 타이포그래피.
  * 보기/편집 모드 간 시각적 일관성을 위해 두 컨테이너에 같은 규칙을 적용.
  * Milkdown Crepe의 frame.css는 .ProseMirror에 기본 스타일을 넣으므로
  * 더 구체적인 selector(.milkdown-container .ProseMirror)로 override한다. */
@@ -383,6 +383,16 @@ summary {
   color: #000;
   outline: 1px solid rgba(255, 138, 0, 1);
 }
+/* 같은 표시의 CSS Custom Highlight API 판 (hooks/use-text-search.ts).
+   DOM 을 감싸지 않으므로 매치가 수만 개여도 가볍다. ::highlight 는 outline 을
+   못 쓰므로 활성 매치는 색 대비로만 구분한다 */
+::highlight(text-search-match) {
+  background-color: rgba(255, 213, 0, 0.45);
+}
+::highlight(text-search-match-active) {
+  background-color: rgba(255, 138, 0, 0.9);
+  color: #000;
+}
 
 /* 검색 하이라이트 오버레이 (HWPX SVG 뷰어) */
 .hwpx-search-overlay {
@@ -543,4 +553,47 @@ summary {
   );
   color: var(--color-muted);
   font-style: italic;
+}
+
+/* ─── 큰 표 행 묶음 (lib/dom-table-chunks · lib/markdown-html) ──────────
+   수천 행 표를 행 묶음마다 별도 <table> 로 나누고, 화면 밖 묶음은
+   content-visibility 로 배치·그리기를 건너뛴다. 묶음끼리 같은 열 폭을
+   쓰도록 colgroup 폭을 고정한다(table-layout: fixed). 묶음 상자의 폭은
+   인라인으로 표 폭과 맞춘다 — 상자가 좁으면 paint containment 에 잘린다. */
+.table-chunk {
+  content-visibility: auto;
+}
+.table-chunk > table {
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
+}
+/* 위 묶음의 아래 테두리와 이 묶음의 위 테두리가 겹치도록 1px 당긴다 */
+.table-chunk + .table-chunk {
+  margin-top: -1px;
+}
+/* 묶음 경계에서 잘린 병합 — 경계선을 지워 한 칸으로 이어 보이게 한다 */
+.table-chunk .table-span-open {
+  border-bottom-style: hidden;
+}
+.table-chunk .table-span-cont {
+  border-top-style: hidden;
+}
+
+.xlsx-preview .table-chunked {
+  margin-bottom: 0.5rem;
+}
+.xlsx-preview .table-chunk > table {
+  min-width: 0;
+}
+
+/* 미리보기 표는 표마다 가로 스크롤을 갖는데(display: block), 묶음으로
+   나누면 묶음마다 스크롤바가 생긴다 — 바깥 상자 하나가 맡는다 */
+.markdown-body .table-chunked {
+  margin: 0.8em 0;
+  overflow-x: auto;
+}
+.markdown-body .table-chunk > table {
+  display: table;
+  overflow: visible;
 }

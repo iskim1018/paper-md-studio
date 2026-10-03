@@ -69,7 +69,7 @@ test.describe("ResultPanel 에디터 모드", () => {
   }) => {
     const preview = page.locator('[data-testid="markdown-preview"]').first();
     await expect(preview).toBeVisible();
-    // react-markdown으로 h1이 렌더링되어야 함
+    // 미리보기(Worker 가 만든 HTML)에 h1이 렌더링되어야 함
     await expect(preview.locator("h1")).toContainText("테스트 문서");
   });
 
