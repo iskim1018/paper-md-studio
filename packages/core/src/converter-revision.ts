@@ -9,4 +9,4 @@
  * **변환 결과(markdown·이미지·경고)를 바꾸는 수정을 하면 올린다.** 형식은
  * 날짜이며, 같은 날 두 번 올리면 `.2` 를 붙인다.
  */
-export const CONVERTER_REVISION = "2026-10-03";
+export const CONVERTER_REVISION = "2026-10-03.2";
