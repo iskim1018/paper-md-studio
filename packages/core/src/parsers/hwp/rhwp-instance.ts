@@ -19,6 +19,12 @@
  * 1번당 인스턴스 하나만큼 남는다). 입력 상한(`inflate-guard.ts`)이 그 크기를 묶을
  * 뿐이고, 근본 해결은 rhwp 를 워커(worker_threads·자식 프로세스)로 격리해 큰 입력·
  * 트랩 뒤 워커째 버리는 것이다.
+ *
+ * **교체 횟수 상한**(`MAX_RHWP_REPLACEMENTS`): 교체는 버린 인스턴스의 메모리를
+ * 프로세스가 끝날 때까지 안고 가므로 무한정 둘 수 없다 — 트랩이 거듭된다는 것은
+ * 엔진이 이미 불안정하다는 신호다. 상한을 넘으면 새 인스턴스를 만드는 대신
+ * 한국어 오류로 빠르게 거부하고(서버·MCP 는 감독 프로세스가 재시작하도록), 입력
+ * 상한이 막는 알려진 트랩 경로 밖의 미지 트랩이 메모리를 조용히 갉아먹는 것을 막는다.
  */
 
 import { readFile } from "node:fs/promises";
@@ -31,6 +37,17 @@ export type RhwpModule = typeof import("@rhwp/core");
 const GLUE_SPECIFIER = "@rhwp/core";
 const WASM_SPECIFIER = "@rhwp/core/rhwp_bg.wasm";
 const requireHere = createRequire(import.meta.url);
+
+/**
+ * 프로세스 수명 동안 허용하는 인스턴스 교체 횟수. 넘으면 엔진이 불안정하다고
+ * 보고 거부한다 — 버린 인스턴스마다 WASM 메모리가 남으므로(실측: 256MB 쓴
+ * 인스턴스 4개가 GC 후에도 ≈1GB) 무한 교체는 메모리를 잠식한다. 3 은 일시적
+ * 불안정은 넘기되(교체 3번 안에 보통 복구된다) 트랩 폭주는 끊는 타협값이다.
+ */
+export const MAX_RHWP_REPLACEMENTS = 3;
+
+/** 지금까지의 인스턴스 교체 횟수 (버린 활성 인스턴스 수) */
+let replacementCount = 0;
 
 let nextGeneration = 0;
 // 프로세스 수명 동안 공유하는 캐시. 서버·MCP 같은 오래 사는 호스트에서는 이
@@ -65,6 +82,15 @@ async function initRhwp(generation: number): Promise<RhwpModule> {
 /** rhwp 모듈을 불러와 초기화한다. 동시 호출도 같은 초기화를 공유한다 */
 export function loadRhwp(): Promise<RhwpModule> {
   if (pending === null) {
+    if (replacementCount > MAX_RHWP_REPLACEMENTS) {
+      // 캐시하지 않는다 — 매 호출마다 같은 오류를 내 프로세스가 재시작될 때까지 거부한다
+      return Promise.reject(
+        new HwpConversionError(
+          "CONVERSION_FAILED",
+          `변환 엔진이 거듭 비정상 종료해(${replacementCount}회 교체) 불안정합니다. 서버·MCP 프로세스를 다시 시작해주세요`,
+        ),
+      );
+    }
     pending = initRhwp(nextGeneration++).catch((err: unknown) => {
       // 실패를 캐시하지 않는다 — 일시적 I/O 오류 뒤 재시도할 수 있게
       pending = null;
@@ -84,7 +110,13 @@ export function discardRhwp(rhwp: RhwpModule): void {
   if (current === rhwp) {
     current = null;
     pending = null;
+    replacementCount += 1;
   }
+}
+
+/** 교체 횟수를 초기화한다 — 테스트 전용(한 테스트가 독립 프로세스를 흉내 낸다) */
+export function resetRhwpReplacementCountForTest(): void {
+  replacementCount = 0;
 }
 
 /**
