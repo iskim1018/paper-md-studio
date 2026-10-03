@@ -37,15 +37,17 @@ export const MERGE_UP = "↑";
  * HTML 단계에서 미리 "\|"로 escape하면 turndown이 백슬래시를 한 번 더 escape해
  * "\\|"가 되어 여전히 깨진다(2026-08-08 실측). 그래서 turndown을 통과시킨 뒤
  * 마지막에 "\|"로 되돌린다. 한컴 PUA는 U+F0xx 대역이라 겹치지 않는다.
+ * 자체 HWPX 파서도 셀 글자에 같은 자리표시자를 쓴다 (`hwpx/inline-builder.ts`).
  */
-const PIPE_TOKEN = "";
+export const PIPE_TOKEN = "";
 
 /** 태그 바깥의 "|"만 자리표시자로 바꾼다 (img src 등 속성값은 건드리지 않음) */
 function protectPipes(html: string): string {
   return html.replace(/<[^>]+>|\|/g, (m) => (m === "|" ? PIPE_TOKEN : m));
 }
 
-function restorePipes(markdown: string): string {
+/** turndown을 통과한 Markdown의 자리표시자를 GFM 셀 escape("\\|")로 되돌린다 */
+export function restorePipes(markdown: string): string {
   return markdown.split(PIPE_TOKEN).join("\\|");
 }
 
