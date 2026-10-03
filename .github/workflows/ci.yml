@@ -44,6 +44,27 @@ jobs:
       - name: Security audit
         run: pnpm audit
 
+  sidecar-shim:
+    # Windows 사이드카 셰임(Rust PE 래퍼). 로컬 macOS 에서는 Windows 링크까지
+    # 확인할 수 없고, 릴리스 태그 전에는 아무도 돌리지 않던 테스트라 PR 마다 돌린다.
+    name: Sidecar shim (Windows)
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: packages/app/sidecar-shim
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
+
   e2e-dev:
     name: E2E (dev mode)
     runs-on: ubuntu-latest

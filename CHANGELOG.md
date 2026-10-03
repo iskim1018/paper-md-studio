@@ -86,9 +86,10 @@
 
 ### 참고
 
-- **0.6.x에서 올린 경우 남는 Java 런타임 폴더는 지워도 된다** — 예전 버전이
-  첫 실행 때 풀어 둔 Java 런타임(약 45MB)이 앱 데이터 폴더에 남는다. 이제 앱이
-  쓰지 않으며 자동으로 지우지는 않는다
+- **0.6.x에서 올린 경우 남은 Java 런타임 폴더는 자동으로 정리된다** — 예전
+  버전이 첫 실행 때 풀어 둔 Java 런타임(약 45MB)을 이제 앱이 쓰지 않으므로, 새
+  버전이 처음 변환할 때 백그라운드에서 한 번 지운다. 지워지지 않았다면 직접
+  지워도 된다
   - macOS: `~/Library/Application Support/com.paper-md-studio.app/jre` 폴더와
     같은 위치의 `jre.stamp`
   - Windows: `%LOCALAPPDATA%\com.paper-md-studio.app\jre` 폴더와 같은 위치의

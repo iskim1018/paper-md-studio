@@ -158,7 +158,9 @@ Tauri 앱  →  sidecar (macOS: sh 래퍼 / Windows: Rust PE 셰임)  →  bundl
 0.6.x 이하에서 업그레이드한 사용자 PC 에는 예전 사이드카가 첫 실행 때 풀어 둔 JRE 가
 앱 데이터 폴더에 남습니다 (macOS `~/Library/Application Support/com.paper-md-studio.app/jre`
 와 `jre.stamp`, Windows `%LOCALAPPDATA%\com.paper-md-studio.app\jre` 와 `jre.stamp`).
-지금의 사이드카는 이 폴더를 읽지도 지우지도 않으므로 지워도 됩니다.
+지금의 사이드카(macOS 래퍼·Windows 셰임)는 배포 모드로 실행될 때 이 폴더를
+백그라운드에서 한 번 지웁니다(실패해도 변환을 막지 않음). 0.8.0 이후 이 정리 코드는
+걷어내도 됩니다.
 
 ## 새 문서 포맷 추가하기
 
