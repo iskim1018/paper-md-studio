@@ -103,7 +103,7 @@ export function sanitizeDetail(raw: string): string | undefined {
 }
 
 /** `WebAssembly.RuntimeError` (core 의 lib 설정에는 WebAssembly 타입이 없어 이름으로 본다) */
-function isWasmRuntimeError(err: unknown): boolean {
+export function isWasmRuntimeError(err: unknown): boolean {
   return err instanceof Error && err.name === "RuntimeError";
 }
 
