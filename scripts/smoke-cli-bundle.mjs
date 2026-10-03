@@ -233,7 +233,12 @@ function runCase(testCase, cliPath, workDir, outDir) {
       encoding: "utf8",
       timeout: CLI_TIMEOUT_MS,
       // 상위 환경이 모듈 해석·실행 옵션을 바꾸지 못하게 한다
-      env: { ...process.env, NODE_PATH: "", NODE_OPTIONS: "" },
+      env: {
+        ...process.env,
+        NODE_PATH: "",
+        NODE_OPTIONS: "",
+        ...(testCase.env ?? {}),
+      },
     },
   );
   const fail = (reason) => {
@@ -320,6 +325,16 @@ async function main() {
         bytes: makePdf(),
         format: "pdf",
         expect: [PDF_TEXT],
+      },
+      {
+        // pdf-inspector 로드 실패 시의 대체 엔진(pdf2md + pdfjs 6). pdfjs 6 은
+        // Node 22.13+ 를 요구한다 — 번들 Node 가 뒤처지면 결과 없이 멈췄다(2026-10-03)
+        name: "pdf (대체 엔진 pdf2md·pdfjs)",
+        file: "smoke-legacy.pdf",
+        bytes: makePdf(),
+        format: "pdf",
+        expect: [PDF_TEXT],
+        env: { PAPER_MD_STUDIO_PDF_ENGINE: "legacy" },
       },
     ];
 

@@ -98,3 +98,12 @@ npm-debug.log*
 # (markdown·이미지·meta)이 그대로 쌓이므로 통째로 무시한다. 2026-08-09 에
 # 스모크 테스트가 만든 결과물이 `git add -A` 로 스테이징된 적이 있다.
 /.paper-md-storage/
+
+# 2026-10-03 Java(hwp2hwpx) 경로 제거 전의 로컬 빌드 산출물 — 다른 PC 에 남아 있으면
+# untracked 로 드러나 실수로 커밋될 수 있어 한 릴리스 주기 동안 계속 무시한다.
+# 0.8.0 이후 이 블록은 지워도 된다.
+**/src-tauri/resources/jre/
+**/src-tauri/resources/jre.tar.gz
+packages/app/src-tauri/resources/hwp-to-hwpx.jar
+tools/**/target/
+tools/**/dependency-reduced-pom.xml
