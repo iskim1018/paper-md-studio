@@ -146,10 +146,23 @@ function bulletMarker(rawChar: string): ParagraphMarker | null {
  */
 export class NumberingTracker {
   private readonly counters = new Map<string, Array<number>>();
+  private advanceCount = 0;
+  /** 마지막 진행 직전의 카운터 — `undoLast`가 되돌린다 */
+  private lastAdvance: {
+    readonly numberingId: string;
+    readonly before: ReadonlyArray<number>;
+  } | null = null;
+
+  /** 지금까지 진행한 횟수 — 문단 하나가 번호를 소비했는지 가리는 데 쓴다 */
+  get advances(): number {
+    return this.advanceCount;
+  }
 
   /** 카운터를 한 칸 진행하고 형식 문자열을 채운 머리를 돌려준다 */
   next(numberingId: string, level: number, def: NumberingDef): string {
     const counters = this.countersOf(numberingId);
+    this.lastAdvance = { numberingId, before: [...counters] };
+    this.advanceCount += 1;
     const head = def.get(level);
     const current = counters[level] ?? UNUSED;
     counters[level] = current === UNUSED ? (head?.start ?? 1) : current + 1;
@@ -166,6 +179,18 @@ export class NumberingTracker {
       const n = value === UNUSED ? (refHead?.start ?? 1) : value;
       return formatHeadNumber(n, refHead?.numFormat ?? "DIGIT");
     });
+  }
+
+  /**
+   * 마지막 진행을 되돌린다 — 변경 추적으로 통째로 지운 문단은 최종본에 없으므로
+   * 번호를 소비하지 않는다. 그 사이에 다른 진행이 없었을 때만 부른다.
+   */
+  undoLast(): void {
+    const last = this.lastAdvance;
+    if (!last) return;
+    this.counters.set(last.numberingId, [...last.before]);
+    this.lastAdvance = null;
+    this.advanceCount -= 1;
   }
 
   private countersOf(numberingId: string): Array<number> {

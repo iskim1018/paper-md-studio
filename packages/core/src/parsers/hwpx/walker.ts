@@ -22,6 +22,7 @@ import {
   type RunStyle,
 } from "./inline-builder.js";
 import { tokenizeRunText } from "./inline-tokens.js";
+import { type ParagraphMarker, resolveParagraphMarker } from "./numbering.js";
 import {
   attr,
   childNode,
@@ -72,6 +73,8 @@ class ParagraphWalker {
   private style: RunStyle = PLAIN_STYLE;
   /** 열린 필드 스택 — 하이퍼링크면 true */
   private readonly fields: Array<boolean> = [];
+  /** 삭제 구간이라 버린 내용이 있었는지 */
+  droppedDeleted = false;
 
   constructor(
     private readonly ctx: HwpxContext,
@@ -207,6 +210,7 @@ class ParagraphWalker {
   private dropIfDeleted(): boolean {
     if (!this.ctx.state.isDeleting) return false;
     this.builder.markDeleted();
+    this.droppedDeleted = true;
     return true;
   }
 
@@ -338,11 +342,42 @@ class ParagraphWalker {
   }
 }
 
-/** 문단 하나를 문서 순서대로 조각으로 나눈다 */
+/** 문단 머리와 문서 순서대로 나눈 조각 */
+export interface WalkedParagraph {
+  readonly marker: ParagraphMarker | null;
+  readonly segments: ReadonlyArray<Segment>;
+  /** 변경 추적으로 통째로 지운 문단 — 최종본에 없으므로 아무 흔적도 남기지 않는다 */
+  readonly deleted: boolean;
+}
+
+/**
+ * 문단 머리(번호·글머리표)를 정하고 문단을 문서 순서대로 조각으로 나눈다.
+ *
+ * 번호는 내용이 없는 문단에서도 하나 소비된다 (한글 화면과 같게) — 그래서
+ * 훑기 전에 정한다. 다만 내용 전체가 삭제 구간인 문단(안에서 지운 것이 있거나,
+ * 문단을 넘는 삭제 구간 한가운데 놓인 빈 문단)은 최종본에 없으므로 소비를
+ * 되돌린다 — 종전엔 다음 번호 문단이 "1. a / 3\. c"처럼 번호를 건너뛰었다.
+ * 지운 문단의 훑기는 아무것도 그리지 않으므로 그 사이 다른 번호 진행이 없다.
+ */
 export function walkParagraph(
   paragraph: XmlNode,
   ctx: HwpxContext,
   mode: WalkMode,
-): Array<Segment> {
-  return new ParagraphWalker(ctx, mode).walk(paragraph);
+): WalkedParagraph {
+  const advancesBefore = ctx.numbering.advances;
+  const marker = resolveParagraphMarker(
+    attr(paragraph, "paraPrIDRef"),
+    ctx.header,
+    ctx.numbering,
+    ctx.state.outlineNumberingId,
+  );
+  const deletingAtStart = ctx.state.isDeleting;
+  const walker = new ParagraphWalker(ctx, mode);
+  const segments = walker.walk(paragraph);
+  const deleted =
+    segments.length === 0 &&
+    (walker.droppedDeleted || (deletingAtStart && ctx.state.isDeleting));
+  if (!deleted) return { marker, segments, deleted };
+  if (ctx.numbering.advances === advancesBefore + 1) ctx.numbering.undoLast();
+  return { marker: null, segments, deleted };
 }

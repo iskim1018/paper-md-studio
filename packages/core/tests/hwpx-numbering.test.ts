@@ -127,6 +127,58 @@ describe.each(VARIANTS)("HWPX 문단 머리 (%s)", (_label, wrapSec, wrapHead) =
     expect(out).toBe("1. a\n\n3\\. c");
   });
 
+  describe("변경 추적으로 통째로 지운 문단 — 최종본에 없으므로 번호를 소비하지 않는다", () => {
+    /** 내용 전체가 삭제 구간인 문단 */
+    const deleted = (paraPr: string, text: string, style = "0") =>
+      `<p paraPrIDRef="${paraPr}" styleIDRef="${style}"><run><t><deleteBegin Id="1"/>${text}<deleteEnd Id="1"/></t></run></p>`;
+
+    it("지운 번호 문단 다음 번호가 이어진다", async () => {
+      // Act
+      const out = await md(
+        [p("10", "a"), deleted("10", "b"), p("10", "c")].join(""),
+      );
+
+      // Assert — 종전엔 "1. a\n\n3\\. c" (지운 문단이 2를 소비)
+      expect(out).toBe("1. a\n\n2. c");
+    });
+
+    it("문단을 넘는 삭제 구간 안의 문단도 번호를 소비하지 않는다", async () => {
+      const out = await md(
+        [
+          p("10", 'a<deleteBegin Id="1"/>'),
+          p("10", "b"),
+          p("10", ""),
+          p("10", '<deleteEnd Id="1"/>c'),
+        ].join(""),
+      );
+
+      expect(out).toBe("1. a\n\n2. c");
+    });
+
+    it("셀 안에서도 지운 번호 문단은 번호를 소비하지 않는다", async () => {
+      const result = await parseHwpx(
+        wrapSec(
+          tableSection([
+            [p("10", "a"), deleted("10", "b"), p("10", "c")].join(""),
+          ]),
+        ),
+        { headerXml: wrapHead(NUMBERING_HEADER) },
+      );
+
+      expect(result.markdown).toContain("| 1. a 2. c |");
+    });
+
+    it("지운 문단은 '나열' 목록을 끊지 않는다", async () => {
+      const out = await md(
+        [p("0", "가", "3"), deleted("0", "지움", "3"), p("0", "나", "3")].join(
+          "",
+        ),
+      );
+
+      expect(out).toMatch(/^- {1,3}가\n- {1,3}나$/);
+    });
+  });
+
   it("글머리표 문자를 붙이고 PUA는 표준 기호로 바꾼다", async () => {
     const out = await md(p("30", "점"));
 

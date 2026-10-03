@@ -7,7 +7,6 @@ import {
 import { captionOf } from "./controls.js";
 import { MAX_TABLE_COLS } from "./limits.js";
 import { withMarker } from "./marker.js";
-import { resolveParagraphMarker } from "./numbering.js";
 import { walkParagraph } from "./walker.js";
 import { attr, childNode, childNodes, type XmlNode } from "./xml.js";
 
@@ -34,17 +33,6 @@ interface CellPart {
   readonly value: string;
 }
 
-function paragraphMarker(paragraph: XmlNode, ctx: HwpxContext): string | null {
-  return (
-    resolveParagraphMarker(
-      attr(paragraph, "paraPrIDRef"),
-      ctx.header,
-      ctx.numbering,
-      ctx.state.outlineNumberingId,
-    )?.text ?? null
-  );
-}
-
 /**
  * 셀 안 문단 하나를 셀 조각들로 나눈다. 글자는 문서 순서대로 text 조각이 되고,
  * 중첩 표는 평탄화된 nested-table 조각, 글상자 문단은 같은 규칙으로 재귀한다.
@@ -55,9 +43,10 @@ function paragraphParts(
   mode: WalkMode,
   depth: number,
 ): Array<CellPart> {
-  let marker = paragraphMarker(paragraph, ctx);
+  const walked = walkParagraph(paragraph, ctx, mode);
+  let marker = walked.marker?.text ?? null;
   const parts: Array<CellPart> = [];
-  for (const segment of walkParagraph(paragraph, ctx, mode)) {
+  for (const segment of walked.segments) {
     if (segment.kind === "inline" || segment.kind === "image") {
       const value = withMarker(marker, segment.html, "cell");
       parts.push({ kind: "text", value });

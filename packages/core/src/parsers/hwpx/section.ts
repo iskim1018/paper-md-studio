@@ -11,7 +11,7 @@ import {
   orderedMarker,
   withMarker,
 } from "./marker.js";
-import { type ParagraphMarker, resolveParagraphMarker } from "./numbering.js";
+import type { ParagraphMarker } from "./numbering.js";
 import { renderTableHtml } from "./table.js";
 import { type Segment, walkParagraph } from "./walker.js";
 import { attr, childNodes, isXmlNode, type XmlNode } from "./xml.js";
@@ -172,17 +172,14 @@ function writeParagraph(
     heading: headingLevel(styleName),
     list: LIST_PATTERN.test(styleName),
   };
-  // 번호는 내용이 없는 문단에서도 하나 소비된다 — 그래서 먼저 해석한다
-  let marker = resolveParagraphMarker(
-    attr(paragraph, "paraPrIDRef"),
-    ctx.header,
-    ctx.numbering,
-    ctx.state.outlineNumberingId,
-  );
-  const segments = walkParagraph(paragraph, ctx, {
+  const walked = walkParagraph(paragraph, ctx, {
     ...mode,
     inHeading: kind.heading !== null,
   });
+  // 지운 문단은 최종본에 없다 — 목록도 끊지 않는다 (빈 문단은 한글 화면처럼 끊는다)
+  if (walked.deleted) return;
+  const { segments } = walked;
+  let marker = walked.marker;
   if (segments.length === 0) {
     writer.closeList();
     return;
