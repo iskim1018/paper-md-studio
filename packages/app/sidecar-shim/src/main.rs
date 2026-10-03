@@ -8,6 +8,7 @@
 //!   1. 배포 모드: `resources/node/node.exe resources/cli/index.js <args>` 실행.
 //!   2. 개발 모드: `git rev-parse --show-toplevel` 로 모노레포 루트 찾고
 //!      `node packages/cli/dist/index.js <args>` 실행.
+//!   3. 배포 모드에서 0.6.x 가 남긴 JRE 를 백그라운드로 정리 (`legacy_jre`, 0.8.0 이후 제거).
 //!
 //! stdio 는 모두 inherit, 자식 exit code 를 그대로 전파한다.
 
@@ -17,6 +18,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
 use anyhow::{Context, Result, anyhow};
+
+mod legacy_jre;
 
 fn main() -> ExitCode {
     let argv: Vec<OsString> = env::args_os().skip(1).collect();
@@ -45,6 +48,8 @@ fn run(argv: &[OsString]) -> Result<i32> {
         let bundled_node = res.join("node").join("node.exe");
         let bundled_cli = res.join("cli").join("index.js");
         if bundled_node.is_file() && bundled_cli.is_file() {
+            // 0.8.0 이후 제거. 설치본에서만 돈다 — 개발 실행이 같은 PC 의 설치 데이터를 건드리지 않게.
+            legacy_jre::spawn_cleanup();
             return spawn(&bundled_node, &[bundled_cli.as_os_str().into()], argv);
         }
     }

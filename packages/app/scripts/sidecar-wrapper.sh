@@ -21,10 +21,35 @@ else
   RESOURCES_DIR="$SCRIPT_DIR/../resources"
 fi
 
+# === 0.6.x 이하가 앱 데이터에 풀어 둔 JRE 정리 — 0.8.0 이후 제거 ===
+# 0.6.x 까지 이 래퍼는 번들 jre.tar.gz 를 아래 폴더의 jre/ 에 풀고 jre.stamp 를
+# 남겼다. 0.7.0 에서 Java 경로가 사라져 아무도 읽지 않지만, 업데이터는 .app 만
+# 바꾸므로 약 45MB 가 그대로 남는다. 같은 폴더에 다른 앱 데이터가 있어 jre/ 와
+# jre.stamp 두 항목만, 그것도 실제 디렉토리·파일일 때만 지운다 (심볼릭 링크는
+# 0.6.x 가 만든 것이 아니다). 변환을 막지 않게 백그라운드로 돌리되 출력을
+# 끊어 Tauri 가 sidecar 출력이 닫히기를 기다리지 않게 하고, 실패는 무시한다 —
+# 지우다 만 것은 다음 실행에서 이어서 지운다. Windows 는 shim 의 legacy_jre.rs.
+cleanup_legacy_jre() {
+  # HOME 이 비었거나 상대경로면 엉뚱한 곳을 가리킬 수 있으므로 건너뛴다
+  case "$HOME" in
+    /*) ;;
+    *) return 0 ;;
+  esac
+  LEGACY_DATA_DIR="$HOME/Library/Application Support/com.paper-md-studio.app"
+  if [ -d "$LEGACY_DATA_DIR/jre" ] && [ ! -L "$LEGACY_DATA_DIR/jre" ]; then
+    rm -rf "$LEGACY_DATA_DIR/jre" >/dev/null 2>&1 &
+  fi
+  if [ -f "$LEGACY_DATA_DIR/jre.stamp" ] && [ ! -L "$LEGACY_DATA_DIR/jre.stamp" ]; then
+    rm -f "$LEGACY_DATA_DIR/jre.stamp" >/dev/null 2>&1 &
+  fi
+}
+
 # === 배포 모드: 번들된 node + CLI로 바로 실행 ===
 BUNDLED_NODE="$RESOURCES_DIR/node/bin/node"
 BUNDLED_CLI="$RESOURCES_DIR/cli/index.js"
 if [ -x "$BUNDLED_NODE" ] && [ -f "$BUNDLED_CLI" ]; then
+  # 설치본에서만 돈다 — 개발 실행이 같은 PC 의 설치 데이터를 건드리지 않게
+  cleanup_legacy_jre
   exec "$BUNDLED_NODE" "$BUNDLED_CLI" "$@"
 fi
 
