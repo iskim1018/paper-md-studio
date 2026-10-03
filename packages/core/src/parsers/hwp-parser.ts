@@ -35,6 +35,30 @@ export function resolveHwp5Engine(
   return env[HWP_ENGINE_ENV] === "java" ? "java" : "rhwp";
 }
 
+const HANGUL = /[가-힣]/;
+
+/**
+ * HwpxParser 실행. .hwp 경로에서 나가는 오류는 모두 한국어 메시지의 Error
+ * 여야 하므로, 한국어가 아닌 오류(zip·XML 라이브러리 문구 등)는 감싼다.
+ */
+async function runHwpxParser(
+  path: string,
+  options: ParseOptions,
+): Promise<ParseResult> {
+  try {
+    return await new HwpxParser().parse(path, options);
+  } catch (err) {
+    if (err instanceof Error && HANGUL.test(err.message)) {
+      throw err;
+    }
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new HwpConversionError(
+      "CONVERSION_FAILED",
+      `HWPX 해석 실패: ${detail}`,
+    );
+  }
+}
+
 /**
  * rhwp 가 내보낸 HWPX 를 HwpxParser 로 읽는다.
  * HwpxParser 가 바이트 입력(parseBytes)을 받게 되면 임시 파일 없이 이 함수만 바꾼다.
@@ -47,7 +71,7 @@ async function parseHwpxBytes(
   try {
     const tmpPath = join(tmpDir, "document.hwpx");
     await writeFile(tmpPath, hwpx);
-    return await new HwpxParser().parse(tmpPath, options);
+    return await runHwpxParser(tmpPath, options);
   } finally {
     await rm(tmpDir, { recursive: true, force: true });
   }
@@ -102,7 +126,7 @@ async function parseZipAsHwpx(
       "HWPX 가 아닌 ZIP 문서(DOCX·XLSX 등)입니다. 확장자를 확인해주세요",
     );
   }
-  return await new HwpxParser().parse(inputPath, options);
+  return await runHwpxParser(inputPath, options);
 }
 
 /** 보안 컨테이너 머리말 판별에 넘길 앞부분 크기 */

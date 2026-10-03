@@ -12,10 +12,12 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import { MERGE_LEFT } from "../src/parsers/html-tables-to-gfm.js";
 import { convertWithRhwp } from "../src/parsers/hwp/rhwp-loader.js";
 import { HwpParser, resolveHwp5Engine } from "../src/parsers/hwp-parser.js";
+import { HwpxParser } from "../src/parsers/hwpx-parser.js";
 import { convert } from "../src/pipeline.js";
 import {
   buildCfb,
@@ -402,6 +404,32 @@ describe("HwpParser — 한글 문서가 아닌 입력", () => {
     wrapper.set(new TextEncoder().encode("SCDSA002"));
 
     expect((await parseError("보안.hwp", wrapper)).code).toBe("DRM_PROTECTED");
+  });
+});
+
+describe("HwpParser — HWPX 해석 단계 오류", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("한국어가 아닌 파서 오류는 한국어 메시지로 감싼다", async () => {
+    vi.spyOn(HwpxParser.prototype, "parse").mockRejectedValue(
+      new Error("invalid zip data"),
+    );
+    const hwp = await createHwp5("감싸기");
+
+    const { code, message } = await parseError("감싸기.hwp", hwp);
+
+    expect(code).toBe("CONVERSION_FAILED");
+    expect(message).toContain("HWPX 해석 실패: invalid zip data");
+  });
+
+  it("이미 한국어인 파서 오류는 그대로 둔다", async () => {
+    const original = new Error("암호화된 HWPX 입니다.");
+    vi.spyOn(HwpxParser.prototype, "parse").mockRejectedValue(original);
+    const hwp = await createHwp5("그대로");
+
+    await expect(parseBytes("그대로.hwp", hwp)).rejects.toBe(original);
   });
 });
 

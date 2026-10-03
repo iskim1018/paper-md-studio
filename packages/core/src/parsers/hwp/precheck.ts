@@ -47,8 +47,23 @@ const UNCOMPRESSED_STREAMS: ReadonlySet<string> = new Set([
 export const TRACK_CHANGES_WARNING =
   "변경 추적이 켜진 문서입니다. 삭제 표시된 내용이 본문에 섞여 나올 수 있습니다.";
 
-/** 컨테이너의 스트림을 "bodytext/section0" 같은 소문자 상대 경로로 모은다 */
-function readStreams(data: Uint8Array): Map<string, Uint8Array> {
+interface HwpStream {
+  /** "bodytext/section0" 같은 소문자 상대 경로 */
+  readonly path: string;
+  readonly data: Uint8Array;
+}
+
+function toBytes(content: unknown): Uint8Array {
+  return content instanceof Uint8Array
+    ? content
+    : Uint8Array.from(content as ArrayLike<number>);
+}
+
+/**
+ * 컨테이너의 스트림을 모은다. 대소문자만 다른 같은 경로가 둘이면 손상으로
+ * 본다 — 정상 문서엔 없고, 엔진이 우리가 검사하지 않은 쪽을 읽을 수 있다.
+ */
+function readStreams(data: Uint8Array): Array<HwpStream> {
   let container: ReturnType<typeof CFB.read>;
   try {
     const buffer = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
@@ -56,30 +71,38 @@ function readStreams(data: Uint8Array): Map<string, Uint8Array> {
   } catch {
     throw new HwpConversionError("CORRUPTED", "OLE2 컨테이너를 열 수 없습니다");
   }
-  const streams = new Map<string, Uint8Array>();
-  container.FileIndex.forEach((entry, i) => {
+  const streams = container.FileIndex.flatMap((entry, i) => {
     const fullPath = container.FullPaths[i];
     if (entry.type !== 2 || !entry.content || fullPath === undefined) {
-      return;
+      return [];
     }
-    const relative = fullPath.slice(fullPath.indexOf("/") + 1).toLowerCase();
-    const content =
-      entry.content instanceof Uint8Array
-        ? entry.content
-        : Uint8Array.from(entry.content as ArrayLike<number>);
-    streams.set(relative, content);
+    const path = fullPath.slice(fullPath.indexOf("/") + 1).toLowerCase();
+    return [{ path, data: toBytes(entry.content) }];
   });
+  if (new Set(streams.map(({ path }) => path)).size !== streams.length) {
+    throw new HwpConversionError(
+      "CORRUPTED",
+      "같은 이름의 스트림이 중복됩니다",
+    );
+  }
   return streams;
+}
+
+function findStream(
+  streams: ReadonlyArray<HwpStream>,
+  path: string,
+): Uint8Array | undefined {
+  return streams.find((stream) => stream.path === path)?.data;
 }
 
 function readAscii(data: Uint8Array, length: number): string {
   return String.fromCharCode(...data.subarray(0, length));
 }
 
-function readHeaderFlags(streams: Map<string, Uint8Array>): number {
-  const header = streams.get("fileheader");
+function readHeaderFlags(streams: ReadonlyArray<HwpStream>): number {
+  const header = findStream(streams, "fileheader");
   if (!header) {
-    if (streams.has("workbook") || streams.has("book")) {
+    if (findStream(streams, "workbook") || findStream(streams, "book")) {
       throw new HwpConversionError("XLS_MISNAMED");
     }
     throw new HwpConversionError("CORRUPTED", "FileHeader 스트림이 없습니다");
@@ -116,11 +139,11 @@ function isRecordStream(path: string): boolean {
  * 배포용 문서의 ViewText 는 엔진처럼 복호화한 뒤 잰다.
  */
 function inflateCandidates(
-  streams: Map<string, Uint8Array>,
+  streams: ReadonlyArray<HwpStream>,
   flags: number,
 ): Array<InflateCandidate> {
   const isDistribution = (flags & FLAG.distribution) !== 0;
-  return [...streams.entries()].flatMap(([path, raw]) => {
+  return streams.flatMap(({ path, data: raw }) => {
     if (UNCOMPRESSED_STREAMS.has(path)) {
       return [];
     }

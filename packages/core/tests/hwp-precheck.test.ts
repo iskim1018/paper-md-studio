@@ -9,6 +9,7 @@ import {
   precheckHwp5,
 } from "../src/parsers/hwp/precheck.js";
 import {
+  appendDuplicateStream,
   buildCfb,
   buildHwp3,
   createEncryptedHwp5,
@@ -72,6 +73,17 @@ describe("precheckHwp5 — 컨테이너·헤더", () => {
     const other = buildCfb({ Something: new Uint8Array(64) });
 
     expect(codeOf(() => precheckHwp5(other))).toBe("CORRUPTED");
+  });
+
+  it("대소문자만 다른 같은 경로의 스트림이 둘이면 손상 — 엔진이 검사 안 한 쪽을 읽을 수 있다", () => {
+    const duplicated = appendDuplicateStream(
+      plain,
+      "BodyText/Section0",
+      "SECTION0",
+      deflateBomb(1),
+    );
+
+    expect(codeOf(() => precheckHwp5(duplicated))).toBe("CORRUPTED");
   });
 
   it("FileHeader 시그니처가 다르면 손상", () => {

@@ -112,6 +112,36 @@ export function replaceHwp5Stream(
   return replaceStream(readContainer(data), path, content);
 }
 
+/**
+ * 기존 스트림 옆에 대소문자만 다른 이름의 스트림을 하나 더 넣는다 (중복 스트림
+ * 공격 흉내). cfb_add 는 대소문자를 무시해 덮어쓰므로 목록에 직접 넣는다.
+ */
+export function appendDuplicateStream(
+  data: Uint8Array,
+  existingPath: string,
+  duplicateName: string,
+  content: Uint8Array,
+): Uint8Array {
+  const container = readContainer(data);
+  const index = container.FullPaths.findIndex((p) => p.endsWith(existingPath));
+  const entry = container.FileIndex[index];
+  const fullPath = container.FullPaths[index];
+  if (!entry || fullPath === undefined) {
+    throw new Error(`스트림 없음: ${existingPath}`);
+  }
+  const name = entry.name;
+  container.FileIndex.push({
+    ...entry,
+    name: duplicateName,
+    content: Buffer.from(content),
+    size: content.length,
+  });
+  container.FullPaths.push(
+    `${fullPath.slice(0, fullPath.length - name.length)}${duplicateName}`,
+  );
+  return writeContainer(container);
+}
+
 /** 주어진 스트림들만 담은 OLE2 (예: FileHeader 없는 .xls 흉내) */
 export function buildCfb(streams: Record<string, Uint8Array>): Uint8Array {
   const container = CFB.utils.cfb_new();
