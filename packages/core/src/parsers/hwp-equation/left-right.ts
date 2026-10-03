@@ -6,7 +6,15 @@
  * 수식 전체가 렌더링 오류가 된다. 짝 없는 쪽은 크기 지정만 버리고 구분자
  * 글자는 남기며, 구분자가 빠진 쪽에는 빈 구분자 `.` 를 넣는다.
  */
-import { type EqToken, isClose, isOpen, isValue, makeToken } from "./tokens.js";
+import { MEMO_KIND } from "./token-memo.js";
+import {
+  type EqToken,
+  isClose,
+  isOpen,
+  isValue,
+  makeToken,
+  matchForward,
+} from "./tokens.js";
 
 const DELIMITERS: ReadonlySet<string> = new Set([
   "(",
@@ -98,16 +106,19 @@ export function balanceLeftRight(
   return balanced;
 }
 
-/** `\left` 위치에서 짝인 `\right` 의 인덱스. 없으면 -1 */
+function isLeft(token: EqToken | undefined): boolean {
+  return isValue(token, "\\left");
+}
+
+function isRight(token: EqToken | undefined): boolean {
+  return isValue(token, "\\right");
+}
+
+/** `\left` 위치에서 짝인 `\right` 의 인덱스. 없으면 -1 (찾은 짝은 배열별로 기억) */
 export function findMatchingRight(
   tokens: ReadonlyArray<EqToken>,
   left: number,
 ): number {
-  let depth = 0;
-  for (let i = left; i < tokens.length; i += 1) {
-    if (isValue(tokens[i], "\\left")) depth += 1;
-    else if (isValue(tokens[i], "\\right")) depth -= 1;
-    if (depth === 0) return i;
-  }
-  return -1;
+  if (!isLeft(tokens[left])) return -1;
+  return matchForward(tokens, left, MEMO_KIND.sizer, isLeft, isRight);
 }

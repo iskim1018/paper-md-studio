@@ -7,6 +7,7 @@
  * 붙여 쓴 연산자, 글꼴 지시자)를 hml-equation-parser(Apache-2.0,
  * Copyright 2018 Open Bapul) 계열 치환표가 알아듣는 꼴로 접는다.
  * rhwp 는 HWP5 스크립트를 <hp:script> 에 그대로 옮기므로 HWPX 경로에도 필요하다.
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)):
  * - 정규식 문자열 치환 대신 토큰 단위로 적용 — 따옴표 리터럴 안의 글자가

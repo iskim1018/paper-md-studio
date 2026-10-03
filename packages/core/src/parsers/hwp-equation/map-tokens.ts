@@ -4,6 +4,7 @@
  * 출처: kordoc 4.7.2 `src/hwpx/equation.ts` 의 hmlToLatex 토큰 루프와
  * replaceBracket (MIT, Copyright (c) 2026 chrisryugj) — 그 원본은
  * hml-equation-parser `hulkEqParser.py` (Apache-2.0, Copyright 2018 Open Bapul).
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)):
  * - `\left {` 를 `\left \{` 대신 `\left\lbrace` 로 — 이스케이프된 중괄호가

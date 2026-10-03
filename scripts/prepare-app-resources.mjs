@@ -72,6 +72,19 @@ function main() {
   if (existsSync(cliBundleDest)) rmSync(cliBundleDest, { force: true });
   copyFileSync(cliBundleSrc, cliBundleDest);
 
+  // 서드파티 라이선스 고지 — 번들에 인라인한 코드(수식 변환기의 kordoc MIT·
+  // hml-equation-parser Apache-2.0 등)의 전문. minify 된 번들에는 `@license`
+  // 주석의 저작권 줄만 남으므로 전문은 이 파일로 앱에 함께 싣는다.
+  const noticesSrc = join(dirname(cliBundleSrc), "THIRD_PARTY_LICENSES.md");
+  assertExists(
+    noticesSrc,
+    "먼저 'pnpm build:cli-bundle'을 실행하세요 (bundle-runtime-deps.mjs 가 복사).",
+  );
+  copyFileSync(
+    noticesSrc,
+    join(dirname(cliBundleDest), "THIRD_PARTY_LICENSES.md"),
+  );
+
   // index.js를 ESM으로 로드하도록 sentinel package.json을 함께 배치
   writeFileSync(
     join(dirname(cliBundleDest), "package.json"),
@@ -106,6 +119,7 @@ function main() {
   console.log(`\n=== app/src-tauri/resources 구성 ===`);
   console.log(`  node/${process.platform === "win32" ? "node.exe" : "bin/node"}          (번들 Node 런타임)`);
   console.log(`  cli/index.js           (번들 CLI)`);
+  console.log(`  cli/THIRD_PARTY_LICENSES.md (서드파티 라이선스 고지)`);
   console.log(`\n이제 'pnpm --filter @paper-md-studio/app tauri build' 가능`);
 }
 

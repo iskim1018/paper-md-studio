@@ -12,6 +12,7 @@
  *   `hulkEqParser.py`·`hulkReplaceMethod.py`·`convertMap.json`
  *   (Apache License 2.0, Copyright 2018 Open Bapul). 업스트림 저장소에는
  *   NOTICE 파일이 없다 (2026-10-03 확인).
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)) — 각 파일 머리말에 자세히 적었다.
  * - TypeScript 토큰 배열 기반으로 다시 썼다 (원본은 문자열 인덱스 치환).
@@ -25,7 +26,10 @@
  * - 짝 없는 중괄호·`\left`·`\right`, 이중 첨자를 바로잡아 렌더러가 수식 전체를
  *   버리지 않게 한다 (2026-10-03 KaTeX 0.16.45 로 무작위 스크립트 60만 건 오류 0).
  * - 예외를 던지지 않는다 — 실패하면 null 을 돌려주고 호출측이 원문을 쓴다.
+ * - 작업량·중첩 한도(budget.ts)를 넘으면 변환하지 않는다 — 서버에서 수식
+ *   하나가 이벤트 루프를 막지 않게 (짝 없는 괄호를 쌓은 9,900자에 417초였다).
  */
+import { assertShallowEnough, runWithinBudget } from "./budget.js";
 import { separateDoubleScripts } from "./double-scripts.js";
 import { balanceLeftRight } from "./left-right.js";
 import { decodeXmlEntities, lex } from "./lexer.js";
@@ -43,6 +47,19 @@ import { balanceBraces, type EqToken } from "./tokens.js";
 
 /** 실물 수식은 길어야 수천 자다 — 이보다 길면 변환하지 않고 원문 폴백에 맡긴다 */
 const MAX_SCRIPT_LENGTH = 10_000;
+
+/**
+ * 토큰 방문 수 상한. 실물 모양으로 10,000자를 채운 스크립트(분수 520개, 행렬
+ * 속 분수, 극한·합 혼합)가 약 14만 걸음이다 (2026-10-03 실측) — 7배 남짓 둔다.
+ * 이 한도에서 멈추면 변환은 수십 ms 안에 끝난다.
+ */
+const MAX_STEPS = 1_000_000;
+
+/**
+ * 구조·재귀 중첩 깊이 상한. 실물 수식은 깊어야 수십 단계(연분수·중첩 첨자)다.
+ * 수천 단계면 콜 스택이 넘치고 단계마다 꼬리를 복사하는 패스가 O(n·깊이) 가 된다.
+ */
+const MAX_NESTING_DEPTH = 100;
 
 type Pass = (tokens: ReadonlyArray<EqToken>) => Array<EqToken>;
 
@@ -64,12 +81,16 @@ const PASSES: ReadonlyArray<Pass> = [
   balanceBraces,
 ];
 
+/** 각 패스 뒤에 깊이를 본다 — 다음 패스의 재귀가 그 깊이를 따른다 */
+function runPass(current: ReadonlyArray<EqToken>, pass: Pass): Array<EqToken> {
+  const next = pass(current);
+  assertShallowEnough(next);
+  return next;
+}
+
 function convert(script: string): string | null {
   const source = decodeXmlEntities(script.replace(/\0/g, ""));
-  const tokens = PASSES.reduce<ReadonlyArray<EqToken>>(
-    (current, pass) => pass(current),
-    lex(source),
-  );
+  const tokens = PASSES.reduce<ReadonlyArray<EqToken>>(runPass, lex(source));
   const latex = renderTokens(tokens);
   return hasVisibleContent(latex) ? latex : null;
 }
@@ -82,8 +103,11 @@ export function hwpEquationToLatex(script: string): string | null {
   if (typeof script !== "string") return null;
   if (script.trim() === "" || script.length > MAX_SCRIPT_LENGTH) return null;
   try {
-    return convert(script);
+    return runWithinBudget({ steps: MAX_STEPS, depth: MAX_NESTING_DEPTH }, () =>
+      convert(script),
+    );
   } catch {
+    // 결함·한도 초과 모두 null — 호출측이 원문을 코드로 남기고 경고한다
     return null;
   }
 }

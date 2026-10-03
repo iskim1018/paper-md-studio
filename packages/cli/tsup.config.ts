@@ -25,6 +25,14 @@ export default defineConfig((options) => {
       : undefined,
     external: ["playwright-core", "@firecrawl/pdf-inspector", "@rhwp/core"],
     minify: isBundle,
+    // 법적 주석(`@license`·`/*!`)을 번들 끝에 모은다. esbuild 의 번들 기본값과
+    // 같지만, 인라인한 파생 코드(core 의 hwp-equation: kordoc MIT·
+    // hml-equation-parser Apache-2.0)의 저작권 표기가 배포물에 남는 유일한
+    // 경로라 명시한다 — 기본값이 바뀌거나 옵션이 덮이면 고지가 조용히 사라진다.
+    // 라이선스 전문은 bundle-runtime-deps 가 THIRD_PARTY_LICENSES.md 를 옆에 둔다.
+    esbuildOptions(esbuild) {
+      esbuild.legalComments = "eof";
+    },
     outDir: isBundle ? "dist-bundle" : "dist",
     splitting: false,
     platform: "node",

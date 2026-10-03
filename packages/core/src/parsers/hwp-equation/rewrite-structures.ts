@@ -5,6 +5,7 @@
  * replaceAllBrace (MIT, Copyright (c) 2026 chrisryugj) — 그 원본은
  * hml-equation-parser `hulkReplaceMethod.py` 의 같은 이름 함수들
  * (Apache-2.0, Copyright 2018 Open Bapul).
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)):
  * - 인자 감싸기 패스 뒤라 모든 표식 뒤에 `{…}` 가 있다 — "첫 `{` 를 찾아
