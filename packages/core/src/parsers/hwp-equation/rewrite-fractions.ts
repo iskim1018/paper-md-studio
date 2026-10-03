@@ -12,7 +12,8 @@
  *   `a over bc` 가 `\frac{a} bc`(= a/b · c), `1 over sqrt {x}` 가 렌더링 오류가 됐다.
  * - 분자는 같은 그룹(또는 `\left…\right`) 안에서 over 바로 앞 항만 — kordoc 의
  *   "인접 분자" 수정(`sqrt {x} + 1 over 2` 의 ` + 1 ` 증발 방지)을 유지·일반화.
- *   맨 괄호 `(…)`·`[…]` 안의 over 도 그 안에서 찾는다 (numerator.ts).
+ *   맨 괄호 `(…)`·`[…]` 안의 over 도 그 안에서 찾는다 (numerator.ts). 감싸는
+ *   그룹은 앞 분수의 분모 안이면 그 분모다 (levels.ts).
  * - 연속 over 는 왼쪽부터 묶는다 (`a over b over c` = (a/b)/c). 원본은
  *   `\frac{a} \frac{b} {c}` 처럼 인자 없는 `\frac` 을 남겼다.
  * - `of` 는 root 의 지수 뒤에서만 찾고(kordoc 의 수정 유지), `of` 가 없으면
@@ -21,7 +22,14 @@
  */
 import { assertShallowEnough, spendSteps } from "./budget.js";
 import { argumentEnd, signedItemEnd } from "./items.js";
-import { afterRewrite, findNumerator, type WalkResume } from "./numerator.js";
+import {
+  advanceTo,
+  afterFraction,
+  innermost,
+  type LevelCursor,
+  START_CURSOR,
+} from "./levels.js";
+import { findNumerator } from "./numerator.js";
 import { MEMO_KIND, remember } from "./token-memo.js";
 import {
   type EqToken,
@@ -125,12 +133,14 @@ function atopSide(content: ReadonlyArray<EqToken>): Array<EqToken> {
 /** 재작성한 분수와, 아직 처리하지 않은 예약어가 남아 있을 수 있는 분모의 자리 */
 interface Rewritten {
   readonly tokens: Array<EqToken>;
-  readonly fractionLength: number;
   /** 분모 내용의 시작 — 분자 쪽에는 남은 예약어가 없다(왼쪽부터 처리) */
   readonly denominatorAt: number;
 }
 
-/** 새로 만든 중괄호의 짝을 새 배열에 미리 알려 둔다 — 다음 over 가 다시 훑지 않게 */
+/**
+ * 새로 만든 중괄호의 짝을 새 배열에 미리 알려 둔다 — 다음 over 의 커서
+ * (levels.ts)와 항 읽기가 분자·분모를 다시 훑지 않고 건너뛰게
+ */
 function rememberBraces(
   tokens: ReadonlyArray<EqToken>,
   offset: number,
@@ -189,7 +199,6 @@ function replaceFraction(
   rememberBraces(rewritten, start, fraction);
   return {
     tokens: rewritten,
-    fractionLength: fraction.length,
     // 분수 끝에서 분모 내용과 닫는 토큰을 거슬러 센다. 한 칸 앞(`{`·`\atop`)
     // 에서 시작해도 예약어가 아니라 무해하다 — 분모 첫 토큰을 건너뛰지 않게
     denominatorAt: start + fraction.length - 2 - denominator.length,
@@ -198,18 +207,21 @@ function replaceFraction(
 
 /**
  * 예약어를 왼쪽부터 하나씩 분수로 바꾼다 — 연속 over 는 왼쪽부터 묶인다.
- * 분자 탐색은 직전 탐색을 이어 쓰고(numerator.ts), 다음 예약어는 분모부터
- * 찾는다. 그래서 over 하나의 일은 그 주변에 비례한다 (배열 복사는 빼고).
+ * 감싸는 그룹은 앞으로만 가는 커서로 따라가고, 분자 탐색은 같은 그룹의 직전
+ * 탐색을 이어 쓰며(levels.ts·numerator.ts), 다음 예약어는 분모부터 찾는다.
+ * 그래서 over 하나의 일은 그 주변에 비례한다 (배열 복사는 빼고).
  */
 export function rewriteFractions(tokens: Tokens): Array<EqToken> {
   const keywords = new Set(["over", "atop"]);
   let current: Array<EqToken> = [...tokens];
-  let previous: WalkResume | null = null;
+  let cursor: LevelCursor = START_CURSOR;
   for (let at = findKeyword(current, keywords, 0); at >= 0; ) {
-    const walk = findNumerator(current, at, previous);
+    cursor = advanceTo(current, cursor, at);
+    const level = innermost(cursor);
+    const walk = findNumerator(current, at, level.inside, level.walk);
     const next = replaceFraction(current, at, walk.start);
     const delta = next.tokens.length - current.length;
-    previous = afterRewrite(walk, delta, next.fractionLength);
+    cursor = afterFraction(cursor, walk, delta);
     current = next.tokens;
     at = findKeyword(current, keywords, next.denominatorAt);
   }

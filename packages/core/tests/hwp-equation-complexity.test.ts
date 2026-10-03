@@ -111,6 +111,32 @@ describe("hwpEquationToLatex — 적대적 입력의 작업량", () => {
     ]);
   });
 
+  /**
+   * 분모 안에 over 가 하나 더 있는 분수를 잇는다. 바깥 over 마다 분자를 찾으려
+   * 스크립트 맨 앞까지 다시 훑어 작업량이 반복 수의 제곱으로 늘었고, 10,000자
+   * 가까이에서 작업량 한도에 걸려 수식 전체가 원문 코드로 빠졌다 (null).
+   */
+  it.each([
+    ["중괄호 분모", "a over {b + c over d} + ", "\\frac{a}{b + \\frac{c}{d}}"],
+    [
+      "소괄호 분모",
+      "a over (b + c over d) + ",
+      "\\frac{a}{(b + \\frac{c}{d})}",
+    ],
+  ])("분모 안 분수를 품은 분수 416개(%s)도 100ms 안에 끝까지 변환한다", (_title, unit, fraction) => {
+    // Arrange
+    const script = unit.repeat(416);
+
+    // Act
+    const { result, elapsed } = timed(script);
+
+    // Assert
+    expect(script.length).toBeLessThanOrEqual(10_000);
+    const expected = Array.from({ length: 416 }, () => fraction).join(" + ");
+    expect(result).toBe(`${expected} +`);
+    expect(elapsed).toBeLessThan(100);
+  });
+
   it("분수가 많은 긴 스크립트(약 10,000자)도 변환한다", () => {
     // Arrange: 서로 독립인 분수 700여 개 — 길지만 모양은 실물과 같다
     const script = "{a_1} over {b^2} + ".repeat(520);
