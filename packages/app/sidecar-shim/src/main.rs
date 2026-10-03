@@ -8,6 +8,7 @@
 //!   1. 배포 모드: `resources/node/node.exe resources/cli/index.js <args>` 실행.
 //!   2. 개발 모드: `git rev-parse --show-toplevel` 로 모노레포 루트 찾고
 //!      `node packages/cli/dist/index.js <args>` 실행.
+//!   3. 배포 모드에서 0.6.x 가 남긴 JRE 를 백그라운드로 정리 (`legacy_jre`, 0.8.0 이후 제거).
 //!
 //! stdio 는 모두 inherit, 자식 exit code 를 그대로 전파한다.
 
@@ -17,6 +18,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
 use anyhow::{Context, Result, anyhow};
+
+mod legacy_jre;
 
 fn main() -> ExitCode {
     let argv: Vec<OsString> = env::args_os().skip(1).collect();
@@ -45,6 +48,8 @@ fn run(argv: &[OsString]) -> Result<i32> {
         let bundled_node = res.join("node").join("node.exe");
         let bundled_cli = res.join("cli").join("index.js");
         if bundled_node.is_file() && bundled_cli.is_file() {
+            // 0.8.0 이후 제거. 설치본에서만 돈다 — 개발 실행이 같은 PC 의 설치 데이터를 건드리지 않게.
+            legacy_jre::spawn_cleanup();
             return spawn(&bundled_node, &[bundled_cli.as_os_str().into()], argv);
         }
     }
@@ -143,13 +148,17 @@ fn clamp_u8(code: i32) -> u8 {
 }
 
 #[cfg(test)]
+mod test_support;
+
+#[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TempDir;
     use std::fs;
 
     #[test]
     fn locate_resources_prefers_sibling_dir() {
-        let tmp = tempdir();
+        let tmp = TempDir::new();
         let exe_dir = tmp.join("app");
         fs::create_dir_all(exe_dir.join("resources")).unwrap();
         fs::create_dir_all(tmp.join("resources")).unwrap();
@@ -159,7 +168,7 @@ mod tests {
 
     #[test]
     fn locate_resources_falls_back_to_parent_dir() {
-        let tmp = tempdir();
+        let tmp = TempDir::new();
         let exe_dir = tmp.join("app");
         fs::create_dir_all(&exe_dir).unwrap();
         fs::create_dir_all(tmp.join("resources")).unwrap();
@@ -172,11 +181,36 @@ mod tests {
 
     #[test]
     fn locate_resources_returns_none_without_resources() {
-        let tmp = tempdir();
+        let tmp = TempDir::new();
         let exe_dir = tmp.join("app");
         fs::create_dir_all(&exe_dir).unwrap();
 
         assert_eq!(locate_resources(&exe_dir), None);
+    }
+
+    /// 병렬 스레드(같은 pid)가 동시에 만들어도 임시 디렉토리가 겹치지 않아야 한다.
+    /// 겹치면 한 테스트가 만든 `resources/` 를 다른 테스트가 보고 실패한다.
+    #[test]
+    fn temp_dir_is_unique_across_parallel_threads() {
+        const THREADS: usize = 8;
+        const PER_THREAD: usize = 50;
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(THREADS));
+        let handles: Vec<_> = (0..THREADS)
+            .map(|_| {
+                let barrier = std::sync::Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    (0..PER_THREAD).map(|_| TempDir::new()).collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        let dirs: Vec<TempDir> = handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap())
+            .collect();
+        let unique: std::collections::HashSet<&Path> = dirs.iter().map(|d| &**d).collect();
+
+        assert_eq!(unique.len(), THREADS * PER_THREAD);
     }
 
     #[test]
@@ -186,21 +220,5 @@ mod tests {
         assert_eq!(clamp_u8(255), 255);
         assert_eq!(clamp_u8(256), 0);
         assert_eq!(clamp_u8(-1), 1);
-    }
-
-    fn tempdir() -> PathBuf {
-        let base = env::temp_dir().join(format!(
-            "paper-md-shim-test-{}",
-            std::process::id()
-        ));
-        let unique = base.join(format!(
-            "{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        fs::create_dir_all(&unique).unwrap();
-        unique
     }
 }
