@@ -32,6 +32,9 @@ patchedDependencies:
   micromark-extension-gfm-table@2.1.1:
     hash: 467c23698bb2fd0859b046a95f723d6e8fd28bef8dff51add9bd5b926c5834f2
     path: patches/micromark-extension-gfm-table@2.1.1.patch
+  turndown@7.2.4:
+    hash: 3467fa4ef24e71d011400d8b0095f40a09c4a797e5086c10634e1fe366cddb96
+    path: patches/turndown@7.2.4.patch
 
 importers:
 
@@ -263,7 +266,7 @@ importers:
         version: 1.12.0
       turndown:
         specifier: ^7.2.4
-        version: 7.2.4
+        version: 7.2.4(patch_hash=3467fa4ef24e71d011400d8b0095f40a09c4a797e5086c10634e1fe366cddb96)
       turndown-plugin-gfm:
         specifier: ^1.0.2
         version: 1.0.2
@@ -7738,7 +7741,7 @@ snapshots:
 
   turndown-plugin-gfm@1.0.2: {}
 
-  turndown@7.2.4:
+  turndown@7.2.4(patch_hash=3467fa4ef24e71d011400d8b0095f40a09c4a797e5086c10634e1fe366cddb96):
     dependencies:
       '@mixmark-io/domino': 2.2.0
 

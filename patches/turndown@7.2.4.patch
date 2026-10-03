@@ -1,0 +1,364 @@
+diff --git a/dist/turndown.js b/dist/turndown.js
+index 61f028ee58669d51e5fec439cfc05cf3a558629a..347e72cc4367b393b6975153ae5ab2312736533a 100644
+--- a/dist/turndown.js
++++ b/dist/turndown.js
+@@ -720,7 +720,12 @@ var TurndownService = (function () {
+ 
+   function process(parentNode) {
+     var self = this;
+-    return reduce.call(parentNode.childNodes, function (output, node) {
++    // [paper-md-studio 패치] 자식 출력을 조각 배열에 쌓는다. 원본은 자식마다
++    // join(output, replacement) 로 지금까지의 출력 전체를 다시 만들고,
++    // trimTrailingNewlines 가 이어 붙인(rope) 문자열을 매번 평탄화해 자식 수에
++    // 대해 O(n^2) 이었다 (문단 16만 개에 6.4초). 결과는 join 을 차례로 접은
++    // 것과 바이트 단위로 같다 — joinInto 참고.
++    var acc = reduce.call(parentNode.childNodes, function (acc, node) {
+       node = new Node(node, self.options);
+       var replacement = '';
+       if (node.nodeType === 3) {
+@@ -728,8 +733,31 @@ var TurndownService = (function () {
+       } else if (node.nodeType === 1) {
+         replacement = replacementForNode.call(self, node);
+       }
+-      return join(output, replacement);
+-    }, '');
++      return joinInto(acc, replacement);
++    }, { parts: [], trailing: '' });
++    return acc.parts.join('') + acc.trailing;
++  }
++
++  /**
++   * [paper-md-studio 패치] join 의 누적판.
++   *
++   * 출력은 "끝 줄바꿈이 없는 본문(parts) + 끝 줄바꿈(trailing)" 으로 나눠 둔다.
++   * join 은 본문 끝 줄바꿈과 다음 조각의 앞 줄바꿈 중 긴 쪽(최대 2개)을 사이에
++   * 두고 잇는다 — 본문은 다시 훑을 일이 없으니 배열에 쌓기만 하면 된다.
++   * 다음 조각이 줄바꿈뿐이거나 비면 본문은 그대로이고 끝 줄바꿈만 바뀐다.
++   */
++  function joinInto(acc, replacement) {
++    var s2 = trimLeadingNewlines(replacement);
++    var nls = Math.max(acc.trailing.length, replacement.length - s2.length);
++    var separator = '\n\n'.substring(0, nls);
++    if (!s2) {
++      acc.trailing = separator;
++      return acc;
++    }
++    var body = trimTrailingNewlines(s2);
++    acc.parts.push(separator, body);
++    acc.trailing = s2.substring(body.length);
++    return acc;
+   }
+ 
+   /**
+diff --git a/lib/turndown.browser.cjs.js b/lib/turndown.browser.cjs.js
+index bbfa7d1ce96f574b21bdd537af7c0224fd8105a0..4a0d1c5d6bd4f8a906d69d1407fd6b5baf485b6a 100644
+--- a/lib/turndown.browser.cjs.js
++++ b/lib/turndown.browser.cjs.js
+@@ -719,7 +719,12 @@ TurndownService.prototype = {
+ 
+ function process(parentNode) {
+   var self = this;
+-  return reduce.call(parentNode.childNodes, function (output, node) {
++  // [paper-md-studio 패치] 자식 출력을 조각 배열에 쌓는다. 원본은 자식마다
++  // join(output, replacement) 로 지금까지의 출력 전체를 다시 만들고,
++  // trimTrailingNewlines 가 이어 붙인(rope) 문자열을 매번 평탄화해 자식 수에
++  // 대해 O(n^2) 이었다 (문단 16만 개에 6.4초). 결과는 join 을 차례로 접은
++  // 것과 바이트 단위로 같다 — joinInto 참고.
++  var acc = reduce.call(parentNode.childNodes, function (acc, node) {
+     node = new Node(node, self.options);
+     var replacement = '';
+     if (node.nodeType === 3) {
+@@ -727,8 +732,31 @@ function process(parentNode) {
+     } else if (node.nodeType === 1) {
+       replacement = replacementForNode.call(self, node);
+     }
+-    return join(output, replacement);
+-  }, '');
++    return joinInto(acc, replacement);
++  }, { parts: [], trailing: '' });
++  return acc.parts.join('') + acc.trailing;
++}
++
++/**
++ * [paper-md-studio 패치] join 의 누적판.
++ *
++ * 출력은 "끝 줄바꿈이 없는 본문(parts) + 끝 줄바꿈(trailing)" 으로 나눠 둔다.
++ * join 은 본문 끝 줄바꿈과 다음 조각의 앞 줄바꿈 중 긴 쪽(최대 2개)을 사이에
++ * 두고 잇는다 — 본문은 다시 훑을 일이 없으니 배열에 쌓기만 하면 된다.
++ * 다음 조각이 줄바꿈뿐이거나 비면 본문은 그대로이고 끝 줄바꿈만 바뀐다.
++ */
++function joinInto(acc, replacement) {
++  var s2 = trimLeadingNewlines(replacement);
++  var nls = Math.max(acc.trailing.length, replacement.length - s2.length);
++  var separator = '\n\n'.substring(0, nls);
++  if (!s2) {
++    acc.trailing = separator;
++    return acc;
++  }
++  var body = trimTrailingNewlines(s2);
++  acc.parts.push(separator, body);
++  acc.trailing = s2.substring(body.length);
++  return acc;
+ }
+ 
+ /**
+diff --git a/lib/turndown.browser.es.js b/lib/turndown.browser.es.js
+index da7f1c45b505af4293f8501704a1242536e2dabb..5a8136f3559ca6a3c8ecb3f0ae8673be009a41d4 100644
+--- a/lib/turndown.browser.es.js
++++ b/lib/turndown.browser.es.js
+@@ -717,7 +717,12 @@ TurndownService.prototype = {
+ 
+ function process(parentNode) {
+   var self = this;
+-  return reduce.call(parentNode.childNodes, function (output, node) {
++  // [paper-md-studio 패치] 자식 출력을 조각 배열에 쌓는다. 원본은 자식마다
++  // join(output, replacement) 로 지금까지의 출력 전체를 다시 만들고,
++  // trimTrailingNewlines 가 이어 붙인(rope) 문자열을 매번 평탄화해 자식 수에
++  // 대해 O(n^2) 이었다 (문단 16만 개에 6.4초). 결과는 join 을 차례로 접은
++  // 것과 바이트 단위로 같다 — joinInto 참고.
++  var acc = reduce.call(parentNode.childNodes, function (acc, node) {
+     node = new Node(node, self.options);
+     var replacement = '';
+     if (node.nodeType === 3) {
+@@ -725,8 +730,31 @@ function process(parentNode) {
+     } else if (node.nodeType === 1) {
+       replacement = replacementForNode.call(self, node);
+     }
+-    return join(output, replacement);
+-  }, '');
++    return joinInto(acc, replacement);
++  }, { parts: [], trailing: '' });
++  return acc.parts.join('') + acc.trailing;
++}
++
++/**
++ * [paper-md-studio 패치] join 의 누적판.
++ *
++ * 출력은 "끝 줄바꿈이 없는 본문(parts) + 끝 줄바꿈(trailing)" 으로 나눠 둔다.
++ * join 은 본문 끝 줄바꿈과 다음 조각의 앞 줄바꿈 중 긴 쪽(최대 2개)을 사이에
++ * 두고 잇는다 — 본문은 다시 훑을 일이 없으니 배열에 쌓기만 하면 된다.
++ * 다음 조각이 줄바꿈뿐이거나 비면 본문은 그대로이고 끝 줄바꿈만 바뀐다.
++ */
++function joinInto(acc, replacement) {
++  var s2 = trimLeadingNewlines(replacement);
++  var nls = Math.max(acc.trailing.length, replacement.length - s2.length);
++  var separator = '\n\n'.substring(0, nls);
++  if (!s2) {
++    acc.trailing = separator;
++    return acc;
++  }
++  var body = trimTrailingNewlines(s2);
++  acc.parts.push(separator, body);
++  acc.trailing = s2.substring(body.length);
++  return acc;
+ }
+ 
+ /**
+diff --git a/lib/turndown.browser.umd.js b/lib/turndown.browser.umd.js
+index 9a746a4726709555b5fbf275780737f0a067531c..c2ac4147603144bf0a0eceb3c5f13bedabd56b80 100644
+--- a/lib/turndown.browser.umd.js
++++ b/lib/turndown.browser.umd.js
+@@ -723,7 +723,12 @@
+ 
+   function process(parentNode) {
+     var self = this;
+-    return reduce.call(parentNode.childNodes, function (output, node) {
++    // [paper-md-studio 패치] 자식 출력을 조각 배열에 쌓는다. 원본은 자식마다
++    // join(output, replacement) 로 지금까지의 출력 전체를 다시 만들고,
++    // trimTrailingNewlines 가 이어 붙인(rope) 문자열을 매번 평탄화해 자식 수에
++    // 대해 O(n^2) 이었다 (문단 16만 개에 6.4초). 결과는 join 을 차례로 접은
++    // 것과 바이트 단위로 같다 — joinInto 참고.
++    var acc = reduce.call(parentNode.childNodes, function (acc, node) {
+       node = new Node(node, self.options);
+       var replacement = '';
+       if (node.nodeType === 3) {
+@@ -731,8 +736,31 @@
+       } else if (node.nodeType === 1) {
+         replacement = replacementForNode.call(self, node);
+       }
+-      return join(output, replacement);
+-    }, '');
++      return joinInto(acc, replacement);
++    }, { parts: [], trailing: '' });
++    return acc.parts.join('') + acc.trailing;
++  }
++
++  /**
++   * [paper-md-studio 패치] join 의 누적판.
++   *
++   * 출력은 "끝 줄바꿈이 없는 본문(parts) + 끝 줄바꿈(trailing)" 으로 나눠 둔다.
++   * join 은 본문 끝 줄바꿈과 다음 조각의 앞 줄바꿈 중 긴 쪽(최대 2개)을 사이에
++   * 두고 잇는다 — 본문은 다시 훑을 일이 없으니 배열에 쌓기만 하면 된다.
++   * 다음 조각이 줄바꿈뿐이거나 비면 본문은 그대로이고 끝 줄바꿈만 바뀐다.
++   */
++  function joinInto(acc, replacement) {
++    var s2 = trimLeadingNewlines(replacement);
++    var nls = Math.max(acc.trailing.length, replacement.length - s2.length);
++    var separator = '\n\n'.substring(0, nls);
++    if (!s2) {
++      acc.trailing = separator;
++      return acc;
++    }
++    var body = trimTrailingNewlines(s2);
++    acc.parts.push(separator, body);
++    acc.trailing = s2.substring(body.length);
++    return acc;
+   }
+ 
+   /**
+diff --git a/lib/turndown.cjs.js b/lib/turndown.cjs.js
+index 8488044eb09e603def55397cf547315b1bd972a2..5744b62d8b138cbcc8d924eb4abb2b113704ff89 100644
+--- a/lib/turndown.cjs.js
++++ b/lib/turndown.cjs.js
+@@ -696,7 +696,12 @@ TurndownService.prototype = {
+ 
+ function process(parentNode) {
+   var self = this;
+-  return reduce.call(parentNode.childNodes, function (output, node) {
++  // [paper-md-studio 패치] 자식 출력을 조각 배열에 쌓는다. 원본은 자식마다
++  // join(output, replacement) 로 지금까지의 출력 전체를 다시 만들고,
++  // trimTrailingNewlines 가 이어 붙인(rope) 문자열을 매번 평탄화해 자식 수에
++  // 대해 O(n^2) 이었다 (문단 16만 개에 6.4초). 결과는 join 을 차례로 접은
++  // 것과 바이트 단위로 같다 — joinInto 참고.
++  var acc = reduce.call(parentNode.childNodes, function (acc, node) {
+     node = new Node(node, self.options);
+     var replacement = '';
+     if (node.nodeType === 3) {
+@@ -704,8 +709,31 @@ function process(parentNode) {
+     } else if (node.nodeType === 1) {
+       replacement = replacementForNode.call(self, node);
+     }
+-    return join(output, replacement);
+-  }, '');
++    return joinInto(acc, replacement);
++  }, { parts: [], trailing: '' });
++  return acc.parts.join('') + acc.trailing;
++}
++
++/**
++ * [paper-md-studio 패치] join 의 누적판.
++ *
++ * 출력은 "끝 줄바꿈이 없는 본문(parts) + 끝 줄바꿈(trailing)" 으로 나눠 둔다.
++ * join 은 본문 끝 줄바꿈과 다음 조각의 앞 줄바꿈 중 긴 쪽(최대 2개)을 사이에
++ * 두고 잇는다 — 본문은 다시 훑을 일이 없으니 배열에 쌓기만 하면 된다.
++ * 다음 조각이 줄바꿈뿐이거나 비면 본문은 그대로이고 끝 줄바꿈만 바뀐다.
++ */
++function joinInto(acc, replacement) {
++  var s2 = trimLeadingNewlines(replacement);
++  var nls = Math.max(acc.trailing.length, replacement.length - s2.length);
++  var separator = '\n\n'.substring(0, nls);
++  if (!s2) {
++    acc.trailing = separator;
++    return acc;
++  }
++  var body = trimTrailingNewlines(s2);
++  acc.parts.push(separator, body);
++  acc.trailing = s2.substring(body.length);
++  return acc;
+ }
+ 
+ /**
+diff --git a/lib/turndown.es.js b/lib/turndown.es.js
+index 65ae1183687a68cebeb34771e8064d85fd0a66ec..8c9e4cdd8620c79b41101bb28152295164d1ed80 100644
+--- a/lib/turndown.es.js
++++ b/lib/turndown.es.js
+@@ -694,7 +694,12 @@ TurndownService.prototype = {
+ 
+ function process(parentNode) {
+   var self = this;
+-  return reduce.call(parentNode.childNodes, function (output, node) {
++  // [paper-md-studio 패치] 자식 출력을 조각 배열에 쌓는다. 원본은 자식마다
++  // join(output, replacement) 로 지금까지의 출력 전체를 다시 만들고,
++  // trimTrailingNewlines 가 이어 붙인(rope) 문자열을 매번 평탄화해 자식 수에
++  // 대해 O(n^2) 이었다 (문단 16만 개에 6.4초). 결과는 join 을 차례로 접은
++  // 것과 바이트 단위로 같다 — joinInto 참고.
++  var acc = reduce.call(parentNode.childNodes, function (acc, node) {
+     node = new Node(node, self.options);
+     var replacement = '';
+     if (node.nodeType === 3) {
+@@ -702,8 +707,31 @@ function process(parentNode) {
+     } else if (node.nodeType === 1) {
+       replacement = replacementForNode.call(self, node);
+     }
+-    return join(output, replacement);
+-  }, '');
++    return joinInto(acc, replacement);
++  }, { parts: [], trailing: '' });
++  return acc.parts.join('') + acc.trailing;
++}
++
++/**
++ * [paper-md-studio 패치] join 의 누적판.
++ *
++ * 출력은 "끝 줄바꿈이 없는 본문(parts) + 끝 줄바꿈(trailing)" 으로 나눠 둔다.
++ * join 은 본문 끝 줄바꿈과 다음 조각의 앞 줄바꿈 중 긴 쪽(최대 2개)을 사이에
++ * 두고 잇는다 — 본문은 다시 훑을 일이 없으니 배열에 쌓기만 하면 된다.
++ * 다음 조각이 줄바꿈뿐이거나 비면 본문은 그대로이고 끝 줄바꿈만 바뀐다.
++ */
++function joinInto(acc, replacement) {
++  var s2 = trimLeadingNewlines(replacement);
++  var nls = Math.max(acc.trailing.length, replacement.length - s2.length);
++  var separator = '\n\n'.substring(0, nls);
++  if (!s2) {
++    acc.trailing = separator;
++    return acc;
++  }
++  var body = trimTrailingNewlines(s2);
++  acc.parts.push(separator, body);
++  acc.trailing = s2.substring(body.length);
++  return acc;
+ }
+ 
+ /**
+diff --git a/lib/turndown.umd.js b/lib/turndown.umd.js
+index 852ff52d0020198115c6ac7f95ae64c005359456..57e27879897fb471468ae3c500a227f16dc664df 100644
+--- a/lib/turndown.umd.js
++++ b/lib/turndown.umd.js
+@@ -700,7 +700,12 @@
+ 
+   function process(parentNode) {
+     var self = this;
+-    return reduce.call(parentNode.childNodes, function (output, node) {
++    // [paper-md-studio 패치] 자식 출력을 조각 배열에 쌓는다. 원본은 자식마다
++    // join(output, replacement) 로 지금까지의 출력 전체를 다시 만들고,
++    // trimTrailingNewlines 가 이어 붙인(rope) 문자열을 매번 평탄화해 자식 수에
++    // 대해 O(n^2) 이었다 (문단 16만 개에 6.4초). 결과는 join 을 차례로 접은
++    // 것과 바이트 단위로 같다 — joinInto 참고.
++    var acc = reduce.call(parentNode.childNodes, function (acc, node) {
+       node = new Node(node, self.options);
+       var replacement = '';
+       if (node.nodeType === 3) {
+@@ -708,8 +713,31 @@
+       } else if (node.nodeType === 1) {
+         replacement = replacementForNode.call(self, node);
+       }
+-      return join(output, replacement);
+-    }, '');
++      return joinInto(acc, replacement);
++    }, { parts: [], trailing: '' });
++    return acc.parts.join('') + acc.trailing;
++  }
++
++  /**
++   * [paper-md-studio 패치] join 의 누적판.
++   *
++   * 출력은 "끝 줄바꿈이 없는 본문(parts) + 끝 줄바꿈(trailing)" 으로 나눠 둔다.
++   * join 은 본문 끝 줄바꿈과 다음 조각의 앞 줄바꿈 중 긴 쪽(최대 2개)을 사이에
++   * 두고 잇는다 — 본문은 다시 훑을 일이 없으니 배열에 쌓기만 하면 된다.
++   * 다음 조각이 줄바꿈뿐이거나 비면 본문은 그대로이고 끝 줄바꿈만 바뀐다.
++   */
++  function joinInto(acc, replacement) {
++    var s2 = trimLeadingNewlines(replacement);
++    var nls = Math.max(acc.trailing.length, replacement.length - s2.length);
++    var separator = '\n\n'.substring(0, nls);
++    if (!s2) {
++      acc.trailing = separator;
++      return acc;
++    }
++    var body = trimTrailingNewlines(s2);
++    acc.parts.push(separator, body);
++    acc.trailing = s2.substring(body.length);
++    return acc;
+   }
+ 
+   /**
