@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { hwpEquationToLatex } from "../src/parsers/hwp-equation/index.js";
+import { nodesOfType, parseMarkdown, textOf } from "./helpers/commonmark.js";
 import {
   paragraph,
   parseHwpx,
@@ -117,7 +118,11 @@ describe("HWPX 수식 렌더링", () => {
     ["링크 문법", "[x](javascript:alert(1))", "$[x] (javascript:alert(1))$"],
     ["꺾쇠", "a<b>c", "$a \\lt b \\gt c$"],
     ["백틱", "a`b", "$a\\,b$"],
-    ["달러", "a$b", "$a\\$b$"],
+    // `\$`는 remark-math 에서 수식을 닫는다 (수식 안에는 escape 가 없다).
+    // `\textdollar`는 KaTeX 수식 모드에서 정의되지 않은 명령이라 `\text{}`로 감싼다
+    ["달러", "a$b", "$a\\text{\\textdollar}b$"],
+    ["escape 된 달러", "a\\$b", "$a\\text{\\textdollar}b$"],
+    ["줄바꿈 뒤 달러", "a\\\\$b", "$a\\\\\\text{\\textdollar}b$"],
   ])("LaTeX 안의 %s는 Markdown 문법이 되지 않게 바꾼다 (#12)", async (_n, latex, expected) => {
     // Arrange — 수식 스크립트는 문서가 정한다
     convertLatex.mockReturnValue(latex);
@@ -127,6 +132,26 @@ describe("HWPX 수식 렌더링", () => {
 
     // Assert
     expect(result.markdown).toBe(expected);
+  });
+
+  it("LaTeX 안의 '$'가 있어도 remark-math 가 수식 경계를 바르게 짝짓는다", async () => {
+    // Arrange — 첫 수식 안의 "$"가 수식을 일찍 닫으면 뒤 수식과 글자가 뒤섞인다
+    convertLatex.mockReturnValueOnce("a\\$b").mockReturnValueOnce("c$");
+
+    // Act
+    const result = await parseHwpx(
+      paragraph(
+        `<run>${equation("x")}<t> 그리고 </t>${equation("y")}<t> 끝</t></run>`,
+      ),
+    );
+
+    // Assert
+    const tree = parseMarkdown(result.markdown);
+    expect(nodesOfType(tree, "inlineMath").map(textOf)).toEqual([
+      "a\\text{\\textdollar}b",
+      "c\\text{\\textdollar}",
+    ]);
+    expect(nodesOfType(tree, "text").map(textOf).join("")).toBe(" 그리고  끝");
   });
 
   it("빈 스크립트 수식은 아무것도 내지 않는다", async () => {
