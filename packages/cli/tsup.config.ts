@@ -16,11 +16,14 @@ export default defineConfig((options) => {
     // `require('./*.node')`를 갖고 있어 esbuild 정적 해석이 깨지므로 external
     // 로 두고, 배포는 prepare-app-resources가 로더+바이너리를 리소스의 미니
     // node_modules 로 동봉한다. 로드 실패 시 pdf-parser가 pdf2md로 폴백.
+    // @rhwp/core(.hwp 변환 WASM)도 external — 글루(rhwp.js)와 rhwp_bg.wasm 은
+    // 같은 빌드여야 하므로(import 이름에 해시가 박힘) 패키지 디렉토리째로
+    // 미니 node_modules 에 동봉하고, core 가 .hwp 를 만날 때만 지연 로드한다.
     // noExternal이 external보다 우선하므로 정규식에서 명시적으로 빼야 한다.
     noExternal: isBundle
-      ? [/^(?!playwright-core$|@firecrawl\/pdf-inspector$).*/]
+      ? [/^(?!playwright-core$|@firecrawl\/pdf-inspector$|@rhwp\/core$).*/]
       : undefined,
-    external: ["playwright-core", "@firecrawl/pdf-inspector"],
+    external: ["playwright-core", "@firecrawl/pdf-inspector", "@rhwp/core"],
     minify: isBundle,
     outDir: isBundle ? "dist-bundle" : "dist",
     splitting: false,
