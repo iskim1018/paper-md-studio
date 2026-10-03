@@ -122,7 +122,9 @@ describe.each(VARIANTS)("HWPX 문단 머리 (%s)", (_label, wrapSec, wrapHead) =
   it("빈 번호 문단도 번호를 하나 소비한다 (한글 화면과 같게)", async () => {
     const out = await md([p("10", "a"), p("10", ""), p("10", "c")].join(""));
 
-    expect(out).toBe("1. a\n\n3. c");
+    // 건너뛴 번호는 글자로 낸다 — 날것이면 렌더러가 1, 2로 다시 센다
+    // (hwpx-commonmark.test.ts 의 번호 보존 테스트)
+    expect(out).toBe("1. a\n\n3\\. c");
   });
 
   it("글머리표 문자를 붙이고 PUA는 표준 기호로 바꾼다", async () => {

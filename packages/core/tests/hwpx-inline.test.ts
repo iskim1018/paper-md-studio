@@ -200,6 +200,49 @@ describe.each(VARIANTS)("HWPX 인라인 텍스트 (%s)", (_label, wrap) => {
     expect(out).toBe("가나");
   });
 
+  it("덧말은 본문 글자 뒤에 덧말을 괄호로 붙인다 (#14)", async () => {
+    // Arrange — 한글 "덧말 넣기": 본문 글자 위·아래에 작은 글자를 단다
+    const xml = paragraph(
+      '<run><t>앞 </t><dutmal posType="TOP" szRatio="0" option="0" styleIDRef="0" align="CENTER"><mainText>本文</mainText><subText>본문</subText></dutmal><t> 뒤</t></run>',
+    );
+
+    // Act
+    const out = await convert(xml);
+
+    // Assert
+    expect(out).toBe("앞 本文(본문) 뒤");
+  });
+
+  it("덧말이 비었거나 본문과 같으면 본문 글자만 낸다", async () => {
+    const out = await convert(
+      paragraph(
+        "<run><dutmal><mainText>가</mainText><subText></subText></dutmal><t>,</t><dutmal><mainText>나</mainText><subText>나</subText></dutmal></run>",
+      ),
+    );
+
+    expect(out).toBe("가,나");
+  });
+
+  it("글자 겹치기는 겹친 글자(composeText)를 낸다 (#14)", async () => {
+    const out = await convert(
+      paragraph(
+        '<run><t>항목 </t><compose circleType="SHAPE_CIRCLE" charSz="-3" composeType="SPREAD" charPrCnt="1" composeText="21"><charPr prIDRef="0"/></compose><t> 끝</t></run>',
+      ),
+    );
+
+    expect(out).toBe("항목 21 끝");
+  });
+
+  it("덧말·글자 겹치기 글자도 Markdown 문법이 되지 않게 escape한다", async () => {
+    const out = await convert(
+      paragraph(
+        '<run><dutmal><mainText>[a](b)</mainText><subText>*c*</subText></dutmal><compose composeText="_d_"/></run>',
+      ),
+    );
+
+    expect(out).toBe("\\[a\\](b)(\\*c\\*)\\_d\\_");
+  });
+
   it("셀 안 '|'는 정확히 한 번만 escape되어 열 수가 유지된다", async () => {
     const out = await convert(
       tableSection([

@@ -31,6 +31,11 @@ function extensionOf(path: string): string {
   return match ? match[0] : "";
 }
 
+/** 그대로 저장할 수 있는 그림 형식의 경로인지 (ZIP 에서 풀 항목 고르기용) */
+export function isImagePath(path: string): boolean {
+  return IMAGE_EXTENSIONS.has(extensionOf(path));
+}
+
 function fileNameOf(path: string): string {
   return path.split("/").pop() ?? path;
 }
@@ -50,19 +55,25 @@ export class ImageCollector {
   private readonly placed = new Map<string, string>();
   private skippedMetafileCount = 0;
 
+  /**
+   * @param files 푼 항목 (그림은 여기서 찾는다)
+   * @param entryNames ZIP 의 모든 항목 이름 — WMF/EMF 는 풀지 않으므로 이름만 본다
+   */
   constructor(
     private readonly imagesDirName: string,
     private readonly files: Readonly<Record<string, Uint8Array>>,
+    entryNames: ReadonlyArray<string> = Object.keys(files),
   ) {
     for (const [path, data] of Object.entries(files)) {
-      const ext = extensionOf(path);
-      const name = fileNameOf(path);
-      if (IMAGE_EXTENSIONS.has(ext) && data.length > 0) {
-        this.register(name, path);
-      } else if (METAFILE_EXTENSIONS.has(ext)) {
-        this.metafiles.add(name);
-        this.metafiles.add(name.replace(/\.[^.]+$/, ""));
+      if (isImagePath(path) && data.length > 0) {
+        this.register(fileNameOf(path), path);
       }
+    }
+    for (const path of entryNames) {
+      if (!METAFILE_EXTENSIONS.has(extensionOf(path))) continue;
+      const name = fileNameOf(path);
+      this.metafiles.add(name);
+      this.metafiles.add(name.replace(/\.[^.]+$/, ""));
     }
   }
 

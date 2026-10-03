@@ -6,29 +6,13 @@ let service: TurndownService | null = null;
 let keepTablesService: TurndownService | null = null;
 
 /**
- * Markdown 문법을 escape 없이 그대로 내보내야 하는 조각을 감싸는 전용 요소.
+ * 모든 포맷이 공유하는 turndown 설정 (GFM 표·취소선·셀 안 줄바꿈).
  *
- * turndown은 텍스트 노드를 전부 escape한다 — 문단 머리 번호 `1.`은 `1\.`,
- * 글머리표 `-`는 `\-`, 수식 `$a_1 * [x]$`는 `$a\_1 \* \[x\]$`가 되어 목록·수식이
- * 깨진다. 이 요소의 글자는 규칙이 textContent를 그대로 쓰므로 escape를 건너뛴다.
- * 웹 문서나 DOCX에는 나올 일이 없는 이름이라 다른 포맷 출력은 영향을 받지
- * 않는다 (HWPX 파서만 만든다).
+ * HWPX 는 이 위에 날것 Markdown 요소·강조 flanking·`$` escape 를 더한 전용
+ * 서비스를 쓴다 (`parsers/hwpx/markdown.ts`). 날것 요소 규칙을 여기 두면 HTML
+ * 문서가 같은 태그로 escape 를 우회할 수 있어 공유 서비스에는 두지 않는다.
  */
-const RAW_MARKDOWN_TAG = "hwpx-md";
-
-function escapeHtmlText(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-/** Markdown 조각을 turndown이 escape하지 않고 그대로 내보낼 HTML로 감싼다 */
-export function rawMarkdownHtml(markdown: string): string {
-  return `<${RAW_MARKDOWN_TAG}>${escapeHtmlText(markdown)}</${RAW_MARKDOWN_TAG}>`;
-}
-
-function buildService(): TurndownService {
+export function createTurndownService(): TurndownService {
   const service = new TurndownService({
     headingStyle: "atx",
     hr: "---",
@@ -66,18 +50,11 @@ function buildService(): TurndownService {
     replacement: () => "<br>",
   });
 
-  service.addRule("rawMarkdown", {
-    filter: (node) =>
-      (node as unknown as DomLike).nodeName === RAW_MARKDOWN_TAG.toUpperCase(),
-    replacement: (_content, node) =>
-      (node as unknown as { textContent: string | null }).textContent ?? "",
-  });
-
   return service;
 }
 
 function getService(): TurndownService {
-  if (!service) service = buildService();
+  if (!service) service = createTurndownService();
   return service;
 }
 
@@ -93,7 +70,7 @@ function getService(): TurndownService {
 function getKeepTablesService(): TurndownService {
   if (keepTablesService) return keepTablesService;
 
-  keepTablesService = buildService();
+  keepTablesService = createTurndownService();
   keepTablesService.addRule("keepTableAsHtml", {
     filter: "table",
     replacement: (_content, node) => {

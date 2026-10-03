@@ -113,6 +113,22 @@ describe("HWPX 수식 렌더링", () => {
     expect(result.warnings).toHaveLength(1);
   });
 
+  it.each([
+    ["링크 문법", "[x](javascript:alert(1))", "$[x] (javascript:alert(1))$"],
+    ["꺾쇠", "a<b>c", "$a \\lt b \\gt c$"],
+    ["백틱", "a`b", "$a\\,b$"],
+    ["달러", "a$b", "$a\\$b$"],
+  ])("LaTeX 안의 %s는 Markdown 문법이 되지 않게 바꾼다 (#12)", async (_n, latex, expected) => {
+    // Arrange — 수식 스크립트는 문서가 정한다
+    convertLatex.mockReturnValue(latex);
+
+    // Act
+    const result = await parseHwpx(paragraph(`<run>${equation("x")}</run>`));
+
+    // Assert
+    expect(result.markdown).toBe(expected);
+  });
+
   it("빈 스크립트 수식은 아무것도 내지 않는다", async () => {
     const result = await parseHwpx(
       paragraph(`<run><t>앞</t>${equation("")}<t>뒤</t></run>`),

@@ -4,9 +4,15 @@ import {
   MAX_OBJECT_DEPTH,
   type WalkMode,
 } from "./context.js";
-import { tableCaption } from "./controls.js";
+import { captionOf } from "./controls.js";
+import {
+  type OrderedListTracker,
+  type OrderedMarker,
+  orderedMarker,
+  withMarker,
+} from "./marker.js";
 import { type ParagraphMarker, resolveParagraphMarker } from "./numbering.js";
-import { renderTableHtml, withMarker } from "./table.js";
+import { renderTableHtml } from "./table.js";
 import { type Segment, walkParagraph } from "./walker.js";
 import { attr, childNodes, isXmlNode, type XmlNode } from "./xml.js";
 
@@ -26,15 +32,31 @@ function headingLevel(styleName: string): number | null {
   );
 }
 
-/** 본문 HTML을 쌓으며 `<ul>` 목록이 열려 있는지 추적한다 */
+/** 본문 HTML을 쌓으며 `<ul>` 목록과 번호 목록의 이어짐을 추적한다 */
 class BodyWriter {
   private readonly parts: Array<string> = [];
   private inList = false;
+
+  constructor(private readonly ordered: OrderedListTracker) {}
 
   block(html: string): void {
     if (!html) return;
     this.closeList();
     this.parts.push(html);
+    this.ordered.wrote(null);
+  }
+
+  /**
+   * 번호 문단 — 렌더러에서 같은 번호로 보이면 번호를 날것(목록)으로, 아니면
+   * 글자로 낸다 (`render(asText)`).
+   */
+  orderedParagraph(
+    marker: OrderedMarker,
+    render: (asText: boolean) => string,
+  ): void {
+    const asIs = this.ordered.rendersAsIs(marker);
+    this.block(render(!asIs));
+    this.ordered.wrote(asIs ? marker : null);
   }
 
   listItem(html: string): void {
@@ -43,6 +65,7 @@ class BodyWriter {
       this.inList = true;
     }
     this.parts.push(`<li>${html}</li>\n`);
+    this.ordered.wrote(null);
   }
 
   closeList(): void {
@@ -70,16 +93,23 @@ function writeInline(
 ): void {
   if (kind.heading) {
     const tag = `h${kind.heading}`;
-    writer.block(
-      `<${tag}>${withMarker(marker?.text ?? null, html)}</${tag}>\n`,
-    );
-  } else if (kind.list) {
+    const inner = withMarker(marker?.text ?? null, html, "heading");
+    writer.block(`<${tag}>${inner}</${tag}>\n`);
+    return;
+  }
+  if (kind.list) {
     // 목록 항목은 이미 "- "가 붙으므로 글머리표를 겹쳐 붙이지 않는다
     const number = marker?.kind === "number" ? marker.text : null;
-    writer.listItem(withMarker(number, html));
-  } else {
-    writer.block(`<p>${withMarker(marker?.text ?? null, html)}</p>\n`);
+    writer.listItem(withMarker(number, html, "paragraph"));
+    return;
   }
+  const text = marker?.text ?? null;
+  const paragraph = (asText: boolean): string =>
+    `<p>${withMarker(text, html, "paragraph", asText)}</p>\n`;
+  const ordered =
+    marker?.kind === "number" && text ? orderedMarker(text) : null;
+  if (ordered) writer.orderedParagraph(ordered, paragraph);
+  else writer.block(paragraph(false));
 }
 
 function writeTable(
@@ -88,7 +118,7 @@ function writeTable(
   writer: BodyWriter,
   mode: WalkMode,
 ): void {
-  const caption = tableCaption(tbl);
+  const caption = captionOf(tbl);
   const captionMode = { ...mode, depth: mode.depth + 1 };
   const writeCaption = (): void => {
     if (caption && captionMode.depth <= MAX_OBJECT_DEPTH) {
@@ -111,13 +141,17 @@ function writeSegment(
       writer.block(`<p>${segment.html}</p>\n`);
       return;
     case "table":
-      writeTable(segment.node, ctx, writer, mode);
+      ctx.state.withoutDeletion(() =>
+        writeTable(segment.node, ctx, writer, mode),
+      );
       return;
     case "paragraphs":
-      writeParagraphs(segment.paragraphs, ctx, writer, {
-        ...mode,
-        depth: mode.depth + 1,
-      });
+      ctx.state.withoutDeletion(() =>
+        writeParagraphs(segment.paragraphs, ctx, writer, {
+          ...mode,
+          depth: mode.depth + 1,
+        }),
+      );
       return;
     default:
       return;
@@ -189,7 +223,7 @@ export function renderSection(sectionDoc: XmlNode, ctx: HwpxContext): string {
   if (!isXmlNode(sec)) return "";
   const paragraphs = childNodes(sec, "p");
   ctx.state.startSection(outlineNumberingId(paragraphs));
-  const writer = new BodyWriter();
+  const writer = new BodyWriter(ctx.state.orderedList);
   writeParagraphs(paragraphs, ctx, writer, BODY_MODE);
   return writer.toHtml();
 }

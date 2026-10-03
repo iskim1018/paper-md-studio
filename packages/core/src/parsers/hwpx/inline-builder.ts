@@ -54,6 +54,14 @@ export function normalizeText(text: string): string {
   );
 }
 
+/** 열린 하이퍼링크 — 태그 시작·글자 시작 위치와, 삭제 구간이 글자를 지웠는지 */
+interface OpenLink {
+  readonly tagStart: number;
+  readonly start: number;
+  readonly url: string;
+  readonly deletedContent: boolean;
+}
+
 /**
  * 문단 하나 분량의 인라인 HTML을 쌓는다.
  *
@@ -66,7 +74,7 @@ export class InlineBuilder {
   private html = "";
   private open: RunStyle = PLAIN_STYLE;
   private visible = false;
-  private link: { readonly start: number; readonly url: string } | null = null;
+  private link: OpenLink | null = null;
 
   constructor(private readonly placement: InlinePlacement) {}
 
@@ -116,20 +124,42 @@ export class InlineBuilder {
   openLink(url: string): void {
     this.closeLink();
     this.switchStyle(PLAIN_STYLE);
+    const tagStart = this.html.length;
     this.html += `<a href="${escapeAttribute(url)}">`;
-    this.link = { start: this.html.length, url };
+    this.link = {
+      tagStart,
+      start: this.html.length,
+      url,
+      deletedContent: false,
+    };
+  }
+
+  /**
+   * 변경 추적 삭제 구간이 내용을 지웠다고 알린다. 링크 글자가 전부 지워졌으면
+   * 빈 링크 대신 아무것도 내지 않아야 한다 — 주소를 글자로 보이면 지운 링크의
+   * 주소가 새로 생겨난다.
+   */
+  markDeleted(): void {
+    if (this.link && !this.link.deletedContent) {
+      this.link = { ...this.link, deletedContent: true };
+    }
   }
 
   closeLink(): void {
-    if (!this.link) return;
+    const link = this.link;
+    if (!link) return;
+    this.link = null;
     this.switchStyle(PLAIN_STYLE);
-    // 글자 없는 링크는 `[](url)`이 되므로 주소를 글자로 보인다
-    if (this.html.length === this.link.start) {
-      this.html += escapeHtml(this.link.url);
+    if (this.html.length === link.start) {
+      if (link.deletedContent) {
+        this.html = this.html.slice(0, link.tagStart);
+        return;
+      }
+      // 글자 없는 링크는 `[](url)`이 되므로 주소를 글자로 보인다
+      this.html += escapeHtml(link.url);
       this.visible = true;
     }
     this.html += "</a>";
-    this.link = null;
   }
 
   /** 열린 태그를 모두 닫고 결과를 돌려준다 */

@@ -4,6 +4,8 @@ import {
   type WalkMode,
 } from "./context.js";
 import {
+  autoNumberText,
+  captionOf,
   DRAWING_OBJECTS,
   drawTextParagraphs,
   hyperlinkUrl,
@@ -103,7 +105,7 @@ class ParagraphWalker {
         }
         return;
       case "tbl":
-        this.block({ kind: "table", node });
+        if (!this.dropIfDeleted()) this.block({ kind: "table", node });
         return;
       case "pic":
       case "img":
@@ -113,11 +115,17 @@ class ParagraphWalker {
         this.equation(node);
         return;
       case "container":
-        // 묶음 개체 — 안의 그림·글상자·하위 묶음을 같은 규칙으로 훑는다
-        this.visitChildren(node);
+        this.container(node);
         return;
       case "switch":
         this.visitSwitch(node);
+        return;
+      case "dutmal":
+        this.dutmal(node);
+        return;
+      case "compose":
+        // 글자 겹치기 — 겹쳐 그린 글자들이 속성에 있다
+        this.plainText(attr(node, "composeText"));
         return;
       default:
         this.control(name, node);
@@ -148,41 +156,106 @@ class ParagraphWalker {
       case "deleteEnd":
         this.ctx.state.endDelete();
         return;
+      case "autoNum":
+        this.autoNum(node);
+        return;
       default:
         if (DRAWING_OBJECTS.has(name)) this.drawing(node);
     }
+  }
+
+  /**
+   * 변경 추적 삭제 구간이면 내용을 버리고 true. 글자만이 아니라 그림·수식·
+   * 표·각주·글상자·링크도 같이 버린다 — OWPML 에서 이 개체들은 deleteBegin 과
+   * deleteEnd 를 담은 `<hp:t>` 사이에 run 형제로 놓인다.
+   */
+  private dropIfDeleted(): boolean {
+    if (!this.ctx.state.isDeleting) return false;
+    this.builder.markDeleted();
+    return true;
   }
 
   private text(node: XmlNode): void {
     for (const token of tokenizeRunText(textOf(node))) {
       if (token.kind === "deleteBegin") this.ctx.state.beginDelete();
       else if (token.kind === "deleteEnd") this.ctx.state.endDelete();
-      else if (!this.ctx.state.isDeleting) {
-        this.builder.token(token, this.style);
-      }
+      else if (!this.dropIfDeleted()) this.builder.token(token, this.style);
+    }
+  }
+
+  /** 문서가 정한 글자 조각 — 본문 글자와 같이 정규화·escape 한다 */
+  private plainText(value: string): void {
+    if (!value || this.dropIfDeleted()) return;
+    this.builder.token({ kind: "text", value }, this.style);
+  }
+
+  /**
+   * 덧말 — 본문 글자(mainText) 위·아래에 작은 글자(subText)를 단 것. 본문
+   * 글자가 문장의 일부이므로 반드시 내고, 덧말은 정보를 잃지 않게 괄호로
+   * 잇는다 (한자 독음·약어 풀이처럼 덧말이 뜻을 보충하는 경우가 대부분이다).
+   */
+  private dutmal(node: XmlNode): void {
+    const main = textOf(childNode(node, "mainText")).trim();
+    const sub = textOf(childNode(node, "subText")).trim();
+    this.plainText(sub && sub !== main ? `${main}(${sub})` : main);
+  }
+
+  /** 캡션 자동 번호 (표·그림·수식) */
+  private autoNum(node: XmlNode): void {
+    const text = autoNumberText(node, (type, stored) =>
+      this.ctx.state.nextAutoNumber(type, stored),
+    );
+    if (text) this.plainText(text);
+  }
+
+  /**
+   * 개체를 캡션과 함께 낸다 — 캡션은 개체 앞(위·왼쪽) 또는 뒤에 문단 블록으로.
+   * 표 셀·각주 안에서는 블록이 셀 글자로 평탄화된다 (글상자와 같은 경로).
+   */
+  private withCaption(node: XmlNode, emit: () => void): void {
+    const caption = this.mode.depth < MAX_OBJECT_DEPTH ? captionOf(node) : null;
+    if (caption?.before) {
+      this.block({ kind: "paragraphs", paragraphs: caption.paragraphs });
+    }
+    emit();
+    if (caption && !caption.before) {
+      this.block({ kind: "paragraphs", paragraphs: caption.paragraphs });
     }
   }
 
   private image(node: XmlNode): void {
-    const html = this.ctx.images.place(binaryRef(node));
-    if (!html) return;
-    if (this.mode.imagesInline) this.builder.raw(html);
-    else this.block({ kind: "image", html });
+    if (this.dropIfDeleted()) return;
+    this.withCaption(node, () => {
+      const html = this.ctx.images.place(binaryRef(node));
+      if (!html) return;
+      if (this.mode.imagesInline) this.builder.raw(html);
+      else this.block({ kind: "image", html });
+    });
   }
 
   private equation(node: XmlNode): void {
-    const script = childNode(node, "script");
-    const rendered = renderEquation(script ? textOf(script) : "", (text) =>
-      protectCellPipes(text, this.mode.inCell),
-    );
-    if (!rendered) return;
-    if (rendered.fallback) this.ctx.state.equationFallbacks += 1;
-    this.builder.raw(rendered.html);
+    if (this.dropIfDeleted()) return;
+    this.withCaption(node, () => {
+      const script = childNode(node, "script");
+      const rendered = renderEquation(script ? textOf(script) : "", (text) =>
+        protectCellPipes(text, this.mode.inCell),
+      );
+      if (!rendered) return;
+      if (rendered.fallback) this.ctx.state.equationFallbacks += 1;
+      this.builder.raw(rendered.html);
+    });
+  }
+
+  /** 묶음 개체 — 안의 그림·글상자·하위 묶음을 같은 규칙으로 훑는다 */
+  private container(node: XmlNode): void {
+    if (this.dropIfDeleted()) return;
+    // 캡션은 withCaption 이 내므로 자식 순회에서는 control()이 무시한다
+    this.withCaption(node, () => this.visitChildren(node));
   }
 
   /** 각주·미주 본문을 기준점 자리에 "(각주: …)"로 넣는다 */
   private note(node: XmlNode, label: string): void {
-    if (this.mode.depth >= MAX_OBJECT_DEPTH) return;
+    if (this.dropIfDeleted() || this.mode.depth >= MAX_OBJECT_DEPTH) return;
     const html = this.ctx
       .renderNote(subListParagraphs(node), {
         ...this.mode,
@@ -194,15 +267,21 @@ class ParagraphWalker {
   }
 
   private fieldBegin(node: XmlNode): void {
-    const url = hyperlinkUrl(node);
+    // 짝(fieldEnd)을 맞추려고 지운 필드도 스택에는 넣는다
+    const url = this.dropIfDeleted() ? null : hyperlinkUrl(node);
     this.fields.push(url !== null);
     if (url) this.builder.openLink(url);
   }
 
   private drawing(node: XmlNode): void {
-    const paragraphs = drawTextParagraphs(node);
-    if (paragraphs.length === 0 || this.mode.depth >= MAX_OBJECT_DEPTH) return;
-    this.block({ kind: "paragraphs", paragraphs });
+    if (this.dropIfDeleted()) return;
+    this.withCaption(node, () => {
+      const paragraphs = drawTextParagraphs(node);
+      if (paragraphs.length === 0 || this.mode.depth >= MAX_OBJECT_DEPTH) {
+        return;
+      }
+      this.block({ kind: "paragraphs", paragraphs });
+    });
   }
 
   /** `<hp:switch>` — 호환용 대체 내용(default)을, 없으면 첫 case를 쓴다 */

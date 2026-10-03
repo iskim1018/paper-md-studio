@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { HwpxParser } from "../src/parsers/hwpx-parser.js";
 import { convert } from "../src/pipeline.js";
+import { nodesOfType, parseMarkdown } from "./helpers/commonmark.js";
 import {
   buildHwpx,
   paragraph,
@@ -167,6 +168,29 @@ describe.each(VARIANTS)("HWPX 문서 순서·누락 내용 (%s)", (_label, wrap)
     });
   });
 
+  describe("그림 이름 escape (#15)", () => {
+    it("BinData 파일 이름의 따옴표로 img 속성이나 날것 Markdown을 끼워 넣지 못한다", async () => {
+      // Arrange — 문서가 정한 ZIP 항목 이름이 그대로 alt 가 된다
+      const name = 'x"><hwpx-md>[c](javascript:alert(1)) <img a=".png';
+      const ref =
+        "x&quot;&gt;&lt;hwpx-md&gt;[c](javascript:alert(1)) &lt;img a=&quot;";
+
+      // Act
+      const result = await parse(
+        paragraph(`<run><pic><img binaryItemIDRef="${ref}"/></pic></run>`),
+        { [`BinData/${name}`]: PNG },
+      );
+
+      // Assert
+      expect(result.images).toHaveLength(1);
+      expect(result.html).not.toMatch(/<img[^>]*\sa="/);
+      expect(result.html).not.toContain("<hwpx-md");
+      const tree = parseMarkdown(result.markdown ?? "");
+      expect(nodesOfType(tree, "image")).toHaveLength(1);
+      expect(nodesOfType(tree, "link")).toHaveLength(0);
+    });
+  });
+
   describe("표 캡션", () => {
     it("위쪽(TOP) 캡션은 표 앞에, 아래쪽(BOTTOM) 캡션은 표 뒤에 낸다", async () => {
       const caption = (side: string, text: string) =>
@@ -301,6 +325,32 @@ describe.each(VARIANTS)("HWPX 문서 순서·누락 내용 (%s)", (_label, wrap)
       expect(out).toContain("| [링크](https://example.com/a%7Cb) |");
     });
 
+    it("주소의 백슬래시로 링크를 끊고 javascript: 링크를 잇지 못한다 (#16)", async () => {
+      // Arrange — Path 그대로 넣는다 (Command 는 \\ 가 한 번 풀린다)
+      const payload = "http://a.com/x\\)\\<javascript:alert%281%29//\\>";
+      const field = `<ctrl><fieldBegin id="7" type="HYPERLINK" name=""><parameters cnt="1" name=""><stringParam name="Path">${payload.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</stringParam></parameters></fieldBegin></ctrl><t>click</t><ctrl><fieldEnd beginIDRef="7"/></ctrl>`;
+
+      // Act
+      const out = await md(paragraph(`<run>${field}</run>`));
+
+      // Assert — 링크는 하나, 주소는 http, 백슬래시가 남지 않는다
+      const links = nodesOfType(parseMarkdown(out), "link");
+      expect(links).toHaveLength(1);
+      expect(links[0]?.url).toMatch(/^http:\/\/a\.com\//);
+      expect(links[0]?.url).not.toContain("\\");
+      expect(out).not.toMatch(/\]\(javascript:/);
+    });
+
+    it("백슬래시가 섞인 http 주소는 브라우저처럼 '/'로 해석한다", async () => {
+      const out = await md(
+        paragraph(
+          `<run>${hyperlink("http\\://a.com\\\\b\\\\c;1;0;0;", "링크")}</run>`,
+        ),
+      );
+
+      expect(out).toBe("[링크](http://a.com/b/c)");
+    });
+
     it("글자 없는 링크는 주소를 글자로 보인다", async () => {
       const out = await md(
         paragraph(
@@ -365,6 +415,21 @@ describe("HWPX 빈 문서와 바이트 입력", () => {
     );
 
     expect(result.markdown).toBe("옵션 없음");
+  });
+
+  it("아주 큰 colSpan도 영어 RangeError 없이 열 상한까지만 펼친다 (#8)", async () => {
+    const started = performance.now();
+
+    const result = await parseHwpx(
+      '<sec><p styleIDRef="0"><run><tbl><tr><tc><subList><p><run><t>칸</t></run></p></subList><cellSpan colSpan="1000000" rowSpan="1"/></tc></tr></tbl></run></p></sec>',
+    );
+
+    expect(result.markdown).toContain("칸");
+    expect(new Set(unescapedPipeCounts(result.markdown ?? ""))).toEqual(
+      new Set([257]),
+    );
+    expect(result.warnings?.[0]).toMatch(/^표 1개가 너무 커서/);
+    expect(performance.now() - started).toBeLessThan(2000);
   });
 
   it("ZIP이 아닌 바이트는 한국어 에러를 던진다", async () => {

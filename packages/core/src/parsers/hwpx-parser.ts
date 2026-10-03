@@ -1,12 +1,14 @@
 import { readFile } from "node:fs/promises";
-import { strFromU8, unzipSync } from "fflate";
-import { htmlToMarkdown } from "../html-to-md.js";
+import { strFromU8 } from "fflate";
 import type { ParseOptions, ParseResult, Parser } from "../types.js";
 import { PIPE_TOKEN, restorePipes } from "./html-tables-to-gfm.js";
 import { DocumentState, type HwpxContext } from "./hwpx/context.js";
 import { emptyHeader, type HwpxHeader, readHeader } from "./hwpx/header.js";
 import { ImageCollector } from "./hwpx/images.js";
+import { MAX_MERGED_CELLS, MAX_TABLE_COLS } from "./hwpx/limits.js";
+import { hwpxHtmlToMarkdown, stripRawMarkers } from "./hwpx/markdown.js";
 import { NumberingTracker } from "./hwpx/numbering.js";
+import { type HwpxPackage, readHwpxPackage } from "./hwpx/package.js";
 import { renderSection } from "./hwpx/section.js";
 import { renderInlineParagraphs } from "./hwpx/table.js";
 import {
@@ -49,7 +51,7 @@ function buildManifestMap(manifest: XmlNode | undefined): Map<string, string> {
 function resolveHref(
   href: string,
   prefix: string,
-  files: Record<string, Uint8Array>,
+  files: Readonly<Record<string, Uint8Array>>,
 ): string | null {
   if (href.toLowerCase().endsWith("header.xml")) return null;
   if (files[href]) return href;
@@ -59,14 +61,19 @@ function resolveHref(
 }
 
 /** content.hpf의 spine 순서대로 섹션 파일 경로를 찾는다 */
-function getSectionPaths(files: Record<string, Uint8Array>): Array<string> {
+function getSectionPaths(
+  files: Readonly<Record<string, Uint8Array>>,
+): Array<string> {
   const hpfKey = Object.keys(files).find((f) =>
     f.toLowerCase().endsWith("content.hpf"),
   );
   const hpfFile = hpfKey ? files[hpfKey] : undefined;
   if (!hpfKey || !hpfFile) return DEFAULT_SECTIONS;
 
-  const pkg = parseHeaderXml(strFromU8(hpfFile)).package;
+  const pkg = parseXmlOrThrow(
+    hpfFile,
+    "HWPX 목차(content.hpf)를 해석할 수 없습니다",
+  ).package;
   if (!isXmlNode(pkg) || !isXmlNode(pkg.spine)) return DEFAULT_SECTIONS;
 
   const itemMap = buildManifestMap(
@@ -83,23 +90,30 @@ function getSectionPaths(files: Record<string, Uint8Array>): Array<string> {
   return paths.length > 0 ? paths : DEFAULT_SECTIONS;
 }
 
-function readHeaderFile(files: Record<string, Uint8Array>): HwpxHeader {
+/**
+ * header.xml·content.hpf 해석. XML 라이브러리 오류(영어)를 그대로 흘리지 않고
+ * 어느 파일이 문제인지 한국어로 알린다 — 본문(section) 오류와 같은 규칙이다.
+ */
+function parseXmlOrThrow(file: Uint8Array, message: string): XmlNode {
+  try {
+    return parseHeaderXml(strFromU8(file));
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    throw new Error(`${message}: ${detail}`);
+  }
+}
+
+function readHeaderFile(
+  files: Readonly<Record<string, Uint8Array>>,
+): HwpxHeader {
   const key = Object.keys(files).find((f) =>
     f.toLowerCase().endsWith("header.xml"),
   );
   const file = key ? files[key] : undefined;
-  return file ? readHeader(parseHeaderXml(strFromU8(file))) : emptyHeader();
-}
-
-function unzip(data: Uint8Array): Record<string, Uint8Array> {
-  try {
-    return unzipSync(data);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    throw new Error(
-      `HWPX 파일을 열 수 없습니다 (손상되었거나 ZIP 형식이 아닙니다): ${detail}`,
-    );
-  }
+  if (!file) return emptyHeader();
+  return readHeader(
+    parseXmlOrThrow(file, "HWPX 머리(header.xml)를 해석할 수 없습니다"),
+  );
 }
 
 function renderSectionFile(
@@ -140,16 +154,19 @@ function collectWarnings(ctx: HwpxContext, html: string): Array<string> {
       `수식 ${equationFallbacks}개는 LaTeX로 바꾸지 못해 원본 수식 스크립트를 코드로 남겼습니다.`,
     );
   }
+  const { truncatedTables } = ctx.state.tableCells;
+  if (truncatedTables > 0) {
+    warnings.push(
+      `표 ${truncatedTables}개가 너무 커서 일부 행·열만 변환했습니다 (표 하나 최대 ${MAX_TABLE_COLS.toLocaleString("ko-KR")}열, 병합으로 생기는 칸은 문서 전체 최대 ${MAX_MERGED_CELLS.toLocaleString("ko-KR")}개).`,
+    );
+  }
   return [...new Set(warnings)];
 }
 
-function createContext(
-  files: Record<string, Uint8Array>,
-  imagesDirName: string,
-): HwpxContext {
+function createContext(pkg: HwpxPackage, imagesDirName: string): HwpxContext {
   const ctx: HwpxContext = {
-    header: readHeaderFile(files),
-    images: new ImageCollector(imagesDirName, files),
+    header: readHeaderFile(pkg.files),
+    images: new ImageCollector(imagesDirName, pkg.files, pkg.entryNames),
     numbering: new NumberingTracker(),
     state: new DocumentState(),
     renderNote: (paragraphs, mode) =>
@@ -176,19 +193,19 @@ export class HwpxParser implements Parser {
     data: Uint8Array,
     options: ParseOptions = { imagesDirName: DEFAULT_IMAGES_DIR },
   ): Promise<ParseResult> {
-    const files = unzip(data);
-    const ctx = createContext(files, options.imagesDirName);
+    const pkg = readHwpxPackage(data);
+    const ctx = createContext(pkg, options.imagesDirName);
 
     const htmlParts: Array<string> = [];
-    for (const path of getSectionPaths(files)) {
-      const sectionFile = files[path];
+    for (const path of getSectionPaths(pkg.files)) {
+      const sectionFile = pkg.files[path];
       if (!sectionFile) continue;
       htmlParts.push(renderSectionFile(path, strFromU8(sectionFile), ctx));
     }
 
     const protectedHtml = htmlParts.join("\n");
-    const html = protectedHtml.split(PIPE_TOKEN).join("|");
-    const markdown = restorePipes(htmlToMarkdown(protectedHtml));
+    const html = stripRawMarkers(protectedHtml.split(PIPE_TOKEN).join("|"));
+    const markdown = restorePipes(hwpxHtmlToMarkdown(protectedHtml));
     const warnings = collectWarnings(ctx, html);
 
     return {

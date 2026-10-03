@@ -23,7 +23,11 @@
     "dist"
   ],
   "devDependencies": {
-    "@types/turndown": "^5.0.6"
+    "@types/turndown": "^5.0.6",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "remark-parse": "^11.0.0",
+    "unified": "^11.0.5"
   },
   "dependencies": {
     "@firecrawl/pdf-inspector": "1.14.2",

@@ -1,6 +1,8 @@
 import type { HwpxHeader } from "./header.js";
 import type { ImageCollector } from "./images.js";
 import type { InlinePlacement } from "./inline-builder.js";
+import { MAX_MERGED_CELLS } from "./limits.js";
+import { OrderedListTracker } from "./marker.js";
 import type { NumberingTracker } from "./numbering.js";
 import type { XmlNode } from "./xml.js";
 
@@ -26,6 +28,33 @@ export const BODY_MODE: WalkMode = {
 };
 
 /**
+ * 문서 전체 병합 칸 예산 (`MAX_MERGED_CELLS`). 병합 칸은 빈 칸으로 펼쳐져 작은
+ * 입력이 수백만 칸으로 불어날 수 있어 표마다가 아니라 문서 단위로 센다.
+ */
+export class TableCellBudget {
+  private used = 0;
+  private truncated = 0;
+
+  /** 아직 쓸 수 있는 병합 칸 수 */
+  get remaining(): number {
+    return Math.max(0, MAX_MERGED_CELLS - this.used);
+  }
+
+  /** 상한 때문에 일부만 낸 표 수 */
+  get truncatedTables(): number {
+    return this.truncated;
+  }
+
+  spend(cells: number): void {
+    this.used += cells;
+  }
+
+  markTruncated(): void {
+    this.truncated += 1;
+  }
+}
+
+/**
  * 문서 전체에 걸친 진행 상태.
  *
  * 변경 추적 삭제 구간은 run·문단 경계를 넘어 이어지므로 문서 수준에서 센다.
@@ -36,10 +65,38 @@ export class DocumentState {
   deletedRanges = 0;
   equationFallbacks = 0;
   outlineNumberingId = "1";
+  readonly tableCells = new TableCellBudget();
+  /** 본문에 날것으로 낸 번호 목록 — 구역이 바뀌어도 Markdown 에서는 이어진다 */
+  readonly orderedList = new OrderedListTracker();
   private deleteDepth = 0;
+  private readonly autoNumbers = new Map<string, number>();
 
   get isDeleting(): boolean {
     return this.deleteDepth > 0;
+  }
+
+  /**
+   * 나중에 그리는 블록(표·글상자·캡션)을 삭제 구간 밖으로 그린다.
+   *
+   * 문단은 먼저 끝까지 훑은 뒤 표 같은 블록을 그린다. 그 사이 문단 뒤쪽에서
+   * 삭제가 시작되면, 삭제 구간 앞에 놓였던 표까지 지워진 것처럼 그려졌다.
+   * 블록은 삭제 구간이 아닐 때만 모이므로 그릴 때는 삭제 상태를 비운다.
+   */
+  withoutDeletion<T>(render: () => T): T {
+    const saved = this.deleteDepth;
+    this.deleteDepth = 0;
+    try {
+      return render();
+    } finally {
+      this.deleteDepth = saved;
+    }
+  }
+
+  /** 캡션 자동 번호 — 저장된 번호(num)가 없으면 종류별로 이어 센다 */
+  nextAutoNumber(type: string, stored: number | null): number {
+    const value = stored ?? (this.autoNumbers.get(type) ?? 0) + 1;
+    this.autoNumbers.set(type, value);
+    return value;
   }
 
   beginDelete(): void {

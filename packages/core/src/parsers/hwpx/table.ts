@@ -1,11 +1,12 @@
-import { rawMarkdownHtml } from "../../html-to-md.js";
 import { MERGE_LEFT, MERGE_UP } from "../html-tables-to-gfm.js";
 import {
   type HwpxContext,
   MAX_OBJECT_DEPTH,
   type WalkMode,
 } from "./context.js";
-import { tableCaption } from "./controls.js";
+import { captionOf } from "./controls.js";
+import { MAX_TABLE_COLS } from "./limits.js";
+import { withMarker } from "./marker.js";
 import { resolveParagraphMarker } from "./numbering.js";
 import { walkParagraph } from "./walker.js";
 import { attr, childNode, childNodes, type XmlNode } from "./xml.js";
@@ -33,11 +34,6 @@ interface CellPart {
   readonly value: string;
 }
 
-/** 문단 머리(번호·기호)를 앞에 붙인다 — escape되지 않도록 전용 요소로 감싼다 */
-export function withMarker(marker: string | null, html: string): string {
-  return marker ? `${rawMarkdownHtml(marker)} ${html}` : html;
-}
-
 function paragraphMarker(paragraph: XmlNode, ctx: HwpxContext): string | null {
   return (
     resolveParagraphMarker(
@@ -63,15 +59,25 @@ function paragraphParts(
   const parts: Array<CellPart> = [];
   for (const segment of walkParagraph(paragraph, ctx, mode)) {
     if (segment.kind === "inline" || segment.kind === "image") {
-      parts.push({ kind: "text", value: withMarker(marker, segment.html) });
+      const value = withMarker(marker, segment.html, "cell");
+      parts.push({ kind: "text", value });
       marker = null;
     } else if (segment.kind === "table") {
-      parts.push(...nestedTableParts(segment.node, ctx, mode, depth));
+      // 문단을 다 훑은 뒤 그리므로 뒤쪽 삭제 구간에 휩쓸리지 않게 한다
+      const node = segment.node;
+      parts.push(
+        ...ctx.state.withoutDeletion(() =>
+          nestedTableParts(node, ctx, mode, depth),
+        ),
+      );
     } else if (mode.depth < MAX_OBJECT_DEPTH) {
       const inner = { ...mode, depth: mode.depth + 1 };
-      for (const p of segment.paragraphs) {
-        parts.push(...paragraphParts(p, ctx, inner, depth));
-      }
+      const nested = segment.paragraphs;
+      parts.push(
+        ...ctx.state.withoutDeletion(() =>
+          paragraphsParts(nested, ctx, inner, depth),
+        ),
+      );
     }
   }
   return parts;
@@ -93,7 +99,7 @@ function nestedTableParts(
   mode: WalkMode,
   depth: number,
 ): Array<CellPart> {
-  const caption = tableCaption(tbl);
+  const caption = captionOf(tbl);
   const captionParts = caption
     ? paragraphsParts(caption.paragraphs, ctx, mode, depth)
     : [];
@@ -178,11 +184,39 @@ export function renderInlineParagraphs(
   return joinCellParts(paragraphsParts(paragraphs, ctx, mode, 0));
 }
 
-function cellSpan(tc: XmlNode): { colSpan: number; rowSpan: number } {
+/**
+ * 표 모양. colCnt(표 폭)가 있으면 병합 폭의 상한으로 쓴다 — 실물 287개 표 모두
+ * colCnt 가 실제 폭과 같았다 (2026-10-03). 없으면 열 상한(MAX_TABLE_COLS)만 건다.
+ */
+interface TableShape {
+  readonly maxColSpan: number;
+  readonly rowCount: number;
+}
+
+function tableShape(tbl: XmlNode, rowCount: number): TableShape {
+  const colCnt = Number.parseInt(attr(tbl, "colCnt"), 10);
+  const maxColSpan =
+    Number.isFinite(colCnt) && colCnt > 0 ? colCnt : Number.POSITIVE_INFINITY;
+  return { maxColSpan, rowCount };
+}
+
+/**
+ * 병합 칸 수. 표 폭(colCnt)·행 수를 넘는 병합은 파일이 손상된 것이라 표 안으로
+ * 자른다 — colSpan 하나가 표를 수만 열로 부풀리던 것을 막는다.
+ */
+function cellSpan(
+  tc: XmlNode,
+  shape: TableShape,
+): { colSpan: number; rowSpan: number } {
   const span = childNode(tc, "cellSpan");
-  const read = (name: string): number =>
-    span ? Math.max(1, Number(attr(span, name)) || 1) : 1;
-  return { colSpan: read("colSpan"), rowSpan: read("rowSpan") };
+  const read = (name: string, max: number): number => {
+    const value = span ? Number(attr(span, name)) || 1 : 1;
+    return Math.min(Math.max(1, value), max);
+  };
+  return {
+    colSpan: read("colSpan", shape.maxColSpan),
+    rowSpan: read("rowSpan", Math.max(1, shape.rowCount)),
+  };
 }
 
 /**
@@ -201,21 +235,39 @@ function expandTableToGrid(
   ctx: HwpxContext,
   mode: WalkMode,
 ): Array<Array<string>> {
+  const rows = childNodes(tbl, "tr");
+  const shape = tableShape(tbl, rows.length);
+  const budget = ctx.state.tableCells;
   // col 위치 → 남은 rowspan 카운트 (다음 행에서 병합 표기로 채워야 함)
   const reserved = new Map<number, number>();
-  const expanded = childNodes(tbl, "tr").map((row) =>
-    expandRow(childNodes(row, "tc"), reserved, ctx, mode),
-  );
+  const expanded: Array<Array<string>> = [];
+  let width = 0;
+  let realCells = 0;
+  let truncated = false;
+  for (const row of rows) {
+    const cells = expandRow(childNodes(row, "tc"), reserved, shape, ctx, mode);
+    truncated ||= cells.truncated;
+    const nextWidth = Math.max(width, cells.values.length);
+    // 병합 칸(격자 칸 - 실제 셀)이 문서 예산을 넘는 행부터 버린다
+    const merged = (expanded.length + 1) * nextWidth - realCells - cells.real;
+    if (merged > budget.remaining) {
+      truncated = true;
+      break;
+    }
+    expanded.push(cells.values);
+    width = nextWidth;
+    realCells += cells.real;
+  }
+  budget.spend(expanded.length * width - realCells);
+  if (truncated) budget.markTruncated();
+  return expanded.map((cells) => padRow(cells, width));
+}
 
-  // 모든 행을 maxCols로 padding — 병합이 아니라 행 길이 보정이므로 빈칸이다
-  const maxCols = expanded.reduce(
-    (max, cells) => Math.max(max, cells.length),
-    0,
-  );
-  return expanded.map((cells) => [
-    ...cells,
-    ...new Array<string>(maxCols - cells.length).fill(""),
-  ]);
+/** 행 길이 보정 — 병합이 아니라 행마다 칸 수가 달라서 생긴 자리라 빈칸이다 */
+function padRow(cells: ReadonlyArray<string>, width: number): Array<string> {
+  const padded = cells.slice();
+  while (padded.length < width) padded.push("");
+  return padded;
 }
 
 /** 윗 행의 rowSpan이 차지한 자리면 병합 표기(↑)를 내고 남은 행 수를 줄인다 */
@@ -227,17 +279,32 @@ function takeReserved(reserved: Map<number, number>, col: number): boolean {
   return true;
 }
 
-/** 한 행을 grid 칸으로 펼친다 — `reserved`는 행을 넘어 이어지는 세로 병합 상태 */
+interface ExpandedRow {
+  readonly values: Array<string>;
+  /** 실제 셀(`<hp:tc>`) 수 — 나머지는 병합 칸이다 */
+  readonly real: number;
+  /** 열 상한(MAX_TABLE_COLS)에 걸려 오른쪽 칸을 버렸는지 */
+  readonly truncated: boolean;
+}
+
+/**
+ * 한 행을 grid 칸으로 펼친다 — `reserved`는 행을 넘어 이어지는 세로 병합 상태.
+ * 병합 칸은 반복문으로 채운다 (큰 배열을 spread 하면 호출 스택이 넘친다).
+ */
 function expandRow(
   tcs: ReadonlyArray<XmlNode>,
   reserved: Map<number, number>,
+  shape: TableShape,
   ctx: HwpxContext,
   mode: WalkMode,
-): Array<string> {
+): ExpandedRow {
   const cells: Array<string> = [];
   let tcIdx = 0;
+  let real = 0;
+  let truncated = false;
   while (tcIdx < tcs.length || (reserved.get(cells.length) ?? 0) > 0) {
     const col = cells.length;
+    if (col >= MAX_TABLE_COLS) return { values: cells, real, truncated: true };
     if (takeReserved(reserved, col)) {
       cells.push(MERGE_UP);
       continue;
@@ -245,16 +312,32 @@ function expandRow(
     const tc = tcs[tcIdx];
     tcIdx += 1;
     if (!tc) break;
-    const { colSpan, rowSpan } = cellSpan(tc);
-    cells.push(
-      cellHtml(tc, ctx, mode, 0),
-      ...new Array<string>(colSpan - 1).fill(MERGE_LEFT),
-    );
-    if (rowSpan > 1) {
-      for (let c = col; c < col + colSpan; c += 1) reserved.set(c, rowSpan - 1);
-    }
+    const span = cellSpan(tc, shape);
+    truncated ||= span.colSpan > MAX_TABLE_COLS - col;
+    placeCell(cells, cellHtml(tc, ctx, mode, 0), span, reserved);
+    real += 1;
   }
-  return cells;
+  return { values: cells, real, truncated };
+}
+
+/**
+ * 셀 하나를 놓는다 — 첫 칸에 내용, 가로 병합 칸은 ←, 세로 병합은 다음 행들의
+ * 같은 열을 `reserved`에 예약한다. 병합 폭은 열 상한 안으로 자른다.
+ */
+function placeCell(
+  cells: Array<string>,
+  html: string,
+  span: { readonly colSpan: number; readonly rowSpan: number },
+  reserved: Map<number, number>,
+): void {
+  const col = cells.length;
+  const colSpan = Math.min(span.colSpan, MAX_TABLE_COLS - col);
+  cells.push(html);
+  for (let c = 1; c < colSpan; c += 1) cells.push(MERGE_LEFT);
+  if (span.rowSpan <= 1) return;
+  for (let c = col; c < col + colSpan; c += 1) {
+    reserved.set(c, span.rowSpan - 1);
+  }
 }
 
 /**
