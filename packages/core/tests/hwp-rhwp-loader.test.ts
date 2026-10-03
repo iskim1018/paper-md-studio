@@ -2,6 +2,11 @@ import { unzipSync } from "fflate";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HwpConversionError } from "../src/parsers/hwp/errors.js";
 import {
+  discardRhwp,
+  MAX_RHWP_REPLACEMENTS,
+  resetRhwpReplacementCountForTest,
+} from "../src/parsers/hwp/rhwp-instance.js";
+import {
   convertHwpmlWithRhwp,
   convertWithRhwp,
   loadRhwp,
@@ -10,6 +15,9 @@ import { createHwp5, hwpmlDocument } from "./helpers/hwp-fixtures.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  // 교체 횟수는 프로세스 전역이라, 트랩을 내는 테스트가 쌓여 다른 테스트의
+  // 상한을 건드리지 않게 테스트마다 초기화한다(각 테스트는 새 프로세스를 흉내).
+  resetRhwpReplacementCountForTest();
 });
 
 function sectionXml(hwpx: Uint8Array): string {
@@ -234,5 +242,36 @@ describe("트랩 뒤 인스턴스 교체", () => {
     ).rejects.toMatchObject({ code: "UNSUPPORTED" });
 
     expect(await loadRhwp()).toBe(before);
+  });
+
+  it("교체가 상한을 넘으면 새 인스턴스를 만들지 않고 엔진 불안정으로 거부한다", async () => {
+    // 버린 인스턴스마다 WASM 메모리가 남으므로 무한 교체는 메모리를 잠식한다.
+    // 트랩을 흉내 내 교체를 거듭하고, 상한을 넘으면 WASM 을 또 컴파일하지 않고
+    // 즉시 한국어 오류로 거부하는지 본다(감독 프로세스가 재시작하도록).
+    resetRhwpReplacementCountForTest();
+    let instance = await loadRhwp();
+    // 상한만큼은 교체가 허용된다
+    for (let i = 0; i < MAX_RHWP_REPLACEMENTS; i++) {
+      discardRhwp(instance);
+      instance = await loadRhwp();
+    }
+    // 한 번 더 버리면 다음 로드는 거부된다
+    discardRhwp(instance);
+
+    const start = performance.now();
+    const error = await loadRhwp().catch((e: unknown) => e);
+    const elapsed = performance.now() - start;
+
+    expect(error).toBeInstanceOf(HwpConversionError);
+    expect(error).toMatchObject({ code: "CONVERSION_FAILED" });
+    expect((error as Error).message).toMatch(/불안정|다시 시작/);
+    // 새 WASM 컴파일(≈9.9MB) 없이 즉시 거부한다
+    expect(elapsed).toBeLessThan(50);
+    // 거부 상태는 유지된다 — 프로세스를 다시 시작해야 한다
+    await expect(loadRhwp()).rejects.toMatchObject({
+      code: "CONVERSION_FAILED",
+    });
+
+    resetRhwpReplacementCountForTest();
   });
 });

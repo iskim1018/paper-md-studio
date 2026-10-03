@@ -2,8 +2,12 @@
  * 스트림 하나가 풀리면 몇 바이트가 되는지 잰다 — 출력은 버리고 크기만 본다.
  *
  * - raw deflate 와 zlib 감싼 스트림 둘 다 잰다 — rhwp 는 raw 가 실패하면 zlib 으로
- *   다시 푼다(실측). zlib 은 RFC 1950 헤더가 유효하면 창 크기와 무관하게 시도한다
- *   (rhwp 의 miniz_oxide 는 창 256B~32KB 를 모두 받는다 — 첫 바이트가 0x78 만은 아니다).
+ *   다시 푼다(실측). zlib 감싼 경우는 **헤더 2바이트를 떼고 raw deflate 로** 잰다:
+ *   rhwp 의 miniz_oxide 는 RFC 1950 헤더가 유효하면 거기 적힌 창 크기(CINFO)를
+ *   무시하고 32KB 창으로 풀지만, Node 의 inflateSync 는 그 창을 강제해 창 밖
+ *   역참조를 "invalid distance too far back" 로 중단한다 — CINFO 를 작게 적고 멀리
+ *   역참조하는 폭탄을 놓쳤다(리뷰 지적 #1). inflateRawSync 는 창을 강제하지 않아
+ *   miniz 와 같은 양을 푼다.
  * - `finishFlush: Z_SYNC_FLUSH` 로 끝이 잘린 스트림도 풀린 만큼 센다.
  * - 풀다 깨지는 스트림: 출력 16KB 안에서 깨지면 압축 데이터가 아니라고 보고 0 으로
  *   친다(거짓 양성 방지 — 압축하지 않은 첨부 등). 그보다 뒤에서 깨지면 그만큼은
@@ -13,7 +17,7 @@
  *   크기에 묶는다 — `inflate-guard.ts`).
  */
 
-import { constants, inflateRawSync, inflateSync } from "node:zlib";
+import { constants, inflateRawSync } from "node:zlib";
 
 /** 출력이 이보다 적은 채로 깨지면 압축 데이터가 아니라고 본다 */
 export const EARLY_FAILURE_BYTES = 16 * 1024;
@@ -141,5 +145,16 @@ export function measureInflatedSize(
   if (raw === Number.POSITIVE_INFINITY || !isZlibHeader(data)) {
     return raw;
   }
-  return Math.max(raw, measureWith(inflateSync, data, safeLimit, charge));
+  // zlib 로 감싼 스트림: rhwp(miniz_oxide)는 헤더가 선언한 창 크기(CINFO)와
+  // 무관하게 32KB 창으로 푼다. Node 의 inflateSync 는 헤더의 CINFO 를 강제해
+  // 창 밖을 참조하는 스트림을 "invalid distance too far back" 로 중단하므로,
+  // CINFO 를 작게 적고 멀리 역참조하는 폭탄을 0 으로 세어 놓쳤다(리뷰 지적 #1).
+  // 그래서 헤더 2바이트를 떼고 raw deflate 로 다시 잰다 — inflateRawSync 는
+  // 선언 창과 무관하게 32KB 창을 써 miniz 와 같은 양을 푼다. 끝의 Adler-32
+  // 4바이트는 raw 디코더가 최종 블록에서 멈춰 그냥 남는다.
+  const zlibBody = data.subarray(2);
+  return Math.max(
+    raw,
+    measureWith(inflateRawSync, zlibBody, safeLimit, charge),
+  );
 }

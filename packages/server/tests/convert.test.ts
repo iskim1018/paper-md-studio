@@ -5,6 +5,7 @@ import {
   type ConvertOptions,
   type ConvertResult,
   HwpConversionError,
+  HwpxLimitError,
 } from "@paper-md-studio/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConvertCache } from "../src/cache/index.js";
@@ -328,6 +329,38 @@ describe("POST /v1/convert", () => {
       expect(encrypted.statusCode).toBe(422);
       expect(encrypted.json().error).toContain("암호로 보호된 문서");
       expect(failed.statusCode).toBe(500);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("HWPX 자원 상한 초과(HwpxLimitError)는 422 로 응답한다", async () => {
+    // .hwpx 직접 경로의 상한 오류도 입력 탓(과대)이라 재시도 방지 — 500 이 아니다
+    const app = await buildTestApp();
+    try {
+      const { payload, contentType } = makeMultipart([
+        {
+          name: "file",
+          filename: "과대.hwpx",
+          content: Buffer.from([0x50, 0x4b, 3, 4]),
+          contentType: "application/octet-stream",
+        },
+      ]);
+      convertImpl.mockRejectedValueOnce(
+        new HwpxLimitError(
+          "HWPX 파일 안 항목이 너무 많습니다. 문서가 손상되었거나 악의적으로 만들어졌을 수 있습니다.",
+        ),
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/convert",
+        headers: { "content-type": contentType },
+        payload,
+      });
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json().error).toContain("항목이 너무 많습니다");
     } finally {
       await app.close();
     }

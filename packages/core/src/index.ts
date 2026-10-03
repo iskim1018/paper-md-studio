@@ -40,6 +40,7 @@ export { isBlockedIp, safeFetch, validateFetchUrl } from "./net/safe-fetch.js";
 export { normalizePath, normalizeToNFC } from "./normalize.js";
 export type { HwpErrorCode } from "./parsers/hwp/errors.js";
 export { HwpConversionError } from "./parsers/hwp/errors.js";
+export { HwpxLimitError } from "./parsers/hwpx/package.js";
 export type { HtmlResult } from "./pipeline.js";
 export { convert, convertToHtml } from "./pipeline.js";
 export type {

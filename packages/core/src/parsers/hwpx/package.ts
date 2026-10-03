@@ -83,8 +83,8 @@ function guardedUnzip(
   }
 }
 
-/** 중앙 디렉터리만 읽어 항목 목록을 얻는다 — 압축은 풀지 않는다 */
-function listEntries(data: Uint8Array): Array<UnzipFileInfo> {
+/** 중앙 디렉터리만 읽어 항목 목록을 얻는다 — 압축은 풀지 않는다 (항목 수 상한 포함) */
+export function listEntries(data: Uint8Array): Array<UnzipFileInfo> {
   const entries: Array<UnzipFileInfo> = [];
   guardedUnzip(data, (file) => {
     if (entries.length >= MAX_ZIP_ENTRIES) throw tooManyEntries();
