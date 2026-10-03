@@ -1,203 +1,182 @@
-import { spawn } from "node:child_process";
-import { access, mkdtemp, open, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { normalizeToNFC } from "../normalize.js";
+import { join } from "node:path";
+import { unzipSync } from "fflate";
 import type { ParseOptions, ParseResult, Parser } from "../types.js";
+import { detectHwpFormat, readLegacyVersion } from "./hwp/detect.js";
+import { HwpConversionError, toHwpConversionError } from "./hwp/errors.js";
+import { parseHwpWithJava } from "./hwp/java-engine.js";
+import { precheckHwp3, precheckHwp5 } from "./hwp/precheck.js";
+import {
+  convertHwpmlWithRhwp,
+  convertWithRhwp,
+  type RhwpResult,
+} from "./hwp/rhwp-loader.js";
 import { HwpxParser } from "./hwpx-parser.js";
-import { detectBinaryFormat, KordocParser } from "./kordoc-adapter.js";
 
-const JAR_FILE_NAME = "hwp-to-hwpx.jar";
-const JAR_ENV_OVERRIDE = "PAPER_MD_STUDIO_HWP_JAR";
-const JAVA_ENV = "JAVA_HOME";
-
-/** HWP 5.x 처리 엔진 선택 (K3 실험용) — docs/kordoc-integration.md §6 */
+/** HWP 5.0 처리 엔진 선택 */
 const HWP_ENGINE_ENV = "PAPER_MD_STUDIO_HWP_ENGINE";
 
-export type Hwp5Engine = "java" | "kordoc";
+export type Hwp5Engine = "rhwp" | "java";
 
 /**
- * HWP 5.x(OLE2)를 어느 엔진으로 처리할지 결정한다.
+ * HWP 5.0(OLE2)를 어느 엔진으로 처리할지 결정한다.
  *
- * **기본값은 kordoc 직파싱이다** (2026-08-09 전환, K3 W4). 실측 4표본에서
- * 내용 유실 없이 토큰은 Java 경로 이하, 속도는 10~20배였다(§6). Java 경로는
- * `PAPER_MD_STUDIO_HWP_ENGINE=java`로 아직 쓸 수 있다 — 전환 커밋과 제거
- * 커밋을 분리해 되돌리기 쉽게 두기 위해서다. jar·JRE 번들 제거는 W5.
+ * **기본값은 rhwp 다.** rhwp(WASM)가 HWP 를 HWPX 로 내보내고, 그 뒤는 .hwpx 와
+ * 같은 HwpxParser 를 탄다 — Java 경로와 파이프라인 모양이 같다. Java 경로는
+ * `PAPER_MD_STUDIO_HWP_ENGINE=java` 로 아직 쓸 수 있다(HWP 5.0 에만 적용).
  *
- * 알 수 없는 값은 조용히 무시하고 기본값으로 떨어뜨린다. 오타 하나로 변환
- * 엔진이 바뀌면 안 된다.
+ * 알 수 없는 값(이전 기본값 "kordoc" 포함)은 조용히 기본값으로 떨어뜨린다.
+ * 오타 하나로 변환 엔진이 바뀌면 안 된다.
  */
 export function resolveHwp5Engine(
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Hwp5Engine {
-  return env[HWP_ENGINE_ENV] === "java" ? "java" : "kordoc";
+  return env[HWP_ENGINE_ENV] === "java" ? "java" : "rhwp";
 }
 
 /**
- * core 패키지 내 hwp-to-hwpx.jar 경로를 탐색한다.
- *
- * 탐색 순서:
- *   1. PAPER_MD_STUDIO_HWP_JAR 환경변수 (최우선)
- *   2. src/parsers/*.ts 기준 상대경로 (개발 모드)
- *   3. dist/index.js 기준 상대경로 (빌드 산출물)
- *   4. 패키지 루트 기준 상대경로
+ * rhwp 가 내보낸 HWPX 를 HwpxParser 로 읽는다.
+ * HwpxParser 가 바이트 입력(parseBytes)을 받게 되면 임시 파일 없이 이 함수만 바꾼다.
  */
-async function resolveJarPath(): Promise<string> {
-  const override = process.env[JAR_ENV_OVERRIDE];
-  if (override) {
-    try {
-      await access(override);
-      return override;
-    } catch {
-      throw new Error(
-        `${JAR_ENV_OVERRIDE}에 지정된 jar 파일을 찾을 수 없습니다: ${override}`,
-      );
-    }
-  }
-
-  const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    join(here, "..", "..", "resources", JAR_FILE_NAME), // src/parsers/ → packages/core/resources
-    join(here, "..", "resources", JAR_FILE_NAME), // dist/ → packages/core/resources
-    join(here, "resources", JAR_FILE_NAME),
-  ];
-
-  for (const candidate of candidates) {
-    try {
-      await access(candidate);
-      return candidate;
-    } catch {
-      // 다음 후보 시도
-    }
-  }
-
-  throw new Error(
-    `HWP 변환 jar 파일을 찾을 수 없습니다. ${JAR_ENV_OVERRIDE} 환경변수로 경로를 지정하거나 ` +
-      `packages/core/resources/${JAR_FILE_NAME} 파일이 존재하는지 확인하세요.`,
-  );
-}
-
-/**
- * 시스템의 java 실행 파일 경로를 결정.
- * JAVA_HOME 우선, 실패 시 PATH의 'java'. Windows에서는 .exe를 붙인다.
- */
-function resolveJavaExecutable(): string {
-  const javaBinary = process.platform === "win32" ? "java.exe" : "java";
-  const javaHome = process.env[JAVA_ENV];
-  if (javaHome) {
-    return join(javaHome, "bin", javaBinary);
-  }
-  return javaBinary;
-}
-
-/** 포맷 판별에 필요한 파일 앞부분 크기 — HWPML 판별이 최대 512바이트를 본다 */
-const DETECT_PREFIX_BYTES = 1024;
-
-/** 매직바이트 판별용으로 파일 앞부분만 읽는다 (대용량 HWP 전체 로드 방지). */
-async function readFilePrefix(inputPath: string): Promise<Buffer> {
-  const handle = await open(inputPath, "r");
+async function parseHwpxBytes(
+  hwpx: Uint8Array,
+  options: ParseOptions,
+): Promise<ParseResult> {
+  const tmpDir = await mkdtemp(join(tmpdir(), "paper-md-studio-hwp-"));
   try {
-    const buffer = Buffer.alloc(DETECT_PREFIX_BYTES);
-    const { bytesRead } = await handle.read(buffer, 0, DETECT_PREFIX_BYTES, 0);
-    return buffer.subarray(0, bytesRead);
+    const tmpPath = join(tmpDir, "document.hwpx");
+    await writeFile(tmpPath, hwpx);
+    return await new HwpxParser().parse(tmpPath, options);
   } finally {
-    await handle.close();
+    await rm(tmpDir, { recursive: true, force: true });
   }
 }
 
-interface JavaRunResult {
-  readonly code: number;
-  readonly stderr: string;
+/** 사전 검사·변환 엔진 경고를 HwpxParser 결과의 경고 앞에 붙인다 */
+function withWarnings(
+  result: ParseResult,
+  warnings: ReadonlyArray<string>,
+): ParseResult {
+  const merged = [...warnings, ...(result.warnings ?? [])];
+  return merged.length > 0 ? { ...result, warnings: merged } : result;
 }
 
-function runJava(javaCmd: string, args: Array<string>): Promise<JavaRunResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(javaCmd, args, { stdio: ["ignore", "ignore", "pipe"] });
-    const stderrChunks: Array<Buffer> = [];
+/**
+ * rhwp 로 HWPX 를 만든 뒤 HwpxParser 로 읽는다. 변환은 함수로 받는다 — 사전
+ * 검사가 끝나기 전에 변환이 시작되는 일(인자 평가 순서 실수)을 막기 위해서다.
+ */
+async function parseViaRhwp(
+  convert: () => Promise<RhwpResult>,
+  precheckWarnings: ReadonlyArray<string>,
+  options: ParseOptions,
+): Promise<ParseResult> {
+  const { hwpx, warnings } = await convert();
+  const result = await parseHwpxBytes(hwpx, options);
+  return withWarnings(result, [...precheckWarnings, ...warnings]);
+}
 
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderrChunks.push(chunk);
+/**
+ * HWPX(ZIP)를 .hwp 로 저장한 파일 — .hwpx 와 똑같이 HwpxParser 로 읽는다.
+ * DOCX·XLSX 도 ZIP 이므로 HWPX 본문 폴더(Contents/)가 있는지 먼저 본다.
+ */
+async function parseZipAsHwpx(
+  inputPath: string,
+  data: Uint8Array,
+  options: ParseOptions,
+): Promise<ParseResult> {
+  const names: Array<string> = [];
+  try {
+    unzipSync(data, {
+      filter: (file) => {
+        names.push(file.name);
+        return false;
+      },
     });
+  } catch {
+    throw new HwpConversionError("CORRUPTED", "ZIP 구조를 읽을 수 없습니다");
+  }
+  if (!names.some((name) => name.toLowerCase().startsWith("contents/"))) {
+    throw new HwpConversionError(
+      "UNSUPPORTED",
+      "HWPX 가 아닌 ZIP 문서(DOCX·XLSX 등)입니다. 확장자를 확인해주세요",
+    );
+  }
+  return await new HwpxParser().parse(inputPath, options);
+}
 
-    child.on("error", (err) => {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-        reject(
-          new Error(
-            "Java 런타임을 찾을 수 없습니다. JDK 11 이상을 설치하거나 " +
-              `${JAVA_ENV} 환경변수를 설정해주세요.`,
-          ),
-        );
-        return;
-      }
-      reject(err);
-    });
+/** 보안 컨테이너 머리말 판별에 넘길 앞부분 크기 */
+const DRM_SNIFF_BYTES = 4096;
 
-    child.on("close", (code) => {
-      resolve({
-        code: code ?? -1,
-        stderr: Buffer.concat(stderrChunks).toString("utf-8"),
-      });
-    });
-  });
+/**
+ * 알아보지 못한 파일. 우리가 모르는 보안 컨테이너(SoftCamp·Fasoo 등 DRM)면
+ * rhwp 가 머리말로 알아보므로, **앞 4KB 만** 넘겨 DRM 인지만 묻는다 — 전체를
+ * 넘기면 사전 검사 없이 엔진이 내용을 풀게 된다.
+ */
+async function rejectUnknown(data: Uint8Array): Promise<never> {
+  try {
+    await convertWithRhwp(data.subarray(0, DRM_SNIFF_BYTES));
+  } catch (err) {
+    const error = toHwpConversionError(err);
+    if (error.code === "DRM_PROTECTED") {
+      throw error;
+    }
+  }
+  throw new HwpConversionError("UNSUPPORTED");
 }
 
 /**
  * .hwp 확장자 파일의 파서.
  *
- * 확장자는 같아도 실제 포맷은 셋으로 갈린다 — 매직바이트로 분기한다:
- *   - HWP 3.x (1996~2002 단일 바이너리) → kordoc 파서
- *   - HWPML (XML 기반 .hwp)            → kordoc 파서
- *   - HWP 5.x (OLE2 바이너리)          → kordoc 직파싱 (기본)
- *                                        PAPER_MD_STUDIO_HWP_ENGINE=java 면
- *                                        기존 Java 툴체인 → HWPX → HwpxParser
+ * 확장자는 같아도 실제 포맷은 여럿이다 — 매직바이트로 분기한다:
+ *   - HWP 5.0 (OLE2)  → 사전 검사 → rhwp(기본) 또는 Java → HWPX → HwpxParser
+ *   - HWP 3.0         → 사전 검사 → rhwp → HWPX → HwpxParser
+ *   - HWPML (XML)     → rhwp(버전 대체 재시도) → HWPX → HwpxParser
+ *   - HWPX (ZIP)      → HwpxParser (.hwpx 와 같은 결과)
+ *   - 빈 파일·옛 버전·그 밖 → 엔진을 부르지 않고 한국어 오류
  */
 export class HwpParser implements Parser {
   async parse(inputPath: string, options: ParseOptions): Promise<ParseResult> {
-    const prefix = await readFilePrefix(inputPath);
-    const detected = detectBinaryFormat(prefix);
-    if (detected === "hwp3" || detected === "hwpml") {
-      // HWP3·HWPML도 kordoc이 병합 표를 HTML <table>로 내므로 (HWPML 합성
-      // 표본 실측, 2026-08-16) 다른 포맷과 같은 GFM 계약으로 정규화한다.
-      return await new KordocParser({ normalizeTables: true }).parse(
-        inputPath,
-        options,
-      );
-    }
-
-    // HWP 5.x — 기본은 kordoc 직파싱이다 (W4 전환). kordoc은 표를 HTML로 내므로
-    // GFM 정규화를 켠다 (토큰 절감 + 병합 표기 + 글리프 통일).
-    if (resolveHwp5Engine() === "kordoc") {
-      return await new KordocParser({ normalizeTables: true }).parse(
-        inputPath,
-        options,
-      );
-    }
-
-    const jarPath = await resolveJarPath();
-    const javaCmd = resolveJavaExecutable();
-
-    const tmpDir = await mkdtemp(join(tmpdir(), "paper-md-studio-hwp-"));
-    const baseName = basename(inputPath).replace(/\.[^.]+$/, "");
-    const tmpHwpxPath = normalizeToNFC(join(tmpDir, `${baseName}.hwpx`));
-
-    try {
-      const result = await runJava(javaCmd, [
-        "-jar",
-        jarPath,
-        inputPath,
-        tmpHwpxPath,
-      ]);
-
-      if (result.code !== 0) {
-        const detail = result.stderr.trim() || `종료 코드 ${result.code}`;
-        throw new Error(`HWP → HWPX 변환 실패: ${detail}`);
+    const data = new Uint8Array(await readFile(inputPath));
+    const format = detectHwpFormat(data);
+    switch (format) {
+      case "empty":
+        throw new HwpConversionError("EMPTY");
+      case "hwp-legacy":
+        throw new HwpConversionError(
+          "LEGACY_VERSION",
+          `문서 버전: ${readLegacyVersion(data)}`,
+        );
+      case "unknown":
+        return await rejectUnknown(data);
+      case "zip":
+        return await parseZipAsHwpx(inputPath, data, options);
+      case "hwpml":
+        return await parseViaRhwp(
+          () => convertHwpmlWithRhwp(data),
+          [],
+          options,
+        );
+      case "hwp3": {
+        const warnings = precheckHwp3(data);
+        return await parseViaRhwp(
+          () => convertWithRhwp(data),
+          warnings,
+          options,
+        );
       }
-
-      const hwpxParser = new HwpxParser();
-      return await hwpxParser.parse(tmpHwpxPath, options);
-    } finally {
-      await rm(tmpDir, { recursive: true, force: true });
+      case "hwp5": {
+        const warnings = precheckHwp5(data);
+        if (resolveHwp5Engine() === "java") {
+          const result = await parseHwpWithJava(inputPath, options);
+          return withWarnings(result, warnings);
+        }
+        return await parseViaRhwp(
+          () => convertWithRhwp(data),
+          warnings,
+          options,
+        );
+      }
     }
   }
 }

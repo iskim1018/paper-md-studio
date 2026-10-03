@@ -215,4 +215,6 @@ try {
 }
 
 console.log(`\n생성 완료: ${outDir}`);
-console.log(`다음: node scripts/pdf-ab.mjs ${outDir} -o ./pdf-ab-out`);
+console.log(
+  `다음: node packages/cli/dist/index.js ${outDir}/<파일>.pdf -o ./pdf-corpus-out`,
+);
