@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /**
- * K2 — 스캔본 PDF 표본 생성기 (docs/kordoc-integration.md §5 참조)
+ * K2 — 스캔본 PDF 표본 생성기
+ *
+ * 배경은 docs/kordoc-integration.md §5 (PDF A/B 실측). kordoc 은 2026-10-03 에
+ * 걷어냈지만 그 문서는 실측 이력으로 남겨 두었다.
  *
  * 텍스트 레이어가 있는 PDF 를 페이지 이미지로 래스터화해 **이미지만 든 PDF** 로
  * 다시 만든다. 실제 문서 레이아웃 그대로의 스캔본 표본을 얻는 것이 목적이다

@@ -10,7 +10,7 @@ import { MERGE_LEFT, MERGE_UP } from "../src/parsers/html-tables-to-gfm.js";
  * DOCX 표 → GFM 계약 테스트.
  *
  * Word는 셀 병합을 gridSpan(가로)·vMerge(세로)로 저장하고, mammoth가 이를
- * colspan/rowspan HTML로 복원한다. 이 표가 HWPX/kordoc 경로와 같은 계약
+ * colspan/rowspan HTML로 복원한다. 이 표가 HWPX(.hwp 포함) 경로와 같은 계약
  * (grid 정규화 + 병합 화살표 + 1행 1줄)의 GFM으로 내려가야 한다.
  *
  * 픽스처는 합성 OOXML이다 (비공개 문서 발췌 금지).

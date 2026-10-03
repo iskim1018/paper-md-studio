@@ -9,10 +9,11 @@ import { convert, convertToHtml } from "../src/pipeline.js";
 /**
  * XLSX 표 → GFM 계약 테스트.
  *
- * kordoc은 병합(mergeCells)이 있는 시트를 colspan/rowspan HTML `<table>`로
- * 내보낸다. 충실하지만 HWPX·DOCX 경로와 계약이 달라, 같은 병합 표가 포맷마다
- * 다르게 보이고 태그 오버헤드로 토큰도 더 든다 (합성 표본 실측: 병합 193→98자,
- * 보고서형 405→232자). `normalizeTables`로 같은 GFM 계약에 태운다.
+ * 자체 파서는 병합(mergeCells)이 있는 시트를 colspan/rowspan HTML `<table>`로
+ * 만든 뒤 `normalizeHtmlTablesToGfm`으로 HWPX·DOCX와 같은 GFM 계약에 태운다.
+ * HTML 표 그대로 두면 같은 병합 표가 포맷마다 다르게 보이고 태그 오버헤드로
+ * 토큰도 더 든다 (kordoc 시절 합성 표본 실측: 병합 193→98자, 보고서형
+ * 405→232자).
  *
  * 픽스처는 합성 OOXML이다 (비공개 문서 발췌 금지).
  */

@@ -26,11 +26,15 @@
 
 | 파일명 | 용도 |
 |--------|------|
-| `sample.hwp` | HWP 바이너리 변환 (`hwp-parser.test.ts`) — Java 런타임 필요 |
 | `sample.hwpx` | HWPX 변환 / 이미지 추출 |
 | `sample.docx` | DOCX 변환 — 본문에 "테스트 제목", "본문 텍스트입니다." 포함 필요 |
 | `sample-with-image.docx` | DOCX 이미지 추출 — 이미지 1장 |
 | `sample.pdf` | PDF 변환 |
+
+`.hwp` 는 이 폴더의 파일을 찾지 않습니다. HWP 5.0·HWP3·HWPML 입력은
+`tests/helpers/hwp-fixtures.ts` 가 테스트 안에서 만들고(rhwp 편집 API + cfb),
+비공개 실물 검증은 opt-in 입니다 —
+`PAPER_MD_STUDIO_PRIVATE_HWP=private/fixtures pnpm exec vitest run hwp-private-corpus`.
 
 ## 샘플 만드는 법
 
@@ -38,9 +42,10 @@
 권장하지 않습니다 — 그런 문서는 `private/fixtures/` 로 보내고, 여기에는 내용이
 공개돼도 무방한 것만 둡니다.
 
-- **HWPX**: 임의의 문서를 한컴오피스에서 "HWPX 형식"으로 저장. 한컴이 없으면
-  `kordoc` 의 `markdownToHwpx(markdown)` 로 합성 생성 가능
-- **HWP**: 한컴오피스에서 "HWP 5.0 바이너리"로 저장 (합성 생성 수단 없음)
+- **HWPX**: 임의의 문서를 한컴오피스에서 "HWPX 형식"으로 저장. 단위 테스트용
+  최소 HWPX 는 `tests/helpers/hwpx-fixture.ts` 가 합성하므로 파일이 없어도 된다
+- **HWP**: 한컴오피스에서 "HWP 5.0 바이너리"로 저장. 테스트용 합성은
+  `tests/helpers/hwp-fixtures.ts` (rhwp `createEmpty → insertText → exportHwp`)
 - **DOCX**: Word/Google Docs 등에서 생성
 - **PDF**: 임의 PDF (텍스트 기반 권장). `scripts/make-pdf-corpus.mjs` 가 만드는
   합성 PDF 를 써도 됩니다
@@ -48,5 +53,6 @@
 ## 변환 품질 실측
 
 비공개 실문서로 변환 품질을 측정하는 절차(코퍼스 선정·실행·판정)는
-`docs/kordoc-integration.md` 의 "2차 실측" 절을 참고하세요. 실측 입력과 산출물은
-모두 `private/` 안에서 다룹니다.
+`docs/kordoc-integration.md` 의 "2차 실측" 절을 참고하세요 (kordoc 은 2026-10-03
+에 걷어냈지만 실측 절차는 그대로 쓸 수 있어 이력으로 남겨 두었습니다). 실측 입력과
+산출물은 모두 `private/` 안에서 다룹니다.

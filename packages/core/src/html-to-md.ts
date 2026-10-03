@@ -87,7 +87,7 @@ function getService(): TurndownService {
  * turndown-plugin-gfm은 colspan/rowspan을 버리고 셀 안 블록 요소마다 줄바꿈을
  * 내어, 병합 표가 GFM에서 통째로 깨진다. 표는 원형으로 남겨 두고
  * `normalizeHtmlTablesToGfm`(grid 정규화 + 병합 화살표)에 넘기는 것이
- * kordoc 경로와 같은 계약이다. addRule은 rules 배열 앞에 끼워 넣으므로
+ * HWPX 파서와 같은 표 계약이다. addRule은 rules 배열 앞에 끼워 넣으므로
  * gfm 플러그인의 표 규칙보다 우선한다.
  */
 function getKeepTablesService(): TurndownService {

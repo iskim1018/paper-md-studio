@@ -6,7 +6,8 @@ import {
 } from "../src/parsers/html-tables-to-gfm.js";
 
 /**
- * kordoc이 내보내는 HTML 표를 자체 HWPX 파서와 같은 계약의 GFM으로 내린다.
+ * Markdown 안의 HTML 표(DOCX·엑셀 경로)를 자체 HWPX 파서와 같은 계약의 GFM으로
+ * 내린다.
  *
  * GFM 표에는 셀 병합 문법이 없어 colspan/rowspan이 구조적으로 소실된다.
  * 종전 계약(빈 셀 padding)은 "진짜 빈칸"과 "병합 자리"를 구분할 수 없었다 —

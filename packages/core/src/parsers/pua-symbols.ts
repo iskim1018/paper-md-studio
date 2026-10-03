@@ -78,11 +78,14 @@ const PUA_BMP_PATTERN = /[\u{F000}-\u{F0FF}]/gu;
 const P15_PUA_PATTERN = /[\u{F0000}-\u{FFFFD}]/gu;
 
 /**
- * 엔진마다 같은 기호에 다른 글자를 고르는 것을 우리 기준으로 통일한다.
+ * 같은 기호를 가리키는 동의(同義) 글리프를 우리 기준 한 글자로 통일한다.
  *
- * kordoc은 자체 PUA 정규화를 끝낸 상태로 Markdown을 내주기 때문에 원래
- * 코드포인트를 되살릴 수 없다. 글자 대 글자로 맞추는 수밖에 없다.
- * 같은 체크박스가 입력 경로(.hwp vs .hwpx)에 따라 달라 보이면 안 된다.
+ * 처음(2026-08-08)에는 kordoc 출력용이었다 — kordoc은 자체 PUA 정규화를 끝낸
+ * 상태로 Markdown을 내줘 원래 코드포인트를 되살릴 수 없었고, 글자 대 글자로
+ * 맞추는 수밖에 없었다. kordoc을 걷어낸 2026-10-03 이후로는 .hwp도 HWPX로
+ * 바꿔 같은 파서를 타므로, HWPX 본문·문단 번호 글자에 PUA 정규화 다음
+ * 단계로 쓴다. 원문이 PUA 코드 대신 동의 글리프(◻·✔ 등)를 직접 담고 있어도
+ * 같은 체크박스는 같은 글자로 나와야 한다.
  */
 const GLYPH_CANONICAL_MAP: Readonly<Record<string, string>> = {
   "◻": "□", // U+25FB WHITE MEDIUM SQUARE → U+25A1
@@ -117,8 +120,8 @@ export function normalizePuaSymbols(text: string): string {
 }
 
 /**
- * 다른 엔진이 고른 동의(同義) 글리프를 우리 기준으로 통일한다.
- * PUA 정규화를 이미 끝낸 산출물(kordoc 출력)에 쓴다.
+ * 동의(同義) 글리프를 우리 기준으로 통일한다. `normalizePuaSymbols` 다음에
+ * 쓴다 (`hwpx/inline-builder.ts`, `hwpx/numbering.ts`).
  */
 export function canonicalizeGlyphs(text: string): string {
   return text.replace(
