@@ -44,13 +44,28 @@ export function makeImageName(index: number, ext: string): string {
   return `img_${num}${normalizedExt}`;
 }
 
-/** 이미지 디렉토리 기준 상대 경로로 img 태그 생성 */
+/** HTML 속성값 escape — 따옴표로 속성을 끊고 다른 속성·태그를 끼우지 못하게 */
+function escapeAttribute(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * 이미지 디렉토리 기준 상대 경로로 img 태그 생성.
+ * alt 는 문서가 정한 값(HWPX 는 ZIP 항목 이름)이라 반드시 escape 한다.
+ */
 export function imageToHtml(
   imagesDirName: string,
   imageName: string,
   alt: string,
 ): string {
-  return `<img src="./${imagesDirName}/${imageName}" alt="${alt}">`;
+  const src = escapeAttribute(`./${imagesDirName}/${imageName}`);
+  // 줄바꿈이 alt 에 남으면 표 셀 한 줄이 둘로 갈라진다 (GFM 1행 1줄 계약)
+  const oneLineAlt = alt.replace(/[\r\n\t\f\v]+/g, " ");
+  return `<img src="${src}" alt="${escapeAttribute(oneLineAlt)}">`;
 }
 
 /** ImageAsset 생성 헬퍼 */

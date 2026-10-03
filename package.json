@@ -28,12 +28,11 @@
   "type": "module",
   "scripts": {
     "build": "pnpm -r build",
-    "build:hwp-tool": "cd tools/hwp-to-hwpx && mvn -B clean package && cp target/hwp-to-hwpx.jar ../../packages/core/resources/hwp-to-hwpx.jar",
-    "build:jre": "node scripts/build-jre.mjs",
     "build:node": "node scripts/bundle-node.mjs",
     "build:cli-bundle": "pnpm --filter @paper-md-studio/cli build:bundle",
     "build:app-resources": "node scripts/prepare-app-resources.mjs",
-    "build:dist": "pnpm build && pnpm build:hwp-tool && pnpm build:jre && pnpm build:node && pnpm build:cli-bundle && pnpm build:app-resources",
+    "build:dist": "pnpm build && pnpm build:node && pnpm build:cli-bundle && pnpm build:app-resources",
+    "smoke:cli-bundle": "node scripts/smoke-cli-bundle.mjs",
     "dev": "pnpm -r dev",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -66,18 +65,17 @@
       "@babel/core": ">=7.29.6",
       "body-parser": ">=2.3.0",
       "brace-expansion@>=3.0.0 <5.0.12": "^5.0.12",
-      "adm-zip": "^0.6.1",
-      "sharp": "^0.35.4",
       "nanoid@>=3.0.0 <3.3.17": "^3.3.17",
       "nanoid@>=4.0.0 <5.1.16": "^5.1.16",
       "esbuild@>=0.27.3 <0.28.1": ">=0.28.1",
       "vite": "^8.0.16",
       "browserslist": "^4.28.7",
       "baseline-browser-mapping": "^2.11.0",
-      "markdown-it": "^14.3.1"
+      "@fastify/busboy": "^3.2.1"
     },
     "patchedDependencies": {
-      "micromark-extension-gfm-table@2.1.1": "patches/micromark-extension-gfm-table@2.1.1.patch"
+      "micromark-extension-gfm-table@2.1.1": "patches/micromark-extension-gfm-table@2.1.1.patch",
+      "turndown@7.2.4": "patches/turndown@7.2.4.patch"
     }
   },
   "devDependencies": {

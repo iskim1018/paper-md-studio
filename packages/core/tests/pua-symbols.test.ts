@@ -86,4 +86,24 @@ describe("한컴 보조 평면(P15) 심볼", () => {
   it("매핑에 없는 P15 문자는 원본을 유지한다", () => {
     expect(normalizePuaSymbols("\u{F1234} 유지")).toBe("\u{F1234} 유지");
   });
+
+  it("네모 숫자(U+F02B0~U+F02B9)를 원문자 ⓪~⑨로 치환한다", () => {
+    // 함초롬바탕에서 이 구간은 네모 안 숫자 0~9다. 유니코드에 네모 숫자가
+    // 없어 같은 "둘러싼 숫자"인 원문자로 옮긴다 (kordoc과 같은 선택).
+    expect(normalizePuaSymbols("\u{F02B1} 항목")).toBe("① 항목");
+    expect(
+      normalizePuaSymbols(
+        "\u{F02B0}\u{F02B2}\u{F02B3}\u{F02B4}\u{F02B5}\u{F02B6}\u{F02B7}\u{F02B8}\u{F02B9}",
+      ),
+    ).toBe("⓪②③④⑤⑥⑦⑧⑨");
+  });
+
+  it("두 번째 네모 숫자 묶음(U+F02BA~U+F02C2)도 ①~⑨로 치환한다", () => {
+    // kordoc은 U+F02BA부터 ⑩·⑪…로 이어 붙였지만, 글리프는 다시 1~9다.
+    expect(normalizePuaSymbols("\u{F02BA}\u{F02C2}")).toBe("①⑨");
+  });
+
+  it("네모 숫자 다음 구간(U+F02C3~, 장식 없는 숫자)은 건드리지 않는다", () => {
+    expect(normalizePuaSymbols("\u{F02C3}")).toBe("\u{F02C3}");
+  });
 });

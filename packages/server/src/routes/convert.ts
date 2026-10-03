@@ -1,4 +1,5 @@
 import { basename, extname } from "node:path";
+import { HwpConversionError, HwpxLimitError } from "@paper-md-studio/core";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { ConvertCache } from "../cache/index.js";
@@ -326,6 +327,7 @@ export async function registerConvertRoute(
         200: ConvertSuccessSchema,
         400: ApiErrorSchema,
         413: ApiErrorSchema,
+        422: ApiErrorSchema,
         500: ApiErrorSchema,
         502: ApiErrorSchema,
       },
@@ -417,7 +419,7 @@ export async function registerConvertRoute(
         req.log.error({ err }, "변환 실패");
         const message =
           err instanceof Error ? err.message : "변환 중 오류가 발생했습니다.";
-        return reply.code(500).send(apiError(message));
+        return reply.code(conversionErrorStatus(err)).send(apiError(message));
       }
     },
   });
@@ -430,4 +432,21 @@ function isFileTooLargeError(err: unknown): boolean {
     "code" in err &&
     (err as { code: string }).code === "FST_REQ_FILE_TOO_LARGE"
   );
+}
+
+/**
+ * 변환 오류의 HTTP 상태. 암호·DRM·손상·형식 문제처럼 입력 탓인 HWP 오류는
+ * 422 — 다시 보내도 같은 결과라 클라이언트가 재시도하지 않게 한다. 변환기
+ * 자체의 실패와 그 밖의 오류는 500 이다.
+ */
+function conversionErrorStatus(err: unknown): 422 | 500 {
+  if (err instanceof HwpConversionError && err.code !== "CONVERSION_FAILED") {
+    return 422;
+  }
+  // HWPX 자원 상한 초과(.hwpx 직접 경로)도 입력 탓이라 422 — .hwp 경로는 core 가
+  // 이미 HwpConversionError('TOO_LARGE') 로 옮긴다.
+  if (err instanceof HwpxLimitError) {
+    return 422;
+  }
+  return 500;
 }

@@ -1,11 +1,24 @@
 # kordoc 통합 계획 · 작업지시서
 
+> **⛔ 2026-10-03 kordoc 제거 — 이 문서는 이력으로만 남는다 (superseded).**
+> `.hwp`(HWP 5.0·HWP 3.x·HWPML)는 이제 rhwp(`@rhwp/core` 0.8.6, Rust→WASM)로
+> HWPX 를 만든 뒤 자체 HWPX 파서(`parsers/hwpx/`)로 변환한다 — `.hwp` 와 `.hwpx`
+> 가 같은 파서를 탄다. kordoc 에서 가져온 것은 수식 변환기 하나뿐이며
+> `parsers/hwp-equation/` 에 이식·재작성했다(출처 고지는 `THIRD_PARTY_LICENSES.md`).
+> Java(hwp2hwpx) 경로도 같은 날 걷어냈다(아래 W5). 결정 근거는 CLAUDE.md 결정
+> 로그 2026-10-03 행들을 본다. 아래 본문의 "현재"·"다음에 할 일"은 작성 당시
+> 기준이며, 실측 절차(§5·§6)는 다른 엔진 A/B 에도 그대로 쓸 수 있어 남겨 둔다.
+
 > 이 문서는 다른 세션·모델(Opus 등)·장비에서 작업을 이어받을 수 있도록
 > 배경, 결정, 완료 상태, 다음 단계의 작업지시를 자족적으로 기록한다.
-> 마지막 갱신: 2026-08-16
+> 마지막 갱신: 2026-10-03 (제거 반영)
 
 ## 0. 지금 상태 · 다음에 할 일
 
+- **✅ 2026-10-03 kordoc 완전 제거** — HWP5·HWP3·HWPML 을 rhwp → HWPX →
+  자체 HWPX 파서로 옮기고 kordoc 의존성·어댑터(`kordoc-adapter.ts`)·계약
+  테스트·kordoc 전용 override(adm-zip·sharp·markdown-it)를 지웠다. 같은 날
+  W5(Java 툴체인 제거)도 끝냈다. **이 아래 항목은 모두 그 이전 기록이다.**
 - **⚠ 2026-08-15/16 범위 축소** — **XLSX·XLS 는 kordoc 에서 자체 파서로
   전환**했다 (`parsers/xlsx/`, `parsers/xls/`, 공용 렌더 `parsers/spreadsheet/`).
   kordoc 4.7.2 의 xlsx 경로가 날짜를 시리얼 숫자로 남기고(xmldom
@@ -79,13 +92,13 @@
 | 포맷 | 엔진 | 상태 |
 |------|------|------|
 | XLSX / XLS | **자체 파서** (`parsers/xlsx/`·`parsers/xls/`, 공용 렌더 `parsers/spreadsheet/`) | ✅ 2026-08-15/16 kordoc 에서 전환 (§0 첫 항목) |
-| HWP 3.x / HWPML (`.hwp` 매직바이트 판별) | kordoc + GFM 표 정규화 | ✅ K1 완료, 표 정규화는 2026-08-16 |
-| HWP 5.x (OLE2) | **kordoc + GFM 직렬화** (기본) / Java `hwp2hwpx` 폴백 | ✅ W4 전환 완료 (2026-08-09). Java 툴체인 제거는 W5 |
+| HWP 3.x / HWPML (`.hwp` 매직바이트 판별) | ~~kordoc + GFM 표 정규화~~ → **rhwp → HWPX → 자체 HWPX 파서** | ✅ 2026-10-03 전환 (K1 완료·표 정규화 2026-08-16 은 이력) |
+| HWP 5.x (OLE2) | ~~kordoc + GFM 직렬화 / Java 폴백~~ → **rhwp → HWPX → 자체 HWPX 파서** | ✅ 2026-10-03 전환, Java 툴체인 제거(W5) 완료 |
 | HWPX | 자체 파서 (PUA·중첩표·grid normalize 누적 투자) | 유지 |
 | PDF | pdf2md + 자체 보정 2단 | 유지 (K2에서 A/B 실측 후 결정) |
 | DOCX | mammoth + turndown | 유지 (후순위 재검토) |
 | HTML | 자체 (readability + linkedom) | 유지 — kordoc에 없는 고유 기능 |
-| 이미지 (PNG/JPG/WebP, OCR) | kordoc | 📋 K4 |
+| 이미지 (PNG/JPG/WebP, OCR) | ~~kordoc~~ (2026-10-03 제거) | 📋 K4 — 재개 시 엔진부터 다시 고른다 |
 
 ## 4. K1 — 완료 (2026-08-07)
 
@@ -549,7 +562,7 @@ Java 경로 이하 ③ GFM 표 렌더 정상(프리뷰 + Milkdown 편집 모드 
 
 **W4. 기본값 전환** ✅ **완료 (2026-08-09)** — `resolveHwp5Engine` 기본값이
 kordoc 이다. Java 경로는 `PAPER_MD_STUDIO_HWP_ENGINE=java` 로 아직 쓸 수 있다
-(제거는 W5). 모르는 값은 기본값으로 떨어뜨린다 — 오타로 엔진이 바뀌면 안 된다.
+(제거는 W5 — 2026-10-03 완료. 지금은 그 변수를 무시한다). 모르는 값은 기본값으로 떨어뜨린다 — 오타로 엔진이 바뀌면 안 된다.
 
 스모크는 **`JAVA_HOME`·jar 경로를 없는 곳으로 막은 상태**에서 돌렸다. Java 가
 정말 불필요한지는 그렇게만 증명된다.
@@ -564,20 +577,26 @@ GUI 는 사용자가 별도 확인(W3 육안 항목과 함께). `tests/hwp-parse
 Java 블록은 `PAPER_MD_STUDIO_HWP_ENGINE=java` 를 고정하도록 고쳤다 — 안 그러면
 이름과 달리 kordoc 을 재게 된다.
 
-**W5. Java 툴체인 제거** — 체크리스트:
+**W5. Java 툴체인 제거** ✅ **완료 (2026-10-03)** — kordoc 대신 rhwp 로
+전환한 뒤 진행했다. 제거 직전 마지막 A/B 에서 Java 경로가 rhwp 보다 나빴다
+(점선 리더 탭·글머리표 소실, 보조 평면 PUA 손상). 체크리스트:
 
-- [ ] `packages/core/resources/hwp-to-hwpx.jar` + `tools/hwp-to-hwpx/` (Maven)
-- [ ] `package.json` 의 `build:hwp-tool`, `scripts/build-jre.mjs`,
-      `prepare-app-resources.mjs` 의 JRE 번들 단계
-- [ ] `hwp-parser.ts` 의 Java 경로 코드 + 이제 무의미해진 엔진 플래그·
-      `resolveHwp5Engine` + 관련 테스트 정리
-- [ ] `scripts/hwp-ab.mjs` — A/B 대상이 사라지므로 용도 종료, 삭제하고
-      이 문서에 기록
-- [ ] 문서·메타: README·DEVELOPMENT 의 "Java 11+" 문구, CLAUDE.md 기술
-      스택·명령어 표, `THIRD_PARTY_LICENSES.md` 의 hwp2hwpx(Apache-2.0) 항목,
-      `docs/RELEASE.md` 공증 절차(JRE 항목 삭제), CI 의 Maven/JitPack 단계
-- [ ] 검증: audit·build·typecheck·lint·test·e2e 전부 통과 + 실물 HWP5 스모크
-      + **설치본 크기 전후 측정** (수십 MB 경량화가 이 작업의 보상이다)
+- [x] `packages/core/resources/hwp-to-hwpx.jar` + `tools/hwp-to-hwpx/` (Maven)
+- [x] `package.json` 의 `build:hwp-tool`·`build:jre`, `scripts/build-jre.mjs`,
+      `prepare-app-resources.mjs` 의 JRE 번들 단계, `tauri.conf.json` 리소스,
+      사이드카 래퍼·Windows 셰임의 JRE 추출 코드
+- [x] `hwp-parser.ts` 의 Java 경로 코드 + 엔진 플래그·`resolveHwp5Engine` +
+      관련 테스트 정리. 남은 `PAPER_MD_STUDIO_HWP_ENGINE` 은 오류 없이 무시한다
+      (테스트로 고정)
+- [x] `scripts/hwp-ab.mjs` — A/B 대상이 사라져 삭제했다 (이 줄이 그 기록이다)
+- [x] 문서·메타: README·DEVELOPMENT·CLAUDE.md·`THIRD_PARTY_LICENSES.md`
+      (hwp2hwpx·Temurin 항목 삭제)·`docs/RELEASE.md`, CI 의 Maven/JitPack 잡
+- [x] 검증: audit 0건·build·typecheck·lint·test 통과, 번들 CLI 스모크(macOS)
+      통과, 실물 HWP5 스모크 통과. 설치본 크기 — 서명 안 한 로컬 `.app`
+      157.8MB → 134.7MB(−14.6%), 앱 업데이트 `.tar.gz` 는 v0.6.0 대비 −37%.
+      Windows 실기·서명/공증 빌드는 릴리스 워크플로에서 처음 돈다
+- 업그레이드한 사용자 PC 의 앱 데이터 폴더에 예전에 풀어 둔 JRE 는 사이드카가
+  배포 모드 실행 때 백그라운드로 한 번 지운다 (0.8.0 이후 정리 코드 제거)
 
 **W6. 제품 목적 명문화** (W1~W5 와 병행 가능)
 

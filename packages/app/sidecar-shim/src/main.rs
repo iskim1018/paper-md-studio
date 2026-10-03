@@ -5,30 +5,21 @@
 //! 이 shim 은 진짜 PE 바이너리를 sidecar 자리에 두기 위한 얇은 런처이다.
 //!
 //! 책임:
-//!   1. 번들 JRE (`resources/jre.tar.gz`) 를 `%LOCALAPPDATA%/com.paper-md-studio.app/jre` 로
-//!      첫 실행 시 추출 (sentinel = archive size).
-//!   2. `PAPER_MD_STUDIO_HWP_JAR`, `JAVA_HOME`, `PATH` 환경변수 세팅.
-//!   3. 배포 모드: `resources/node/node.exe resources/cli/index.js <args>` 실행.
-//!   4. 개발 모드: `git rev-parse --show-toplevel` 로 모노레포 루트 찾고
+//!   1. 배포 모드: `resources/node/node.exe resources/cli/index.js <args>` 실행.
+//!   2. 개발 모드: `git rev-parse --show-toplevel` 로 모노레포 루트 찾고
 //!      `node packages/cli/dist/index.js <args>` 실행.
+//!   3. 배포 모드에서 0.6.x 가 남긴 JRE 를 백그라운드로 정리 (`legacy_jre`, 0.8.0 이후 제거).
 //!
 //! stdio 는 모두 inherit, 자식 exit code 를 그대로 전파한다.
 
 use std::env;
 use std::ffi::OsString;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
 use anyhow::{Context, Result, anyhow};
-use flate2::read::GzDecoder;
-use tar::Archive;
 
-const APP_DATA_DIRNAME: &str = "com.paper-md-studio.app";
-const JRE_DIRNAME: &str = "jre";
-const JRE_STAMP: &str = "jre.stamp";
-const JRE_ARCHIVE: &str = "jre.tar.gz";
-const HWP_JAR: &str = "hwp-to-hwpx.jar";
+mod legacy_jre;
 
 fn main() -> ExitCode {
     let argv: Vec<OsString> = env::args_os().skip(1).collect();
@@ -52,15 +43,13 @@ fn run(argv: &[OsString]) -> Result<i32> {
     // 두 후보 모두 시도하여 robust 하게 동작.
     let resources_dir = locate_resources(exe_dir);
 
-    if let Some(ref res) = resources_dir {
-        prepare_runtime(res)?;
-    }
-
     // 1. 배포 모드: 번들 node + CLI
     if let Some(ref res) = resources_dir {
         let bundled_node = res.join("node").join("node.exe");
         let bundled_cli = res.join("cli").join("index.js");
         if bundled_node.is_file() && bundled_cli.is_file() {
+            // 0.8.0 이후 제거. 설치본에서만 돈다 — 개발 실행이 같은 PC 의 설치 데이터를 건드리지 않게.
+            legacy_jre::spawn_cleanup();
             return spawn(&bundled_node, &[bundled_cli.as_os_str().into()], argv);
         }
     }
@@ -90,95 +79,6 @@ fn locate_resources(exe_dir: &Path) -> Option<PathBuf> {
     //   <exe_dir>/../resources    (안전망)
     let candidates = [exe_dir.join("resources"), exe_dir.join("..").join("resources")];
     candidates.into_iter().find(|p| p.is_dir())
-}
-
-fn prepare_runtime(resources: &Path) -> Result<()> {
-    // jre.tar.gz 가 있으면 추출 + JAVA_HOME/PATH 설정
-    let jre_archive = resources.join(JRE_ARCHIVE);
-    if jre_archive.is_file() {
-        let jre_dir = ensure_jre_extracted(&jre_archive)?;
-        // SAFETY: 단일 스레드 main 진입점에서만 호출되며, 이 프로세스 한정.
-        unsafe {
-            env::set_var("JAVA_HOME", &jre_dir);
-        }
-        prepend_path(jre_dir.join("bin"));
-    }
-
-    // hwp-to-hwpx.jar 경로 환경변수 (사용자가 명시 override 안 한 경우만)
-    let jar_path = resources.join(HWP_JAR);
-    if jar_path.is_file() && env::var_os("PAPER_MD_STUDIO_HWP_JAR").is_none() {
-        unsafe {
-            env::set_var("PAPER_MD_STUDIO_HWP_JAR", &jar_path);
-        }
-    }
-    Ok(())
-}
-
-/// `jre.tar.gz` 를 `%LOCALAPPDATA%/com.paper-md-studio.app/jre` 로 추출한다.
-/// sentinel: 아카이브 파일 크기를 `jre.stamp` 에 저장하여 변경 시 재추출.
-fn ensure_jre_extracted(archive: &Path) -> Result<PathBuf> {
-    let archive_size = fs::metadata(archive)
-        .with_context(|| format!("아카이브 메타데이터 조회 실패: {}", archive.display()))?
-        .len();
-
-    let app_data = local_app_data()?.join(APP_DATA_DIRNAME);
-    let jre_dir = app_data.join(JRE_DIRNAME);
-    let stamp_file = app_data.join(JRE_STAMP);
-    let java_exe = jre_dir.join("bin").join("java.exe");
-
-    let stored_size = fs::read_to_string(&stamp_file)
-        .ok()
-        .and_then(|s| s.trim().parse::<u64>().ok());
-
-    let needs_extract = !java_exe.is_file() || stored_size != Some(archive_size);
-    if !needs_extract {
-        return Ok(jre_dir);
-    }
-
-    eprintln!("번들 JRE 추출 중... ({})", app_data.display());
-    fs::create_dir_all(&app_data)
-        .with_context(|| format!("앱 데이터 디렉토리 생성 실패: {}", app_data.display()))?;
-    if jre_dir.exists() {
-        fs::remove_dir_all(&jre_dir)
-            .with_context(|| format!("기존 JRE 제거 실패: {}", jre_dir.display()))?;
-    }
-
-    let file = fs::File::open(archive)
-        .with_context(|| format!("아카이브 열기 실패: {}", archive.display()))?;
-    let gz = GzDecoder::new(file);
-    let mut tar = Archive::new(gz);
-    tar.unpack(&app_data)
-        .with_context(|| format!("JRE 추출 실패: {} -> {}", archive.display(), app_data.display()))?;
-
-    fs::write(&stamp_file, archive_size.to_string())
-        .with_context(|| format!("sentinel 기록 실패: {}", stamp_file.display()))?;
-    Ok(jre_dir)
-}
-
-fn local_app_data() -> Result<PathBuf> {
-    if let Some(p) = env::var_os("LOCALAPPDATA") {
-        return Ok(PathBuf::from(p));
-    }
-    // 비-Windows 환경 (테스트/개발) 폴백
-    if let Some(home) = env::var_os("HOME") {
-        return Ok(PathBuf::from(home).join(".local").join("share"));
-    }
-    Err(anyhow!("LOCALAPPDATA 환경변수를 찾을 수 없습니다"))
-}
-
-fn prepend_path<P: AsRef<Path>>(dir: P) {
-    let dir = dir.as_ref();
-    let mut paths = match env::var_os("PATH") {
-        Some(p) => env::split_paths(&p).collect::<Vec<_>>(),
-        None => Vec::new(),
-    };
-    paths.insert(0, dir.to_path_buf());
-    if let Ok(joined) = env::join_paths(paths) {
-        // SAFETY: main 단일 스레드 진입점에서만 호출.
-        unsafe {
-            env::set_var("PATH", joined);
-        }
-    }
 }
 
 fn find_monorepo_root(start: &Path) -> Result<PathBuf> {
@@ -248,78 +148,69 @@ fn clamp_u8(code: i32) -> u8 {
 }
 
 #[cfg(test)]
+mod test_support;
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+    use crate::test_support::TempDir;
+    use std::fs;
 
-    fn make_tar_gz(dir: &Path, archive: &Path) -> std::io::Result<()> {
-        let tar_path = dir.join("inner.tar");
-        {
-            let file = fs::File::create(&tar_path)?;
-            let mut builder = tar::Builder::new(file);
-            // jre/bin/java.exe (dummy)
-            let java_dir = dir.join("jre").join("bin");
-            fs::create_dir_all(&java_dir)?;
-            let java_exe = java_dir.join("java.exe");
-            fs::write(&java_exe, b"MZdummy")?;
-            builder.append_dir_all("jre", dir.join("jre"))?;
-            builder.finish()?;
-        }
-        let tar_bytes = fs::read(&tar_path)?;
-        let gz_file = fs::File::create(archive)?;
-        let mut encoder = flate2::write::GzEncoder::new(gz_file, flate2::Compression::default());
-        encoder.write_all(&tar_bytes)?;
-        encoder.finish()?;
-        fs::remove_file(&tar_path)?;
-        fs::remove_dir_all(dir.join("jre"))?;
-        Ok(())
+    #[test]
+    fn locate_resources_prefers_sibling_dir() {
+        let tmp = TempDir::new();
+        let exe_dir = tmp.join("app");
+        fs::create_dir_all(exe_dir.join("resources")).unwrap();
+        fs::create_dir_all(tmp.join("resources")).unwrap();
+
+        assert_eq!(locate_resources(&exe_dir), Some(exe_dir.join("resources")));
     }
 
     #[test]
-    fn ensure_jre_extracted_creates_runtime() {
-        let tmp = tempdir();
-        let archive = tmp.join("jre.tar.gz");
-        make_tar_gz(&tmp, &archive).expect("test archive");
+    fn locate_resources_falls_back_to_parent_dir() {
+        let tmp = TempDir::new();
+        let exe_dir = tmp.join("app");
+        fs::create_dir_all(&exe_dir).unwrap();
+        fs::create_dir_all(tmp.join("resources")).unwrap();
 
-        // LOCALAPPDATA 를 임시 디렉토리로 redirect
-        unsafe {
-            env::set_var("LOCALAPPDATA", &tmp);
-        }
-        let jre = ensure_jre_extracted(&archive).expect("first extract");
-        let java = jre.join("bin").join("java.exe");
-        assert!(java.is_file(), "java.exe 가 추출되어야 함");
-
-        // 두 번째 호출은 sentinel 일치로 skip
-        let mtime_before = fs::metadata(&java).unwrap().modified().unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(20));
-        let _ = ensure_jre_extracted(&archive).expect("second extract");
-        let mtime_after = fs::metadata(&java).unwrap().modified().unwrap();
-        assert_eq!(mtime_before, mtime_after, "재추출되면 안 됨");
+        assert_eq!(
+            locate_resources(&exe_dir),
+            Some(exe_dir.join("..").join("resources"))
+        );
     }
 
     #[test]
-    fn ensure_jre_extracted_reextracts_on_size_change() {
-        let tmp = tempdir();
-        let archive = tmp.join("jre.tar.gz");
-        make_tar_gz(&tmp, &archive).expect("first archive");
+    fn locate_resources_returns_none_without_resources() {
+        let tmp = TempDir::new();
+        let exe_dir = tmp.join("app");
+        fs::create_dir_all(&exe_dir).unwrap();
 
-        unsafe {
-            env::set_var("LOCALAPPDATA", &tmp);
-        }
-        ensure_jre_extracted(&archive).expect("first");
+        assert_eq!(locate_resources(&exe_dir), None);
+    }
 
-        // 다른 size 의 아카이브로 교체
-        let tmp2 = tmp.join("inner2");
-        fs::create_dir_all(&tmp2).unwrap();
-        make_tar_gz(&tmp2, &archive).expect("second archive");
-        // 약간의 차이를 주기 위해 패딩 추가
-        let mut f = fs::OpenOptions::new().append(true).open(&archive).unwrap();
-        f.write_all(b"padding").unwrap();
-        drop(f);
+    /// 병렬 스레드(같은 pid)가 동시에 만들어도 임시 디렉토리가 겹치지 않아야 한다.
+    /// 겹치면 한 테스트가 만든 `resources/` 를 다른 테스트가 보고 실패한다.
+    #[test]
+    fn temp_dir_is_unique_across_parallel_threads() {
+        const THREADS: usize = 8;
+        const PER_THREAD: usize = 50;
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(THREADS));
+        let handles: Vec<_> = (0..THREADS)
+            .map(|_| {
+                let barrier = std::sync::Arc::clone(&barrier);
+                std::thread::spawn(move || {
+                    barrier.wait();
+                    (0..PER_THREAD).map(|_| TempDir::new()).collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        let dirs: Vec<TempDir> = handles
+            .into_iter()
+            .flat_map(|h| h.join().unwrap())
+            .collect();
+        let unique: std::collections::HashSet<&Path> = dirs.iter().map(|d| &**d).collect();
 
-        // 추출 트리거되어야 함 (sentinel 불일치)
-        let res = ensure_jre_extracted(&archive);
-        assert!(res.is_ok(), "변경된 아카이브로 재추출 성공해야 함");
+        assert_eq!(unique.len(), THREADS * PER_THREAD);
     }
 
     #[test]
@@ -329,21 +220,5 @@ mod tests {
         assert_eq!(clamp_u8(255), 255);
         assert_eq!(clamp_u8(256), 0);
         assert_eq!(clamp_u8(-1), 1);
-    }
-
-    fn tempdir() -> PathBuf {
-        let base = env::temp_dir().join(format!(
-            "paper-md-shim-test-{}",
-            std::process::id()
-        ));
-        let unique = base.join(format!(
-            "{}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_nanos()
-        ));
-        fs::create_dir_all(&unique).unwrap();
-        unique
     }
 }

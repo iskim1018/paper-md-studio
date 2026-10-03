@@ -55,6 +55,35 @@ describe("image-utils", () => {
     });
   });
 
+  describe("imageToHtml — alt 한 줄", () => {
+    it("alt 의 줄바꿈·탭을 공백으로 바꿔 표 셀 한 줄을 깨지 않는다", () => {
+      // HWPX 는 ZIP 항목 이름을 alt 로 쓴다 — 이름에 줄바꿈이 있으면 GFM 표 행이 갈라졌다
+      const html = imageToHtml("doc_images", "img_001.png", "a\nb\r\nc\td");
+
+      expect(html).toBe('<img src="./doc_images/img_001.png" alt="a b c d">');
+    });
+  });
+
+  describe("imageToHtml — 속성 escape (#15)", () => {
+    it("alt의 따옴표·꺾쇠·앰퍼샌드를 escape해 속성을 끊지 못하게 한다", () => {
+      const html = imageToHtml(
+        "doc_images",
+        "img_001.png",
+        'x" onerror="alert(1)<b>&',
+      );
+
+      expect(html).toBe(
+        '<img src="./doc_images/img_001.png" alt="x&quot; onerror=&quot;alert(1)&lt;b&gt;&amp;">',
+      );
+    });
+
+    it("이미지 폴더 이름의 따옴표도 escape한다", () => {
+      const html = imageToHtml('a"b', "img_001.png", "사진");
+
+      expect(html).toBe('<img src="./a&quot;b/img_001.png" alt="사진">');
+    });
+  });
+
   describe("createImageAsset", () => {
     it("ImageAsset 객체를 생성한다", () => {
       const data = new Uint8Array([1, 2, 3]);

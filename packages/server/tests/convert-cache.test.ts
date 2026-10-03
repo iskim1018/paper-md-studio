@@ -4,7 +4,8 @@ import { join } from "node:path";
 import type { ConvertOptions, ConvertResult } from "@paper-md-studio/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConvertCache } from "../src/cache/index.js";
-import { LocalFsStorage, sha256Hex } from "../src/storage/index.js";
+import { conversionCacheId } from "../src/storage/conversion-id.js";
+import { LocalFsStorage } from "../src/storage/index.js";
 
 vi.mock("@paper-md-studio/core", async () => {
   const actual = await vi.importActual<typeof import("@paper-md-studio/core")>(
@@ -82,7 +83,7 @@ describe("ConvertCache", () => {
   it("신규 변환은 MISS로 처리되고 storage에 저장된다", async () => {
     const cache = new ConvertCache({ storage, tmpDir: tmpRoot });
     const bytes = new Uint8Array([1, 2, 3, 4]);
-    const sha = sha256Hex(bytes);
+    const sha = conversionCacheId(bytes);
 
     const result = await cache.convert({
       bytes,
@@ -100,7 +101,7 @@ describe("ConvertCache", () => {
   it("같은 바이트 재요청은 HIT로 처리되고 core.convert가 호출되지 않는다", async () => {
     const cache = new ConvertCache({ storage, tmpDir: tmpRoot });
     const bytes = new Uint8Array([9, 9, 9]);
-    const sha = sha256Hex(bytes);
+    const sha = conversionCacheId(bytes);
 
     const first = await cache.convert({ bytes, originalName: "a.docx" });
     const second = await cache.convert({ bytes, originalName: "a.docx" });
@@ -165,7 +166,7 @@ describe("ConvertCache", () => {
 
     const cache = new ConvertCache({ storage, tmpDir: tmpRoot });
     const bytes = new Uint8Array([1]);
-    const sha = sha256Hex(bytes);
+    const sha = conversionCacheId(bytes);
 
     await expect(
       cache.convert({ bytes, originalName: "broken.docx" }),

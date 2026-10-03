@@ -83,3 +83,26 @@ describe("htmlToMarkdownKeepingTables", () => {
     expect(md).not.toContain("<table");
   });
 });
+
+describe("HWPX 전용 날것 요소는 일반 HTML 경로에서 통하지 않는다 (#12)", () => {
+  it("HTML 문서가 <hwpx-md>를 흉내 내도 내용을 escape한다", () => {
+    // Arrange — HTML 파서·DOCX 는 이 서비스를 쓴다
+    const html =
+      '<p><hwpx-md>[c](javascript:alert(1))</hwpx-md> <hwpx-md data-raw="x">1. 목록</hwpx-md></p>';
+
+    // Act
+    const md = htmlToMarkdown(html);
+
+    // Assert
+    expect(md).toBe("\\[c\\](javascript:alert(1)) 1\\. 목록");
+    expect(md).not.toContain("[c](javascript:");
+  });
+
+  it("일반 HTML(DOCX·HTML 경로)은 기존처럼 escape한다", () => {
+    const md = htmlToMarkdown(
+      "<p>1. 개요</p><p>- 항목</p><p><span>$a_1 * [x]$</span></p>",
+    );
+
+    expect(md).toBe("1\\. 개요\n\n\\- 항목\n\n$a\\_1 \\* \\[x\\]$");
+  });
+});

@@ -5,7 +5,14 @@ import { gfm } from "turndown-plugin-gfm";
 let service: TurndownService | null = null;
 let keepTablesService: TurndownService | null = null;
 
-function buildService(): TurndownService {
+/**
+ * 모든 포맷이 공유하는 turndown 설정 (GFM 표·취소선·셀 안 줄바꿈).
+ *
+ * HWPX 는 이 위에 날것 Markdown 요소·강조 flanking·`$` escape 를 더한 전용
+ * 서비스를 쓴다 (`parsers/hwpx/markdown.ts`). 날것 요소 규칙을 여기 두면 HTML
+ * 문서가 같은 태그로 escape 를 우회할 수 있어 공유 서비스에는 두지 않는다.
+ */
+export function createTurndownService(): TurndownService {
   const service = new TurndownService({
     headingStyle: "atx",
     hr: "---",
@@ -47,7 +54,7 @@ function buildService(): TurndownService {
 }
 
 function getService(): TurndownService {
-  if (!service) service = buildService();
+  if (!service) service = createTurndownService();
   return service;
 }
 
@@ -57,13 +64,13 @@ function getService(): TurndownService {
  * turndown-plugin-gfm은 colspan/rowspan을 버리고 셀 안 블록 요소마다 줄바꿈을
  * 내어, 병합 표가 GFM에서 통째로 깨진다. 표는 원형으로 남겨 두고
  * `normalizeHtmlTablesToGfm`(grid 정규화 + 병합 화살표)에 넘기는 것이
- * kordoc 경로와 같은 계약이다. addRule은 rules 배열 앞에 끼워 넣으므로
+ * HWPX 파서와 같은 표 계약이다. addRule은 rules 배열 앞에 끼워 넣으므로
  * gfm 플러그인의 표 규칙보다 우선한다.
  */
 function getKeepTablesService(): TurndownService {
   if (keepTablesService) return keepTablesService;
 
-  keepTablesService = buildService();
+  keepTablesService = createTurndownService();
   keepTablesService.addRule("keepTableAsHtml", {
     filter: "table",
     replacement: (_content, node) => {

@@ -59,8 +59,8 @@ paper-md-studio - 문서를 Markdown으로 변환
   -v, --version             버전 표시
 
 지원 형식:
-  .hwp    한글 문서 (HWP 5.0, 내부적으로 HWPX로 선변환 — Java 11+ 필요)
-          구버전 HWP 3.x·XML 기반 HWPML은 자동 판별해 Java 없이 변환
+  .hwp    한글 문서 (HWP 5.0·구버전 HWP 3.x·XML 기반 HWPML을 자동 판별,
+          내장 rhwp 엔진으로 HWPX로 선변환 후 변환 — 별도 설치 불필요)
   .hwpx   한글 문서 (HWPX)
   .doc    Word 문서 (레거시, 내부적으로 DOCX로 선변환 — LibreOffice 필요)
   .docx   Word 문서
@@ -276,4 +276,23 @@ async function main(): Promise<void> {
   }
 }
 
-main();
+/**
+ * main() 이 끝나기 전에 이벤트 루프가 비면(어떤 promise 가 영영 settle 되지
+ * 않으면) Node 는 조용히 exit 0 으로 끝난다 — 호출측(앱 사이드카)은 성공으로
+ * 알고 빈 출력을 파싱하다 "CLI 출력 파싱 실패"만 남긴다. 2026-10-03 번들
+ * Node 20 에서 PDF 대체 엔진(pdf2md → unpdf 에 내장된 PDF.js 5.4)이 정확히
+ * 이렇게 멈췄다(Node 22 에서는 정상). 원인과 무관하게 "결과 없는 성공"을
+ * 실패로 바꾼다.
+ */
+let finished = false;
+process.once("beforeExit", () => {
+  if (finished) return;
+  console.error(
+    "오류: 변환이 결과 없이 중단되었습니다. 실행 환경(Node 버전) 호환 문제일 수 있습니다.",
+  );
+  process.exitCode = 1;
+});
+
+main().finally(() => {
+  finished = true;
+});

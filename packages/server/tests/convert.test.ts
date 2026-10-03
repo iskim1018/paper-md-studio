@@ -1,12 +1,18 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ConvertOptions, ConvertResult } from "@paper-md-studio/core";
+import {
+  type ConvertOptions,
+  type ConvertResult,
+  HwpConversionError,
+  HwpxLimitError,
+} from "@paper-md-studio/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConvertCache } from "../src/cache/index.js";
 import { loadConfig } from "../src/config.js";
 import { buildServer } from "../src/server.js";
-import { LocalFsStorage, sha256Hex } from "../src/storage/index.js";
+import { conversionCacheId } from "../src/storage/conversion-id.js";
+import { LocalFsStorage } from "../src/storage/index.js";
 
 interface Part {
   readonly name: string;
@@ -92,7 +98,7 @@ describe("POST /v1/convert", () => {
     const app = await buildTestApp();
     try {
       const bytes = Buffer.from([1, 2, 3, 4]);
-      const sha = sha256Hex(new Uint8Array(bytes));
+      const sha = conversionCacheId(new Uint8Array(bytes));
       const { payload, contentType } = makeMultipart([
         {
           name: "file",
@@ -288,6 +294,73 @@ describe("POST /v1/convert", () => {
       });
       expect(res.statusCode).toBe(400);
       expect(convertImpl).not.toHaveBeenCalled();
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("입력 탓인 HWP 오류는 422, 변환기 실패는 500 으로 구분한다", async () => {
+    // 암호·손상 문서는 다시 보내도 같다 — 500 이면 클라이언트가 재시도한다
+    const app = await buildTestApp();
+    try {
+      const { payload, contentType } = makeMultipart([
+        {
+          name: "file",
+          filename: "보호.hwp",
+          content: Buffer.from([9, 9, 9]),
+          contentType: "application/octet-stream",
+        },
+      ]);
+      const request = () =>
+        app.inject({
+          method: "POST",
+          url: "/v1/convert",
+          headers: { "content-type": contentType },
+          payload,
+        });
+
+      convertImpl.mockRejectedValueOnce(new HwpConversionError("ENCRYPTED"));
+      const encrypted = await request();
+      convertImpl.mockRejectedValueOnce(
+        new HwpConversionError("CONVERSION_FAILED"),
+      );
+      const failed = await request();
+
+      expect(encrypted.statusCode).toBe(422);
+      expect(encrypted.json().error).toContain("암호로 보호된 문서");
+      expect(failed.statusCode).toBe(500);
+    } finally {
+      await app.close();
+    }
+  });
+
+  it("HWPX 자원 상한 초과(HwpxLimitError)는 422 로 응답한다", async () => {
+    // .hwpx 직접 경로의 상한 오류도 입력 탓(과대)이라 재시도 방지 — 500 이 아니다
+    const app = await buildTestApp();
+    try {
+      const { payload, contentType } = makeMultipart([
+        {
+          name: "file",
+          filename: "과대.hwpx",
+          content: Buffer.from([0x50, 0x4b, 3, 4]),
+          contentType: "application/octet-stream",
+        },
+      ]);
+      convertImpl.mockRejectedValueOnce(
+        new HwpxLimitError(
+          "HWPX 파일 안 항목이 너무 많습니다. 문서가 손상되었거나 악의적으로 만들어졌을 수 있습니다.",
+        ),
+      );
+
+      const res = await app.inject({
+        method: "POST",
+        url: "/v1/convert",
+        headers: { "content-type": contentType },
+        payload,
+      });
+
+      expect(res.statusCode).toBe(422);
+      expect(res.json().error).toContain("항목이 너무 많습니다");
     } finally {
       await app.close();
     }

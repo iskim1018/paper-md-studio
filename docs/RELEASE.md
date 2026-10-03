@@ -81,9 +81,13 @@ pdf-inspector.darwin-arm64.node
 - **NAPI 바이너리는 ad-hoc(linker-signed) 상태로 배포된다.** `codesign
   --verify` 는 통과하므로 "서명돼 있나"만 보면 놓친다. 발급 기관이
   `Developer ID Application` 인지까지 봐야 한다.
-- 번들된 Node 는 이미 Developer ID 서명(OpenJS)이라 다시 서명하지 않는다.
-  JRE 는 `tar.gz` 안에 있어 애초에 검사 대상이 아니다 — 지금껏 이 문제가
-  드러나지 않은 이유다.
+- 번들된 Node 는 이미 Developer ID 서명(OpenJS)이라 다시 서명하지 않는다
+  (v22.23.3 도 hardened runtime·같은 엔타이틀먼트임을 2026-10-03 로컬
+  `codesign` 으로 확인). 0.6.x 까지 번들하던 JRE 는 `tar.gz` 안에 있어 애초에
+  검사 대상이 아니었다 — 지금껏 이 문제가 드러나지 않은 이유다. JRE 는 0.7.0
+  에서 걷어냈다.
+- `.hwp` 변환 엔진 rhwp 의 `rhwp_bg.wasm` 은 Mach-O 가 아니라 서명·공증 대상이
+  아니다.
 
 - 번들 Node 는 `com.apple.security.cs.disable-library-validation` 을 갖고
   있어, 우리 Team ID 로 서명한 `.node` 도 정상적으로 로드한다. 이 엔타이틀먼트가
@@ -92,6 +96,41 @@ pdf-inspector.darwin-arm64.node
 파일 이름을 박지 않고 리소스 전체를 훑으므로 새 네이티브 의존성이 들어와도
 자동으로 걸린다. 스크립트 자체는 darwin 이 아니거나 `APPLE_SIGNING_IDENTITY`
 가 없으면 조용히 지나가므로 로컬 빌드에서도 안전하다.
+
+## 번들 CLI 스모크 검사 (2026-10-03 추가)
+
+빌드가 통과해도 번들은 **실행할 때에만** 깨지는 지점이 있다 — 미니
+`node_modules`(rhwp WASM·pdf-inspector NAPI) 누락, 번들에 인라인되지 않은 동적
+`require`, CI 의 Node 와 다른 번들 Node 버전에서만 나는 오류. 실제로 번들 Node 가
+v20.18 이던 동안 PDF 대체 엔진(pdf2md — 의존성 unpdf 1.4 에 내장된 PDF.js 5.4)이
+사이드카에서 결과 없이 exit 0 으로 끝났는데(같은 번들을 Node 22 로 돌리면 정상),
+빌드·단위 테스트로는 드러나지 않았다.
+
+릴리스 워크플로의 **Smoke test bundled CLI** 스텝(`pnpm smoke:cli-bundle`,
+`scripts/smoke-cli-bundle.mjs`)이 macOS·Windows 둘 다에서, 리소스 준비·서명을
+마친 뒤 tauri-action 앞에서 돈다. 실패하면 그 플랫폼 잡은 tauri-action 까지 가지
+않아 산출물을 올리지 않는다. 다만 매트릭스가 `fail-fast: false` 라 다른 플랫폼
+잡은 계속 돌아 draft 릴리스에 그 플랫폼 산출물만 올라갈 수 있다 — draft 를 해제하기
+전에 두 잡이 모두 성공했는지 확인한다.
+
+- `resources/cli` 를 저장소 **바깥** 임시 폴더로 복사하고 작업 폴더도 바깥에
+  둔 채, `resources/node` 의 번들 Node 로 실행한다 — 저장소 안에서는 상위
+  `node_modules` 가 빠진 파일을 가려 준다
+- 실행 시점에 만든 문서로 확인한다 (커밋된 바이너리 픽스처 없음): `.hwp`(rhwp
+  WASM), `.xls`(인라인 cfb), `.pdf` 기본 엔진(pdf-inspector), `.pdf` 대체 엔진
+  (`PAPER_MD_STUDIO_PDF_ENGINE=legacy`)
+- exit 0, 기대 문자열 포함, 오류 출력·경고 없음, 저장된 `.md` 와 `--json` 결과
+  일치를 본다
+- 로컬: `pnpm build:dist && pnpm smoke:cli-bundle`
+
+CLI 자체도 같은 종류의 실패를 막는다 — 변환이 끝나기 전에 이벤트 루프가 비면
+(`beforeExit`) 한국어 오류와 함께 exit 1 로 끝내, 앱이 빈 출력을 성공으로 받아
+"CLI 출력 파싱 실패"만 남기는 일이 없게 했다.
+
+번들 Node 는 `scripts/bundle-node.mjs` 의 `NODE_VERSION`(현재 v22.23.3)으로
+고정하고, 내려받은 압축 파일을 `ARCHIVE_SHA256`(nodejs.org `SHASUMS256.txt` 값)과
+대조한다. 버전을 올릴 때는 두 값을 함께 바꾸고 macOS 바이너리의 서명·엔타이틀먼트
+(`disable-library-validation` 등)가 그대로인지 확인한다.
 
 ## 서명 키 (최초 1회)
 

@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 /**
- * K2 — 합성 PDF 코퍼스 생성기 (docs/kordoc-integration.md §5 참조)
+ * K2 — 합성 PDF 코퍼스 생성기
+ *
+ * 배경은 docs/kordoc-integration.md §5 (PDF A/B 실측). kordoc 은 2026-10-03 에
+ * 걷어냈지만 그 문서는 실측 이력으로 남겨 두었다.
  *
  * 실무 PDF를 구하기 어려운 병리들을 의도적으로 재현한 PDF를 만든다.
  * headless chromium 으로 HTML 을 인쇄하므로 실제 CJK 폰트가 임베드된
@@ -215,4 +218,6 @@ try {
 }
 
 console.log(`\n생성 완료: ${outDir}`);
-console.log(`다음: node scripts/pdf-ab.mjs ${outDir} -o ./pdf-ab-out`);
+console.log(
+  `다음: node packages/cli/dist/index.js ${outDir}/<파일>.pdf -o ./pdf-corpus-out`,
+);

@@ -2,7 +2,7 @@
   "name": "@paper-md-studio/md-utils",
   "version": "0.1.0",
   "private": true,
-  "description": "Markdown 후처리 유틸 - 앱과 변환 엔진이 함께 쓰는 순수 함수 모음",
+  "description": "앱과 변환 엔진이 함께 쓰는 순수 함수 모음 - Markdown 후처리, HWPML 텍스트 헬퍼",
   "author": "Insung Kim",
   "license": "MIT",
   "type": "module",

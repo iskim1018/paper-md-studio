@@ -745,10 +745,14 @@ describe("HWPX 파서 상세 테스트", () => {
   });
 
   describe("빈 문서 처리", () => {
-    it("빈 섹션은 에러를 던진다", async () => {
-      await expect(
-        writeAndConvert("empty.hwpx", `<sec></sec>`),
-      ).rejects.toThrow("파서가 HTML 또는 Markdown을 반환하지 않았습니다");
+    it("빈 섹션은 에러 대신 빈 결과와 경고를 돌려준다", async () => {
+      // 종전엔 html을 null로 돌려 pipeline이 "파서가 HTML 또는 Markdown을
+      // 반환하지 않았습니다"를 던졌다. 그림·그리기 개체만 있는 문서도 실패로
+      // 끝났으므로, 스캔 PDF처럼 빈 결과 + 경고로 바꿨다.
+      const result = await writeAndConvert("empty.hwpx", `<sec></sec>`);
+
+      expect(result.markdown).toBe("");
+      expect(result.warnings?.[0]).toMatch(/^추출할 본문 텍스트가 없습니다/);
     });
   });
 

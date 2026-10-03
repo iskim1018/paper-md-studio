@@ -57,8 +57,29 @@ Phase 11 에서 LRU/TTL GC 가 추가될 예정입니다.
 
 ## 런타임 의존성
 
-- Node.js 22+
-- Java 11+ — `.hwp` 변환 시에만 필요 (내부적으로 child_process 로 Java 프로세스 spawn)
+- Node.js 22.13+
 - LibreOffice — `.doc` 변환 시 필요 (headless). 설치 안 돼 있으면 macOS 에선 `textutil` 폴백 (이미지 손실)
 
-`.hwpx` / `.docx` / `.pdf` 는 추가 런타임 불필요.
+`.hwp` / `.hwpx` / `.docx` / `.pdf` / `.xlsx` / `.xls` 는 추가 런타임 불필요. `.hwp` 는
+core 에 들어 있는 rhwp(WASM)가 HWPX 로 바꾼 뒤 자체 HWPX 파서로 변환한다 (0.7.0 부터
+Java 불필요).
+
+## 변환 엔진 환경변수 (core)
+
+서버·MCP·CLI 가 공통으로 쓰는 core 가 읽는다.
+
+| 이름 | 설명 |
+|------|------|
+| `PAPER_MD_STUDIO_PDF_ENGINE` | `legacy` 면 PDF 를 대체 엔진(pdf2md + pdfjs)으로 변환한다. 그 밖의 값·미설정은 기본 엔진(`@firecrawl/pdf-inspector`) |
+| `PAPER_MD_STUDIO_LIBREOFFICE` | `.doc` 변환에 쓸 `soffice` 실행 파일 경로 (미설정 시 자동 탐색) |
+
+> 0.6.x 의 `PAPER_MD_STUDIO_HWP_ENGINE`·`PAPER_MD_STUDIO_HWP_JAR` 는 Java(hwp2hwpx)
+> 경로와 함께 없어졌다. 값이 남아 있어도 **무시**되고 `.hwp` 는 항상 rhwp 로 변환된다
+> (오류 없음).
+
+## 캐시와 변환기 개정
+
+변환 캐시 키에는 파일 바이트·변환 옵션과 함께 core 의 `CONVERTER_REVISION` 이 섞인다.
+변환 결과를 바꾸는 core 수정이 들어간 버전으로 올리면 키가 달라져 예전 결과를 다시
+쓰지 않고 새로 변환한다 (기존 `STORAGE_ROOT` 내용은 지워지지 않으므로 용량 정리는 위
+"스토리지 용량" 절대로).

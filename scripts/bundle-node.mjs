@@ -9,7 +9,9 @@
  * 스스로 실행해 해당 플랫폼용 Node를 준비한다.
  */
 import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
+  createReadStream,
   createWriteStream,
   existsSync,
   mkdirSync,
@@ -31,8 +33,22 @@ const nodeDir = join(
   "node",
 );
 
-// Node LTS 고정 버전 (JDK 17과 비슷하게 LTS 선호)
-const NODE_VERSION = "v20.18.0";
+// Node LTS 고정 버전 — 저장소 engines(>=22.13.0)와 같은 계열이어야 한다.
+// 20.18 을 번들하던 동안 PDF 대체 엔진(pdf2md → unpdf 에 내장된 PDF.js 5.4)이
+// 사이드카에서 결과 없이 멈췄다(2026-10-03, Node 22 에서는 정상). 올릴 때는
+// 아래 체크섬도 함께 바꾼다: https://nodejs.org/dist/<버전>/SHASUMS256.txt
+const NODE_VERSION = "v22.23.3";
+
+/**
+ * 내려받은 압축 파일의 SHA-256 — 릴리스에 그대로 실리는 실행 파일이라 전송 중
+ * 변조·미러 오염을 막는다. 값은 nodejs.org SHASUMS256.txt 에서 옮겼다.
+ */
+const ARCHIVE_SHA256 = {
+  [`node-${NODE_VERSION}-darwin-arm64.tar.gz`]:
+    "23b25245dcfb9af7262f8ff142e9e2e0af025368117329e7a7458a51e5922f53",
+  [`node-${NODE_VERSION}-win-x64.zip`]:
+    "2b0ff57b049cda1bbcea2240eec20467018713c1efe1f7360c2681859b90ed71",
+};
 
 function resolveTarget() {
   const platform = process.platform;
@@ -70,6 +86,24 @@ async function download(url, destPath) {
   console.log(`  저장: ${destPath}`);
 }
 
+/** 내려받은 압축 파일이 고정해 둔 SHA-256 과 같은지 확인한다 */
+async function verifyChecksum(archivePath, archiveName) {
+  const expected = ARCHIVE_SHA256[archiveName];
+  if (!expected) {
+    throw new Error(`체크섬이 고정되지 않은 파일입니다: ${archiveName}`);
+  }
+  const hash = createHash("sha256");
+  await pipeline(createReadStream(archivePath), hash);
+  const actual = hash.digest("hex");
+  if (actual !== expected) {
+    rmSync(archivePath, { force: true });
+    throw new Error(
+      `Node 압축 파일 체크섬이 다릅니다 (${archiveName}): 기대 ${expected}, 실제 ${actual}`,
+    );
+  }
+  console.log(`  체크섬 확인: ${actual}`);
+}
+
 async function main() {
   const target = resolveTarget();
   console.log(`플랫폼: ${target.label}`);
@@ -85,6 +119,7 @@ async function main() {
   const url = `https://nodejs.org/dist/${NODE_VERSION}/${target.archive}`;
   const archivePath = join(nodeDir, target.archive);
   await download(url, archivePath);
+  await verifyChecksum(archivePath, target.archive);
 
   console.log("\n추출 중...");
   if (target.format === "tar.gz") {

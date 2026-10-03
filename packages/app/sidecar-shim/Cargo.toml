@@ -12,8 +12,6 @@ name = "paper-md-studio-cli-shim"
 path = "src/main.rs"
 
 [dependencies]
-flate2 = "1"
-tar = "0.4"
 anyhow = "1"
 
 [profile.release]

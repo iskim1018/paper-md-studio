@@ -1,0 +1,267 @@
+/**
+ * @rhwp/core 계약 테스트 (core 쪽 — 변환 경로).
+ *
+ * 우리는 rhwp 의 오류를 **문구로** 분류한다(rhwp 가 문자열만 던지기 때문). rhwp 를
+ * 올렸을 때 문구가 바뀌면 분류가 조용히 "변환 실패"로 떨어지므로, 실제 rhwp 로
+ * 각 오류를 일으켜 우리가 기대는 문구와 분류 결과를 함께 고정한다. 쓰는 API 가
+ * 사라지거나 이름이 바뀌어도 여기서 먼저 깨진다.
+ */
+import { deflateSync, inflateRawSync } from "node:zlib";
+import { unzipSync } from "fflate";
+import { beforeAll, describe, expect, it } from "vitest";
+import { decryptDistributionStream } from "../src/parsers/hwp/distribution.js";
+import {
+  RHWP_INVALID_FILE_PREFIX,
+  RHWP_PATTERNS,
+  toHwpConversionError,
+} from "../src/parsers/hwp/errors.js";
+import { measureInflatedSize } from "../src/parsers/hwp/inflate-guard.js";
+import { convertWithRhwp, loadRhwp } from "../src/parsers/hwp/rhwp-loader.js";
+import {
+  buildCfb,
+  createEncryptedHwp5,
+  createHwp5,
+  encryptViewText,
+  hwpmlDocument,
+  moveHwp5Stream,
+  readHwp5Stream,
+  replaceHwp5Stream,
+  toDistributionDocument,
+} from "./helpers/hwp-fixtures.js";
+
+type Rhwp = Awaited<ReturnType<typeof loadRhwp>>;
+
+let rhwp: Rhwp;
+
+beforeAll(async () => {
+  rhwp = await loadRhwp();
+});
+
+/** rhwp 생성자가 던진 값을 그대로 받는다 */
+function rawThrow(data: Uint8Array): unknown {
+  try {
+    new rhwp.HwpDocument(data).free();
+  } catch (err) {
+    return err;
+  }
+  throw new Error("rhwp 가 예외 없이 열었다");
+}
+
+const encoder = new TextEncoder();
+
+describe("@rhwp/core API 표면", () => {
+  it("변환·생성에 쓰는 메서드가 있다", () => {
+    const docMethods = [
+      "createBlankDocument",
+      "insertText",
+      "exportHwp",
+      "exportHwpWithPassword",
+      "exportHwpxWithReport",
+      "getSourceFormat",
+      "free",
+    ];
+    const exportMethods = ["takeBytes", "contentLoss", "free"];
+    const docProto = rhwp.HwpDocument.prototype as unknown as Record<
+      string,
+      unknown
+    >;
+    const exportProto = rhwp.DocumentExport.prototype as unknown as Record<
+      string,
+      unknown
+    >;
+
+    for (const name of docMethods) {
+      expect(typeof docProto[name], name).toBe("function");
+    }
+    for (const name of exportMethods) {
+      expect(typeof exportProto[name], name).toBe("function");
+    }
+    expect(typeof rhwp.HwpDocument.createEmpty).toBe("function");
+    expect(typeof rhwp.default).toBe("function");
+  });
+
+  it("content-loss 보고서 스키마(v1)를 지킨다", async () => {
+    const doc = new rhwp.HwpDocument(await createHwp5("스키마"));
+    const exported = doc.exportHwpxWithReport();
+    try {
+      const report = JSON.parse(exported.contentLoss()) as Record<
+        string,
+        unknown
+      >;
+
+      expect(report.schemaVersion).toBe(1);
+      expect(report.outputFormat).toBe("hwpx");
+      expect(Array.isArray(report.losses)).toBe(true);
+      expect(exported.takeBytes().length).toBeGreaterThan(0);
+    } finally {
+      exported.free();
+      doc.free();
+    }
+  });
+
+  it("HWP 5.0·HWPML 의 원본 형식을 구분해 알려준다", async () => {
+    const hwp = new rhwp.HwpDocument(await createHwp5("형식"));
+    const hml = new rhwp.HwpDocument(encoder.encode(hwpmlDocument()));
+    try {
+      expect(hwp.getSourceFormat()).toBe("hwp");
+      expect(hml.getSourceFormat()).toBe("hml");
+    } finally {
+      hwp.free();
+      hml.free();
+    }
+  });
+});
+
+describe("@rhwp/core 오류 문구 계약", () => {
+  it("오류는 Error 가 아닌 문자열이고 공통 접두어로 시작한다", () => {
+    const raw = rawThrow(new Uint8Array(0));
+
+    expect(typeof raw).toBe("string");
+    expect(String(raw).startsWith(RHWP_INVALID_FILE_PREFIX)).toBe(true);
+  });
+
+  it("빈 파일 → EMPTY_FILE", () => {
+    const raw = String(rawThrow(new Uint8Array(0)));
+
+    expect(raw).toContain(RHWP_PATTERNS.emptyFile);
+    expect(toHwpConversionError(raw).code).toBe("EMPTY");
+  });
+
+  it("알 수 없는 형식 → UNSUPPORTED_FILE_FORMAT", () => {
+    const raw = String(rawThrow(encoder.encode("%PDF-1.7 아님")));
+
+    expect(raw).toContain(RHWP_PATTERNS.unsupportedFormat);
+    expect(toHwpConversionError(raw).code).toBe("UNSUPPORTED");
+  });
+
+  it("보안 컨테이너(SoftCamp SCDSA) → DRM_PROTECTED", () => {
+    const wrapper = new Uint8Array(256).fill(0x5a);
+    wrapper.set(encoder.encode("SCDSA002"));
+    const raw = String(rawThrow(wrapper));
+
+    expect(raw).toContain(RHWP_PATTERNS.drmProtected);
+    expect(toHwpConversionError(raw).code).toBe("DRM_PROTECTED");
+  });
+
+  it("암호 문서 → 비밀번호가 필요한 암호 문서", async () => {
+    const raw = String(rawThrow(await createEncryptedHwp5("비밀", "pw")));
+
+    expect(raw).toContain(RHWP_PATTERNS.passwordRequired);
+    expect(toHwpConversionError(raw).code).toBe("ENCRYPTED");
+  });
+
+  it("HWPML 미지원 버전 → 지원하지 않는 HWPML 버전입니다: <버전>", () => {
+    const raw = String(
+      rawThrow(encoder.encode(hwpmlDocument({ version: "2.8" }))),
+    );
+
+    expect(RHWP_PATTERNS.hwpmlVersion.exec(raw)?.[1]).toBe("2.8");
+    expect(toHwpConversionError(raw).code).toBe("HWPML_VERSION");
+  });
+
+  it("HEAD 없는 HWPML → HML 오류 (손상)", () => {
+    const raw = String(
+      rawThrow(encoder.encode(hwpmlDocument({ version: "2.91", head: false }))),
+    );
+
+    expect(raw).toContain(`${RHWP_INVALID_FILE_PREFIX}HML 오류`);
+    expect(toHwpConversionError(raw).code).toBe("CORRUPTED");
+  });
+
+  it("FileHeader 없는 OLE2 → CFB 오류 (손상)", () => {
+    const raw = String(rawThrow(buildCfb({ Other: new Uint8Array(64) })));
+
+    expect(raw).toContain(`${RHWP_INVALID_FILE_PREFIX}CFB 오류`);
+    expect(toHwpConversionError(raw).code).toBe("CORRUPTED");
+  });
+
+  it("시그니처만 있는 HWP 3.0 → HWP 3.0 오류 (손상)", () => {
+    const raw = String(
+      rawThrow(encoder.encode(`HWP Document File V3.00 ${"\0".repeat(64)}`)),
+    );
+
+    expect(raw).toContain(`${RHWP_INVALID_FILE_PREFIX}HWP 3.0 오류`);
+    expect(toHwpConversionError(raw).code).toBe("CORRUPTED");
+  });
+});
+
+/** rhwp 로 HWPX 를 만들어 본문 XML 을 꺼낸다 */
+async function convertedSection(data: Uint8Array): Promise<string> {
+  const { hwpx } = await convertWithRhwp(data);
+  const section = unzipSync(hwpx)["Contents/section0.xml"];
+  return new TextDecoder().decode(section ?? new Uint8Array());
+}
+
+/**
+ * 압축 폭탄 사전 검사(inflate-guard·precheck·distribution)는 "rhwp 가 실제로 푸는
+ * 바이트"를 재야 한다. rhwp 가 무엇을 푸는지가 바뀌면 검사가 조용히 비켜 가므로,
+ * 우리가 기대는 rhwp 동작을 실제 엔진으로 고정한다.
+ */
+describe("@rhwp/core 압축·스트림 해석 계약 (사전 검사의 전제)", () => {
+  it("창 크기가 작은 zlib 헤더(첫 바이트 0x58)로 감싼 본문도 푼다", async () => {
+    // Arrange — 본문 레코드를 windowBits 13 zlib 으로 다시 감싼다
+    const hwp = await createHwp5("작은 창 zlib");
+    const records = inflateRawSync(readHwp5Stream(hwp, "/BodyText/Section0"));
+    const wrapped = deflateSync(records, { windowBits: 13 });
+    const patched = replaceHwp5Stream(hwp, "/BodyText/Section0", wrapped);
+
+    // Act
+    const xml = await convertedSection(patched);
+
+    // Assert — rhwp 가 풀었으니 사전 검사도 재야 한다
+    expect(wrapped[0]).toBe(0x58);
+    expect(xml).toContain("작은 창 zlib");
+    expect(measureInflatedSize(wrapped, 1024 * 1024)).toBe(records.length);
+  });
+
+  it("헤더가 선언한 창보다 먼 역참조가 있어도 rhwp 는 32KB 창으로 끝까지 푼다 (리뷰 #1)", async () => {
+    // Arrange — 반복 본문을 창 15 로 압축하면 거리 ≈1KB(선언 창 512B 밖) 역참조가
+    // 생긴다. 헤더만 windowBits 9 로 바꿔 선언 창과 실제 거리를 어긋나게 한다.
+    const marker = "창밖역참조 ";
+    const hwp = await createHwp5(marker.repeat(4000));
+    const records = inflateRawSync(readHwp5Stream(hwp, "/BodyText/Section0"));
+    const far = deflateSync(records, { level: 9 });
+    far[0] = 0x18; // CINFO=1 → 창 512B 선언 (실제 거리는 그보다 멀다)
+    let flg = 0;
+    while (((far[0] << 8) | flg) % 31 !== 0) flg++;
+    far[1] = flg;
+    const patched = replaceHwp5Stream(hwp, "/BodyText/Section0", far);
+
+    // Act
+    const xml = await convertedSection(patched);
+
+    // Assert — Node inflateSync 는 선언 창을 강제해 중간에 멈추지만 rhwp 는 끝까지
+    // 풀어 본문이 살아 있다. 사전 검사(measureInflatedSize)도 전체 크기를 재야 한다.
+    expect(xml).toContain(marker.trim());
+    expect(measureInflatedSize(far, 512 * 1024 * 1024)).toBe(records.length);
+  });
+
+  it("BodyText/Section0 이 없으면 루트의 /Section0 을 본문으로 읽는다", async () => {
+    const hwp = await createHwp5("루트 섹션");
+    const moved = moveHwp5Stream(hwp, "/BodyText/Section0", "/Section0");
+
+    expect(await convertedSection(moved)).toContain("루트 섹션");
+  });
+
+  it("배포용 ViewText 확장형 헤더(크기 < 0xFFF)는 암호문을 4+크기 위치에서 읽는다", async () => {
+    // Arrange — rhwp 규칙대로 배치한 배포용 문서
+    const hwp = await createHwp5("확장 헤더 배포용");
+    const compressed = readHwp5Stream(hwp, "/BodyText/Section0");
+    const distribution = toDistributionDocument(hwp, compressed, {
+      extendedHeader: true,
+    });
+    const viewText = encryptViewText(compressed, undefined, {
+      extendedHeader: true,
+    });
+
+    // Act
+    const xml = await convertedSection(distribution);
+    const decrypted = decryptDistributionStream(viewText);
+
+    // Assert — rhwp 가 읽은 본문과 사전 검사가 복호화한 바이트가 같다
+    expect(xml).toContain("확장 헤더 배포용");
+    expect(Buffer.from(decrypted ?? []).subarray(0, compressed.length)).toEqual(
+      Buffer.from(compressed),
+    );
+  });
+});
