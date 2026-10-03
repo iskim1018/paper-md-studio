@@ -6,7 +6,7 @@ import { DocumentState, type HwpxContext } from "./hwpx/context.js";
 import { emptyHeader, type HwpxHeader, readHeader } from "./hwpx/header.js";
 import { ImageCollector } from "./hwpx/images.js";
 import { MAX_MERGED_CELLS, MAX_TABLE_COLS } from "./hwpx/limits.js";
-import { hwpxHtmlToMarkdown, stripRawMarkers } from "./hwpx/markdown.js";
+import { hwpxBlocksToMarkdown, stripRawMarkers } from "./hwpx/markdown.js";
 import { NumberingTracker } from "./hwpx/numbering.js";
 import { type HwpxPackage, readHwpxPackage } from "./hwpx/package.js";
 import { renderSection } from "./hwpx/section.js";
@@ -116,11 +116,12 @@ function readHeaderFile(
   );
 }
 
+/** 섹션 하나를 최상위 블록 HTML 목록으로 그린다 */
 function renderSectionFile(
   path: string,
   xml: string,
   ctx: HwpxContext,
-): string {
+): Array<string> {
   let doc: XmlNode;
   try {
     doc = parseSectionXml(xml);
@@ -196,16 +197,18 @@ export class HwpxParser implements Parser {
     const pkg = readHwpxPackage(data);
     const ctx = createContext(pkg, options.imagesDirName);
 
-    const htmlParts: Array<string> = [];
+    const sections: Array<Array<string>> = [];
     for (const path of getSectionPaths(pkg.files)) {
       const sectionFile = pkg.files[path];
       if (!sectionFile) continue;
-      htmlParts.push(renderSectionFile(path, strFromU8(sectionFile), ctx));
+      sections.push(renderSectionFile(path, strFromU8(sectionFile), ctx));
     }
 
-    const protectedHtml = htmlParts.join("\n");
+    const protectedHtml = sections.map((blocks) => blocks.join("")).join("\n");
     const html = stripRawMarkers(protectedHtml.split(PIPE_TOKEN).join("|"));
-    const markdown = restorePipes(hwpxHtmlToMarkdown(protectedHtml));
+    // 블록 묶음 단위로 변환한다 — 결과는 protectedHtml 을 한 번에 넘긴 것과 같고
+    // DOM 은 묶음 크기만큼만 만든다 (hwpxBlocksToMarkdown)
+    const markdown = restorePipes(hwpxBlocksToMarkdown(sections.flat()));
     const warnings = collectWarnings(ctx, html);
 
     return {

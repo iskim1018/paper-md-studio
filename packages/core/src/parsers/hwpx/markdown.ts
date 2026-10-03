@@ -116,8 +116,72 @@ function buildService(): TurndownService {
   return created;
 }
 
-/** HWPX 파서가 만든 HTML 을 Markdown 으로 내린다 */
-export function hwpxHtmlToMarkdown(html: string): string {
+function getService(): TurndownService {
   if (!service) service = buildService();
-  return service.turndown(html);
+  return service;
+}
+
+/** HWPX 파서가 만든 HTML 을 Markdown 으로 내린다 (한 번에 — 테스트·작은 조각용) */
+export function hwpxHtmlToMarkdown(html: string): string {
+  return getService().turndown(html);
+}
+
+/**
+ * turndown 한 번에 넘기는 최상위 블록 수. turndown 은 입력 전체를 DOM 으로
+ * 만들므로, 문서 전체를 한 번에 넘기면 본문 XML 16MB(문단 64만 개)에 DOM 만
+ * 750MB 를 썼다. 묶음 하나의 DOM 은 이 블록 수에 비례하는 만큼만 남는다.
+ */
+export const MAX_BLOCKS_PER_TURNDOWN = 2000;
+
+/**
+ * 묶음 앞뒤에 세우는 경계 문단. 글자는 escape 대상이 없는 영숫자라 그대로
+ * 나온다.
+ *
+ * 묶음마다 turndown 을 따로 부르면 출력 앞뒤 공백을 깎는 후처리가 묶음마다
+ * 돌아, 문서 전체를 한 번에 변환한 것과 달라진다 (문단 끝 `<br>`의 `"  "`,
+ * 날것 Markdown 첫머리의 탭). 경계 문단 사이에 끼우면 깎이는 것은 경계
+ * 문단의 바깥뿐이다. 블록 문단의 출력은 앞뒤에 빈 줄을 두므로 경계 문단과
+ * 블록 사이는 언제나 정확히 빈 줄 하나("\n\n")다 — 블록끼리 사이와 같다.
+ * 공백 접기(collapseWhitespace)도 블록 요소에서 상태를 비우므로, 다음 묶음의
+ * 첫 블록과 경계 문단 뒤의 상태가 같다.
+ */
+const CHUNK_BOUNDARY = `hwpxchunk${NONCE}`;
+const BOUNDARY_BLOCK = `<p>${CHUNK_BOUNDARY}</p>`;
+const CHUNK_HEAD = `${CHUNK_BOUNDARY}\n\n`;
+const CHUNK_TAIL = `\n\n${CHUNK_BOUNDARY}`;
+const EMPTY_CHUNK = `${CHUNK_BOUNDARY}\n\n${CHUNK_BOUNDARY}`;
+
+/** 묶음 하나를 변환해 경계 문단을 걷어낸다 — 내용이 없으면 "" */
+function convertChunk(blocks: ReadonlyArray<string>): string {
+  const markdown = getService().turndown(
+    `${BOUNDARY_BLOCK}${blocks.join("")}${BOUNDARY_BLOCK}`,
+  );
+  if (markdown === EMPTY_CHUNK) return "";
+  if (!markdown.startsWith(CHUNK_HEAD) || !markdown.endsWith(CHUNK_TAIL)) {
+    throw new Error(
+      "HWPX 본문을 Markdown 으로 나눠 변환하다 묶음 경계를 잃었습니다 (내부 오류).",
+    );
+  }
+  return markdown.slice(CHUNK_HEAD.length, -CHUNK_TAIL.length);
+}
+
+/**
+ * 최상위 블록(문단·제목·목록·표 HTML) 목록을 묶음 단위로 Markdown 으로
+ * 내린다. 결과는 블록을 모두 이어 `hwpxHtmlToMarkdown` 한 번에 넘긴 것과
+ * 같다 — 묶음 사이는 블록 사이와 같은 빈 줄로 잇고, 문서 앞뒤 공백은 turndown
+ * 후처리와 같은 규칙으로 깎는다.
+ */
+export function hwpxBlocksToMarkdown(
+  blocks: ReadonlyArray<string>,
+  chunkSize: number = MAX_BLOCKS_PER_TURNDOWN,
+): string {
+  const parts: Array<string> = [];
+  for (let start = 0; start < blocks.length; start += chunkSize) {
+    const markdown = convertChunk(blocks.slice(start, start + chunkSize));
+    if (markdown) parts.push(markdown);
+  }
+  return parts
+    .join("\n\n")
+    .replace(/^[\t\r\n]+/, "")
+    .replace(/[\t\r\n\s]+$/, "");
 }

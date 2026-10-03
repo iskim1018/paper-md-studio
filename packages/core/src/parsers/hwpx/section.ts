@@ -32,17 +32,22 @@ function headingLevel(styleName: string): number | null {
   );
 }
 
-/** 본문 HTML을 쌓으며 `<ul>` 목록과 번호 목록의 이어짐을 추적한다 */
+/**
+ * 본문을 최상위 블록(문단·제목·목록·표 HTML) 단위로 쌓으며 `<ul>` 목록과
+ * 번호 목록의 이어짐을 추적한다. 블록 단위로 돌려주는 이유는 Markdown 변환을
+ * 묶음으로 나눠 DOM 크기를 묶기 위해서다 (`hwpxBlocksToMarkdown`) — 목록은
+ * 항목을 모은 `<ul>` 하나가 블록 하나다.
+ */
 class BodyWriter {
-  private readonly parts: Array<string> = [];
-  private inList = false;
+  private readonly blocks: Array<string> = [];
+  private listItems: Array<string> | null = null;
 
   constructor(private readonly ordered: OrderedListTracker) {}
 
   block(html: string): void {
     if (!html) return;
     this.closeList();
-    this.parts.push(html);
+    this.blocks.push(html);
     this.ordered.wrote(null);
   }
 
@@ -60,23 +65,20 @@ class BodyWriter {
   }
 
   listItem(html: string): void {
-    if (!this.inList) {
-      this.parts.push("<ul>\n");
-      this.inList = true;
-    }
-    this.parts.push(`<li>${html}</li>\n`);
+    if (!this.listItems) this.listItems = [];
+    this.listItems.push(`<li>${html}</li>\n`);
     this.ordered.wrote(null);
   }
 
   closeList(): void {
-    if (!this.inList) return;
-    this.parts.push("</ul>\n");
-    this.inList = false;
+    if (!this.listItems) return;
+    this.blocks.push(`<ul>\n${this.listItems.join("")}</ul>\n`);
+    this.listItems = null;
   }
 
-  toHtml(): string {
+  toBlocks(): Array<string> {
     this.closeList();
-    return this.parts.join("");
+    return [...this.blocks];
   }
 }
 
@@ -217,13 +219,16 @@ function outlineNumberingId(paragraphs: ReadonlyArray<XmlNode>): string {
   return "";
 }
 
-/** 섹션 XML 파싱 결과를 본문 HTML로 그린다 */
-export function renderSection(sectionDoc: XmlNode, ctx: HwpxContext): string {
+/** 섹션 XML 파싱 결과를 본문 HTML 최상위 블록 목록으로 그린다 (이으면 섹션 HTML) */
+export function renderSection(
+  sectionDoc: XmlNode,
+  ctx: HwpxContext,
+): Array<string> {
   const sec = sectionDoc.sec;
-  if (!isXmlNode(sec)) return "";
+  if (!isXmlNode(sec)) return [];
   const paragraphs = childNodes(sec, "p");
   ctx.state.startSection(outlineNumberingId(paragraphs));
   const writer = new BodyWriter(ctx.state.orderedList);
   writeParagraphs(paragraphs, ctx, writer, BODY_MODE);
-  return writer.toHtml();
+  return writer.toBlocks();
 }

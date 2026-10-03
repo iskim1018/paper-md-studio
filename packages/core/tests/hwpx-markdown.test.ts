@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hwpxBlocksToMarkdown,
   hwpxHtmlToMarkdown,
   leadingBlockSafeHtml,
   rawMarkdownHtml,
@@ -91,5 +92,84 @@ describe("HWPX 본문의 '$' (#23)", () => {
 
   it("인라인 코드 안의 '$'는 그대로 둔다", () => {
     expect(hwpxHtmlToMarkdown("<p><code>a$b</code></p>")).toBe("`a$b`");
+  });
+});
+
+/**
+ * 최상위 블록을 묶음 단위로 turndown 에 넘긴다 — 문서 전체를 DOM 하나로 만들면
+ * 본문 XML 16MB(문단 64만 개)에 DOM 만 750MB 를 썼다. 묶음으로 나눠도 결과는
+ * 문서 전체를 한 번에 변환한 것과 바이트 단위로 같아야 한다.
+ */
+describe("hwpxBlocksToMarkdown — 블록 묶음 변환", () => {
+  const BLOCKS: ReadonlyArray<string> = [
+    "<p>보통 문단</p>\n",
+    "<p></p>\n",
+    "<p>끝 줄바꿈<br></p>\n",
+    "<p><br>앞 줄바꿈</p>\n",
+    "<p><strong>굵게</strong> </p>\n",
+    "<p>끝 공백 </p>\n",
+    `<p>${rawMarkdownHtml("\t탭으로 시작")}</p>\n`,
+    `<p>${rawMarkdownHtml("공백으로 끝  ")}</p>\n`,
+    `<p>${rawMarkdownHtml("1.")} ${leadingBlockSafeHtml("1) 하위")}</p>\n`,
+    "<h1>제목</h1>\n",
+    "<h2>부제목 <em>기울임</em></h2>\n",
+    "<ul>\n<li>가</li>\n<li>나<br></li>\n</ul>\n",
+    "<table>\n<tr><th>a</th><th>b</th></tr>\n<tr><td>1<br>2</td><td></td></tr>\n</table>\n",
+    "<table>\n<tr><td></td></tr>\n</table>\n",
+    '<p><img src="images/a.png" alt="그림"></p>\n',
+    '<p><a href="https://example.com/">링크</a> 뒤</p>\n',
+    "<p>US$5 *별* _밑줄_</p>\n",
+    "<p>   </p>\n",
+  ];
+
+  /** 결정적 의사난수 — 실패를 재현할 수 있게 */
+  function randomSequences(count: number): Array<Array<string>> {
+    let seed = 20261003;
+    const next = (): number => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    return Array.from({ length: count }, () =>
+      Array.from(
+        { length: Math.floor(next() * 12) },
+        () => BLOCKS[Math.floor(next() * BLOCKS.length)] ?? "",
+      ),
+    );
+  }
+
+  it.each([
+    1, 2, 3, 5,
+  ])("묶음 크기 %i 로 나눠도 한 번에 변환한 것과 같다", (chunkSize) => {
+    // Arrange
+    const sequences = [
+      [...BLOCKS],
+      [...BLOCKS].reverse(),
+      ...randomSequences(150),
+    ];
+
+    for (const blocks of sequences) {
+      // Act
+      const chunked = hwpxBlocksToMarkdown(blocks, chunkSize);
+      const whole = hwpxHtmlToMarkdown(blocks.join(""));
+
+      // Assert
+      expect(chunked).toBe(whole);
+    }
+  });
+
+  it("구역 사이 줄바꿈(구역 HTML 을 잇던 \\n)이 없어도 결과가 같다", () => {
+    const sections = [BLOCKS.slice(0, 7), BLOCKS.slice(7)];
+
+    const chunked = hwpxBlocksToMarkdown(sections.flat(), 2);
+    const whole = hwpxHtmlToMarkdown(
+      sections.map((blocks) => blocks.join("")).join("\n"),
+    );
+
+    expect(chunked).toBe(whole);
+  });
+
+  it("빈 블록만 있으면 빈 문자열이다", () => {
+    expect(hwpxBlocksToMarkdown(["<p></p>\n", "<p> </p>\n"], 1)).toBe("");
+    expect(hwpxBlocksToMarkdown([])).toBe("");
   });
 });
