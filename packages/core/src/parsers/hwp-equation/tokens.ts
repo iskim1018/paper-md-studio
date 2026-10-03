@@ -4,6 +4,7 @@
  * 출처: kordoc 4.7.2 `src/hwpx/equation.ts` 의 findBrackets·findEnclosingBrackets
  * (MIT, Copyright (c) 2026 chrisryugj) — 그 원본은 OpenBapul/hml-equation-parser
  * `hulkReplaceMethod.py` 의 `_findBrackets` (Apache-2.0, Copyright 2018 Open Bapul).
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)): 문자열 인덱스를 뒤집어 거꾸로 찾던 방식을
  * 토큰 배열 위의 짝 찾기로 바꿨다. 찾은 짝은 배열별로 기억해(token-memo.ts)

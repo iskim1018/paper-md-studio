@@ -5,6 +5,7 @@
  * 원본 hml-equation-parser (Apache-2.0, Copyright 2018 Open Bapul) 는 인자를
  * "가장 가까운 `{…}` 그룹"으로만 찾아서, 괄호 없는 인자(`a over bc`,
  * `1 over sqrt {x}`)는 분모가 한 글자로 잘리거나 엉뚱한 그룹을 집었다.
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)): 한컴 편집기의 묶음 규칙에 맞춰 항을 정의한다.
  * - 원자: `{…}` 그룹, `\left…\right`, `(…)`·`[…]`, 인자를 받는 명령+인자,

@@ -5,6 +5,7 @@
  * BAR_CONVERT_MAP·MATRIX_CONVERT_MAP·BRACE_CONVERT_MAP
  * (MIT, Copyright (c) 2026 chrisryugj) — 그 원본은 OpenBapul/hml-equation-parser
  * `convertMap.json` (Apache-2.0, Copyright 2018 Open Bapul).
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)):
  * - eqalign 을 `\eqalign{…}` 대신 `aligned` 환경으로 — KaTeX 가 `\eqalign` 을

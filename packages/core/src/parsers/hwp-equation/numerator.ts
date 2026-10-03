@@ -4,6 +4,7 @@
  * 출처: kordoc 4.7.2 `src/hwpx/equation.ts` 의 replaceFrac 이 고친 "인접 분자"
  * 규칙(MIT, Copyright (c) 2026 chrisryugj) — 그 원본은 hml-equation-parser
  * `hulkReplaceMethod.py` 의 replaceFrac (Apache-2.0, Copyright 2018 Open Bapul).
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)):
  * - 분자는 같은 그룹(또는 `\left…\right`) 안에서 over 바로 앞 항이다. 그 수준을

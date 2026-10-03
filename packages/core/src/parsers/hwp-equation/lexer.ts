@@ -4,6 +4,7 @@
  * kordoc 4.7.2 `src/hwpx/equation.ts` (MIT, Copyright (c) 2026 chrisryugj) 와
  * 그 원본 hml-equation-parser `hulkEqParser.py` (Apache-2.0, Copyright 2018
  * Open Bapul) 는 `{ } &` 주변에 공백을 넣고 공백으로 잘랐다.
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)): 정규식 렉서로 바꿨다.
  * - `alpha+beta` 처럼 붙여 쓴 예약어도 연산자에서 갈라 치환되게 한다.

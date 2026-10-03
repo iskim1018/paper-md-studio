@@ -12,6 +12,7 @@
  *   `hulkEqParser.py`·`hulkReplaceMethod.py`·`convertMap.json`
  *   (Apache License 2.0, Copyright 2018 Open Bapul). 업스트림 저장소에는
  *   NOTICE 파일이 없다 (2026-10-03 확인).
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)) — 각 파일 머리말에 자세히 적었다.
  * - TypeScript 토큰 배열 기반으로 다시 썼다 (원본은 문자열 인덱스 치환).

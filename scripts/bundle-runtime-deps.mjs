@@ -15,6 +15,12 @@
  * cfb 는 xls-parser 가 정적으로 import 해 번들에 인라인되므로 따로 두지
  * 않는다 (예전에는 kordoc 의 동적 require 때문에 여기서 동봉했다).
  *
+ * 저장소 루트의 THIRD_PARTY_LICENSES.md 도 번들 옆(dist-bundle/)에 둔다.
+ * 번들은 minify 되어 소스 머리말이 사라지고 `@license` 주석의 저작권 줄만
+ * 끝에 남는다 — 인라인한 코드(수식 변환기의 kordoc MIT·hml-equation-parser
+ * Apache-2.0 등)의 라이선스 전문은 이 파일로 함께 배포한다 (Apache-2.0 §4(a):
+ * 목적 코드 수령자에게 라이선스 사본).
+ *
  * `pnpm build:cli-bundle` 의 tsup 직후 자동 실행되며, 산출물은
  * dist-bundle/node_modules/ 에 놓인다 — 개발 중 `node dist-bundle/index.js`
  * 직접 실행과 배포(prepare-app-resources 가 통째로 복사) 모두 이걸 쓴다.
@@ -26,13 +32,11 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, "..");
-const destRoot = join(
-  repoRoot,
-  "packages",
-  "cli",
-  "dist-bundle",
-  "node_modules",
-);
+const bundleDir = join(repoRoot, "packages", "cli", "dist-bundle");
+const destRoot = join(bundleDir, "node_modules");
+
+/** 번들 옆에 둘 서드파티 라이선스 고지 (전문 포함) */
+const LICENSE_NOTICES = "THIRD_PARTY_LICENSES.md";
 
 const coreRequire = createRequire(
   join(repoRoot, "packages", "core", "package.json"),
@@ -84,6 +88,10 @@ function main() {
     copyFileSync(join(rhwpRoot, file), join(rhwpDest, file));
   }
   console.log(`✓ @rhwp/core (${RHWP_FILES.join(", ")})`);
+
+  // 3. 서드파티 라이선스 고지 — 번들에 인라인한 코드의 저작권·라이선스 전문
+  copyFileSync(join(repoRoot, LICENSE_NOTICES), join(bundleDir, LICENSE_NOTICES));
+  console.log(`✓ ${LICENSE_NOTICES}`);
 
   console.log(`\n미니 node_modules 구성 완료: ${destRoot}`);
 }

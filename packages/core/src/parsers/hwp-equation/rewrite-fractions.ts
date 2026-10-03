@@ -5,6 +5,7 @@
  * (MIT, Copyright (c) 2026 chrisryugj) — 그 원본은 hml-equation-parser
  * `hulkReplaceMethod.py` 의 replaceFrac·replaceRootOf (Apache-2.0,
  * Copyright 2018 Open Bapul).
+ * @license kordoc: MIT · hml-equation-parser: Apache-2.0 — 전문은 THIRD_PARTY_LICENSES.md
  *
  * 변경 사항 (Apache-2.0 §4(b)):
  * - 분자·분모를 items.ts 의 항 규칙으로 정한다. 원본은 분모를 감싸지 않아
