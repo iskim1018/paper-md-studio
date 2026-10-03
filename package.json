@@ -32,6 +32,7 @@
     "build:cli-bundle": "pnpm --filter @paper-md-studio/cli build:bundle",
     "build:app-resources": "node scripts/prepare-app-resources.mjs",
     "build:dist": "pnpm build && pnpm build:node && pnpm build:cli-bundle && pnpm build:app-resources",
+    "smoke:cli-bundle": "node scripts/smoke-cli-bundle.mjs",
     "dev": "pnpm -r dev",
     "test": "vitest run",
     "test:watch": "vitest",
