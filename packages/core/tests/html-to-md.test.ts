@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   htmlToMarkdown,
   htmlToMarkdownKeepingTables,
+  rawMarkdownHtml,
 } from "../src/html-to-md.js";
 
 describe("htmlToMarkdown", () => {
@@ -81,5 +82,42 @@ describe("htmlToMarkdownKeepingTables", () => {
 
     expect(md).toContain("| 가 |");
     expect(md).not.toContain("<table");
+  });
+});
+
+describe("rawMarkdownHtml — 날것 Markdown 전용 요소", () => {
+  it("문단 머리 번호·기호를 escape하지 않고 그대로 낸다", () => {
+    // Arrange
+    const html = `<p>${rawMarkdownHtml("1.")} 개요</p><p>${rawMarkdownHtml("-")} 항목</p>`;
+
+    // Act
+    const md = htmlToMarkdown(html);
+
+    // Assert
+    expect(md).toBe("1. 개요\n\n- 항목");
+  });
+
+  it("수식 LaTeX의 _ * [ \\ 를 escape하지 않는다", () => {
+    const md = htmlToMarkdown(
+      `<p>식 ${rawMarkdownHtml("$\\frac{a_1}{2} * [x] < y$")} 끝</p>`,
+    );
+
+    expect(md).toBe("식 $\\frac{a_1}{2} * [x] < y$ 끝");
+  });
+
+  it("전용 요소가 아닌 일반 HTML(DOCX·HTML 경로)은 기존처럼 escape한다", () => {
+    const md = htmlToMarkdown(
+      "<p>1. 개요</p><p>- 항목</p><p><span>$a_1 * [x]$</span></p>",
+    );
+
+    expect(md).toBe("1\\. 개요\n\n\\- 항목\n\n$a\\_1 \\* \\[x\\]$");
+  });
+
+  it("표 셀 안에서도 그대로 낸다", () => {
+    const md = htmlToMarkdown(
+      `<table><tr><th>${rawMarkdownHtml("$x_1$")}</th></tr></table>`,
+    );
+
+    expect(md).toContain("| $x_1$ |");
   });
 });
