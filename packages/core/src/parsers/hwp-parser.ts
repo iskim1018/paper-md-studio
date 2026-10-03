@@ -3,7 +3,6 @@ import { unzipSync } from "fflate";
 import type { ParseOptions, ParseResult, Parser } from "../types.js";
 import { detectHwpFormat, readLegacyVersion } from "./hwp/detect.js";
 import { HwpConversionError, toHwpConversionError } from "./hwp/errors.js";
-import { parseHwpWithJava } from "./hwp/java-engine.js";
 import { precheckHwp3, precheckHwp5 } from "./hwp/precheck.js";
 import {
   convertHwpmlWithRhwp,
@@ -11,27 +10,6 @@ import {
   type RhwpResult,
 } from "./hwp/rhwp-loader.js";
 import { HwpxParser } from "./hwpx-parser.js";
-
-/** HWP 5.0 처리 엔진 선택 */
-const HWP_ENGINE_ENV = "PAPER_MD_STUDIO_HWP_ENGINE";
-
-export type Hwp5Engine = "rhwp" | "java";
-
-/**
- * HWP 5.0(OLE2)를 어느 엔진으로 처리할지 결정한다.
- *
- * **기본값은 rhwp 다.** rhwp(WASM)가 HWP 를 HWPX 로 내보내고, 그 뒤는 .hwpx 와
- * 같은 HwpxParser 를 탄다 — Java 경로와 파이프라인 모양이 같다. Java 경로는
- * `PAPER_MD_STUDIO_HWP_ENGINE=java` 로 아직 쓸 수 있다(HWP 5.0 에만 적용).
- *
- * 알 수 없는 값(이전 기본값 "kordoc" 포함)은 조용히 기본값으로 떨어뜨린다.
- * 오타 하나로 변환 엔진이 바뀌면 안 된다.
- */
-export function resolveHwp5Engine(
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): Hwp5Engine {
-  return env[HWP_ENGINE_ENV] === "java" ? "java" : "rhwp";
-}
 
 const HANGUL = /[가-힣]/;
 
@@ -132,7 +110,7 @@ async function rejectUnknown(data: Uint8Array): Promise<never> {
  * .hwp 확장자 파일의 파서.
  *
  * 확장자는 같아도 실제 포맷은 여럿이다 — 매직바이트로 분기한다:
- *   - HWP 5.0 (OLE2)  → 사전 검사 → rhwp(기본) 또는 Java → HWPX → HwpxParser
+ *   - HWP 5.0 (OLE2)  → 사전 검사 → rhwp → HWPX → HwpxParser
  *   - HWP 3.0         → 사전 검사 → rhwp → HWPX → HwpxParser
  *   - HWPML (XML)     → rhwp(버전 대체 재시도) → HWPX → HwpxParser
  *   - HWPX (ZIP)      → HwpxParser (.hwpx 와 같은 결과)
@@ -170,10 +148,6 @@ export class HwpParser implements Parser {
       }
       case "hwp5": {
         const warnings = precheckHwp5(data);
-        if (resolveHwp5Engine() === "java") {
-          const result = await parseHwpWithJava(inputPath, options);
-          return withWarnings(result, warnings);
-        }
         return await parseViaRhwp(
           () => convertWithRhwp(data),
           warnings,

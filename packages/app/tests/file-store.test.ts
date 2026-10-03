@@ -20,7 +20,7 @@ describe("isSupportedFile", () => {
     expect(isSupportedFile("/path/to/FILE.PDF")).toBe(true);
   });
 
-  it(".hwp 파일도 허용한다 (Java 툴체인 경유)", () => {
+  it(".hwp 파일도 허용한다 (rhwp 경유)", () => {
     expect(isSupportedFile("/path/to/doc.hwp")).toBe(true);
     expect(isSupportedFile("/path/to/FILE.HWP")).toBe(true);
   });

@@ -1,14 +1,11 @@
-import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { strToU8, zipSync } from "fflate";
 import {
   afterAll,
   afterEach,
   beforeAll,
-  beforeEach,
   describe,
   expect,
   it,
@@ -16,7 +13,7 @@ import {
 } from "vitest";
 import { MERGE_LEFT } from "../src/parsers/html-tables-to-gfm.js";
 import { convertWithRhwp } from "../src/parsers/hwp/rhwp-loader.js";
-import { HwpParser, resolveHwp5Engine } from "../src/parsers/hwp-parser.js";
+import { HwpParser } from "../src/parsers/hwp-parser.js";
 import { HwpxParser } from "../src/parsers/hwpx-parser.js";
 import { convert } from "../src/pipeline.js";
 import {
@@ -31,23 +28,6 @@ import {
   replaceHwp5Stream,
   toDistributionDocument,
 } from "./helpers/hwp-fixtures.js";
-
-const FIXTURES = resolve(import.meta.dirname, "fixtures");
-const SAMPLE_HWP = resolve(FIXTURES, "sample.hwp");
-// 보안상 sample.hwp는 저장소에 포함하지 않음. 없으면 Java 의존 테스트 skip.
-const hasHwpSample = existsSync(SAMPLE_HWP);
-
-/** CI 환경에 Java가 없으면 Java 의존 테스트를 스킵한다. */
-function isJavaAvailable(): boolean {
-  try {
-    execSync("java -version", { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const javaAvailable = isJavaAvailable();
 
 let tmpDir: string;
 
@@ -86,96 +66,6 @@ async function parseError(
   expect(message).not.toMatch(/rhwp|parse_|오류코드/);
   return { code: (error as { code?: string }).code, message };
 }
-
-function withEngine(value: string | undefined): void {
-  if (value === undefined) {
-    delete process.env.PAPER_MD_STUDIO_HWP_ENGINE;
-  } else {
-    process.env.PAPER_MD_STUDIO_HWP_ENGINE = value;
-  }
-}
-
-describe.skipIf(!javaAvailable || !hasHwpSample)(
-  "HwpParser (Java 폴백 경로)",
-  () => {
-    // 기본값은 rhwp 다. 이 블록은 폴백으로 남겨둔 Java 경로를 검증하므로
-    // env를 명시적으로 고정해야 한다 — 안 그러면 이름과 달리 rhwp를 재게 된다.
-    let prevEngine: string | undefined;
-    beforeEach(() => {
-      prevEngine = process.env.PAPER_MD_STUDIO_HWP_ENGINE;
-      process.env.PAPER_MD_STUDIO_HWP_ENGINE = "java";
-    });
-    afterEach(() => {
-      withEngine(prevEngine);
-    });
-
-    it("HWP 바이너리를 HWPX로 선변환 후 Markdown을 생성한다", async () => {
-      const result = await convert({ inputPath: SAMPLE_HWP });
-
-      expect(result.format).toBe("hwp");
-      expect(result.markdown.length).toBeGreaterThan(0);
-      expect(result.elapsed).toBeGreaterThan(0);
-      expect(Array.isArray(result.images)).toBe(true);
-    });
-
-    it("추출된 이미지는 정상적인 형태를 가진다", async () => {
-      const result = await convert({ inputPath: SAMPLE_HWP });
-
-      for (const img of result.images) {
-        expect(img.name).toMatch(/^img_\d{3}\.[a-z]+$/);
-        expect(img.mimeType).toMatch(/^image\//);
-        expect(img.data.length).toBeGreaterThan(0);
-      }
-    });
-
-    it("PAPER_MD_STUDIO_HWP_JAR이 존재하지 않는 경로면 명확한 오류를 던진다", async () => {
-      const prev = process.env.PAPER_MD_STUDIO_HWP_JAR;
-      process.env.PAPER_MD_STUDIO_HWP_JAR = "/nonexistent/path/to/hwp.jar";
-      try {
-        const parser = new HwpParser();
-        await expect(
-          parser.parse(SAMPLE_HWP, { imagesDirName: "sample_images" }),
-        ).rejects.toThrow(/PAPER_MD_STUDIO_HWP_JAR/);
-      } finally {
-        if (prev === undefined) {
-          delete process.env.PAPER_MD_STUDIO_HWP_JAR;
-        } else {
-          process.env.PAPER_MD_STUDIO_HWP_JAR = prev;
-        }
-      }
-    });
-  },
-);
-
-describe("resolveHwp5Engine (엔진 선택)", () => {
-  it("플래그가 없으면 rhwp 를 쓴다", () => {
-    expect(resolveHwp5Engine({})).toBe("rhwp");
-  });
-
-  it("PAPER_MD_STUDIO_HWP_ENGINE=java면 Java 툴체인으로 되돌린다", () => {
-    expect(resolveHwp5Engine({ PAPER_MD_STUDIO_HWP_ENGINE: "java" })).toBe(
-      "java",
-    );
-  });
-
-  it("모르는 값(이전 기본값 kordoc 포함)은 무시하고 rhwp 로 간다 — 오타로 엔진이 바뀌면 안 된다", () => {
-    for (const value of ["Java", "JAVA", "jaav", "", " java", "kordoc"]) {
-      expect(resolveHwp5Engine({ PAPER_MD_STUDIO_HWP_ENGINE: value })).toBe(
-        "rhwp",
-      );
-    }
-  });
-
-  it("인자를 생략하면 process.env를 읽는다", () => {
-    const prev = process.env.PAPER_MD_STUDIO_HWP_ENGINE;
-    process.env.PAPER_MD_STUDIO_HWP_ENGINE = "java";
-    try {
-      expect(resolveHwp5Engine()).toBe("java");
-    } finally {
-      withEngine(prev);
-    }
-  });
-});
 
 describe("HwpParser — HWP 5.0 (rhwp 경로)", () => {
   it("본문을 HWPX 경유로 HTML 로 내린다", async () => {
@@ -239,17 +129,22 @@ describe("HwpParser — HWP 5.0 (rhwp 경로)", () => {
     expect(performance.now() - start).toBeLessThan(3000);
   });
 
-  it("Java 엔진을 골라도 사전 검사(암호)는 먼저 한다", async () => {
+  it("예전 엔진 선택 변수(PAPER_MD_STUDIO_HWP_ENGINE)가 남아 있어도 무시한다", async () => {
+    // Java 경로는 제거됐다. 예전 설정이 남은 환경에서도 오류 없이 rhwp 로 간다.
     const prev = process.env.PAPER_MD_STUDIO_HWP_ENGINE;
-    withEngine("java");
+    process.env.PAPER_MD_STUDIO_HWP_ENGINE = "java";
     try {
-      const encrypted = await createEncryptedHwp5("비밀", "pw");
+      const hwp = await createHwp5("남은 설정 무시");
 
-      expect((await parseError("자바암호.hwp", encrypted)).code).toBe(
-        "ENCRYPTED",
-      );
+      const result = await parseBytes("남은설정.hwp", hwp);
+
+      expect(result.html).toContain("남은 설정 무시");
     } finally {
-      withEngine(prev);
+      if (prev === undefined) {
+        delete process.env.PAPER_MD_STUDIO_HWP_ENGINE;
+      } else {
+        process.env.PAPER_MD_STUDIO_HWP_ENGINE = prev;
+      }
     }
   });
 
@@ -304,37 +199,17 @@ describe("HwpParser — HWPML (rhwp 경로)", () => {
 
     expect(result.html).toContain("병합 제목");
   });
-
-  it("Java 엔진을 골라도 HWPML 은 rhwp 로 간다 (Java 는 HWP 5.0 전용)", async () => {
-    const prev = process.env.PAPER_MD_STUDIO_HWP_ENGINE;
-    withEngine("java");
-    try {
-      const result = await parseBytes("자바.hwp", hwpmlDocument());
-
-      expect(result.html).toContain("표 앞 문단");
-    } finally {
-      withEngine(prev);
-    }
-  });
 });
 
 describe("HwpParser — HWP 3.0", () => {
-  it("시그니처만 있는 손상 HWP3 는 Java 오류가 아닌 한국어 손상 오류", async () => {
-    // Java 경로로 샜다면 "HWP → HWPX 변환 실패"/"Java 런타임" 오류가 난다
-    const prev = process.env.PAPER_MD_STUDIO_HWP_ENGINE;
-    withEngine("java");
-    try {
-      const broken = new Uint8Array(
-        Buffer.from(`HWP Document File V3.00 ${"\0".repeat(64)}`, "latin1"),
-      );
+  it("시그니처만 있는 손상 HWP3 는 한국어 손상 오류", async () => {
+    const broken = new Uint8Array(
+      Buffer.from(`HWP Document File V3.00 ${"\0".repeat(64)}`, "latin1"),
+    );
 
-      const { code, message } = await parseError("옛문서.hwp", broken);
+    const { code } = await parseError("옛문서.hwp", broken);
 
-      expect(code).toBe("CORRUPTED");
-      expect(message).not.toMatch(/Java|HWP → HWPX/);
-    } finally {
-      withEngine(prev);
-    }
+    expect(code).toBe("CORRUPTED");
   });
 
   it("암호 표시가 있으면 ENCRYPTED", async () => {

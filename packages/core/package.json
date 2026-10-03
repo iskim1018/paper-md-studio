@@ -20,8 +20,7 @@
     "typecheck": "tsc --noEmit"
   },
   "files": [
-    "dist",
-    "resources"
+    "dist"
   ],
   "devDependencies": {
     "@types/turndown": "^5.0.6"
