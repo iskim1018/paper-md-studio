@@ -21,24 +21,38 @@ import { fileURLToPath } from "node:url";
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const require = createRequire(import.meta.url);
 
-/** pnpm 저장소에서 패키지 실경로를 찾아 로드한다 (전이 의존성이라 루트에서 안 잡힘) */
-function loadFromStore(entry) {
-  // `.pnpm/node_modules` 는 pnpm 이 현재 lockfile 에 링크된 정확한 버전을
-  // 심링크해 두는 숨김 호이스트 디렉토리다. 스토어(`.pnpm/`)를 직접 스캔해
-  // 버전을 고르면 갱신·롤백 잔여 디렉토리(lockfile 이 참조하지 않는 옛/새
-  // 버전)를 조용히 집을 수 있어 쓰지 않는다.
-  const hoisted = resolve(REPO, "node_modules/.pnpm/node_modules");
+/**
+ * sharp·@hyzyla/pdfium 은 **저장소 의존성이 아니다.** 예전에는 kordoc 의 선택
+ * 의존성으로 딸려 와 pnpm 숨김 호이스트에서 집어 썼지만, kordoc 을 걷어내며
+ * 사라졌다. 이 스크립트 하나를 위해 네이티브 바이너리(sharp)를 모든 설치·CI 에
+ * 들이면 보안 감사 대상만 늘어나므로(sharp 는 실제로 감사 경보 이력이 있다),
+ * 쓸 때만 저장소 밖에 따로 설치한다:
+ *
+ *   npm install --no-save --prefix ~/.cache/paper-md-scan-deps sharp@0.35.5 @hyzyla/pdfium@2.1.13
+ *   SCAN_PDF_DEPS=~/.cache/paper-md-scan-deps node scripts/make-scan-pdf.mjs <원본.pdf>
+ */
+const SCAN_DEPS_ENV = "SCAN_PDF_DEPS";
+
+function loadScanDependency(name) {
+  const base = process.env[SCAN_DEPS_ENV];
   try {
-    return require(resolve(hoisted, entry));
+    const path = base
+      ? require.resolve(name, { paths: [resolve(base)] })
+      : require.resolve(name);
+    return require(path);
   } catch (err) {
-    throw new Error(`의존성을 찾을 수 없습니다: ${entry} (pnpm install 필요)`, {
-      cause: err,
-    });
+    throw new Error(
+      `의존성을 찾을 수 없습니다: ${name}\n` +
+        "  이 스크립트 전용 의존성이라 저장소에는 없습니다. 따로 설치한 뒤 경로를 알려주세요:\n" +
+        "  npm install --no-save --prefix <디렉토리> sharp@0.35.5 @hyzyla/pdfium@2.1.13\n" +
+        `  ${SCAN_DEPS_ENV}=<디렉토리> node scripts/make-scan-pdf.mjs <원본.pdf>`,
+      { cause: err },
+    );
   }
 }
 
-const { PDFiumLibrary } = loadFromStore("@hyzyla/pdfium/dist/index.cjs");
-const sharp = loadFromStore("sharp");
+const { PDFiumLibrary } = loadScanDependency("@hyzyla/pdfium");
+const sharp = loadScanDependency("sharp");
 const { chromium } = require(
   require.resolve("playwright-core", {
     paths: [resolve(REPO, "packages/core")],

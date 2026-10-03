@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
- * K3 — HWP 5.x A/B 비교 스크립트 (docs/kordoc-integration.md §6 참조)
+ * HWP 5.x A/B 비교 스크립트 — Java 폴백 vs rhwp 기본 엔진
  *
- * 같은 .hwp를 (a) 현행 Java 툴체인(→HWPX→자체 파서), (b) kordoc 직파싱으로
- * 각각 변환해 나란히 저장하고 요약을 출력한다. 사전에 `pnpm build` 필요.
+ * 같은 .hwp를 (a) Java 툴체인(hwp2hwpx →HWPX→자체 파서), (b) rhwp(WASM →HWPX→
+ * 자체 파서)로 각각 변환해 나란히 저장하고 요약을 출력한다. 사전에 `pnpm build`
+ * 와 Java 11+ 필요. 두 경로가 같은 HwpxParser 를 타므로 차이는 HWP→HWPX 변환기
+ * 에서 온다 (처음에는 Java vs kordoc 비교용이었다 — docs/kordoc-integration.md §6).
  *
  * 두 경로 모두 core의 convert()를 통과시킨다. 이미지 참조 재작성·경고 배선까지
  * 포함한 통합 결과라야 "Java를 걷어낼 수 있는가"에 답할 수 있기 때문이다.
@@ -19,8 +21,6 @@
 import { mkdir, readdir, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-
-process.env.KORDOC_OFFLINE ??= "1";
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const { convert } = await import(join(REPO, "packages/core/dist/index.js"));
@@ -72,9 +72,9 @@ await mkdir(outDir, { recursive: true });
 /**
  * 표를 표현형별로 나눠 센다.
  *
- * 두 엔진이 같은 표를 다른 문법으로 낸다 — 자체 파서는 GFM 파이프 표,
- * kordoc은 HTML <table>(colspan/rowspan 원형 보존). 합계만 보면 한쪽이
- * 0으로 보이므로 반드시 나눠 기록한다.
+ * 경로에 따라 같은 표가 다른 문법으로 나올 수 있다 — GFM 파이프 표, 또는
+ * HTML <table>(colspan/rowspan 원형 보존. 예전 kordoc 경로가 그랬다). 합계만
+ * 보면 한쪽이 0으로 보이므로 반드시 나눠 기록한다.
  */
 function tableStats(md) {
   const lines = md.split("\n");
@@ -103,10 +103,9 @@ function countHeadings(md) {
 /**
  * 체크박스·불릿 글리프 분포와 잔존 PUA 문자를 센다.
  *
- * 두 엔진 모두 PUA(U+F0xx)를 정규화하지만 고르는 글자가 다르다 —
- * 2026-08-08 실측: U+F0A8이 자체 파서는 □(U+25A1), kordoc은 ◻(U+25FB),
- * U+F0FC가 각각 ✓(U+2713)/✔(U+2714). 같은 체크박스가 입력 경로에 따라
- * 달라 보이는 문제라 수치로 남긴다 (W2에서 통일 예정).
+ * 경로마다 PUA(U+F0xx)를 다른 글자로 정규화하면 같은 체크박스가 달라
+ * 보인다 — 2026-08-08 실측(당시 kordoc 경로): U+F0A8이 자체 파서는 □(U+25A1),
+ * kordoc은 ◻(U+25FB), U+F0FC가 각각 ✓(U+2713)/✔(U+2714). 수치로 남긴다.
  */
 const GLYPHS = ["■", "□", "◻", "☑", "☒", "✓", "✔", "✗", "●", "○", "▪", "➢"];
 function glyphCensus(md) {
@@ -127,9 +126,9 @@ function glyphCensus(md) {
 /**
  * 한쪽에만 있는 토큰을 "띄어쓰기 표기차"와 "실질 부재"로 가른다.
  *
- * 단순 집합 차집합은 쓸모가 없다. 자체 파서는 표 셀을 공백 없이 이어붙여
- * 합성어를 만들고 kordoc은 같은 내용을 띄어 쓴다 — 내용은 같은데 토큰만
- * 다르다. 상대 문서의 **공백 제거 전문**에서 부분문자열로 재탐색하면 이
+ * 단순 집합 차집합은 쓸모가 없다. 한쪽 경로는 표 셀을 공백 없이 이어붙여
+ * 합성어를 만들고 다른 쪽은 같은 내용을 띄어 쓸 수 있다 — 내용은 같은데
+ * 토큰만 다르다. 상대 문서의 **공백 제거 전문**에서 부분문자열로 재탐색하면 이
  * 둘이 사람 판독 없이 갈린다. 숫자는 쉼표·끝점을 지우고 비교한다.
  *
  * ⚠️ 알려진 맹점: 두 엔진의 **셀 순서**가 다르면 이 재탐색이 실패한다.
@@ -170,9 +169,9 @@ function lossReport(a, b) {
   return {
     // 이름으로 방향을 못 박는다 — "Java쪽 N" 같은 라벨은 어느 엔진이 잃은
     // 건지 정반대로 읽힌다.
-    missedByKordoc: analyze(a, strippedB), // Java 출력에만 있는 것
-    missedByJava: analyze(b, strippedA), // kordoc 출력에만 있는 것
-    numbersMissedByKordoc: [...numA].filter((n) => !numB.has(n)).length,
+    missedByRhwp: analyze(a, strippedB), // Java 출력에만 있는 것
+    missedByJava: analyze(b, strippedA), // rhwp 출력에만 있는 것
+    numbersMissedByRhwp: [...numA].filter((n) => !numB.has(n)).length,
     numbersMissedByJava: [...numB].filter((n) => !numA.has(n)).length,
   };
 }
@@ -180,8 +179,8 @@ function lossReport(a, b) {
 /** 지정한 엔진으로 한 번 변환해 결과를 저장하고 지표를 돌려준다. */
 async function runEngine(hwpPath, name, engine) {
   const prev = process.env[HWP_ENGINE_ENV];
-  if (engine === "kordoc") process.env[HWP_ENGINE_ENV] = "kordoc";
-  else delete process.env[HWP_ENGINE_ENV];
+  // "java" 만 Java 경로를 고르고 나머지 값은 기본 엔진(rhwp)이다
+  process.env[HWP_ENGINE_ENV] = engine;
 
   try {
     const t0 = performance.now();
@@ -218,17 +217,17 @@ const rows = [];
 for (const [i, hwpPath] of hwpPaths.entries()) {
   const name = basename(hwpPath, extname(hwpPath));
   const java = await runEngine(hwpPath, name, "java");
-  const kordoc = await runEngine(hwpPath, name, "kordoc");
+  const rhwp = await runEngine(hwpPath, name, "rhwp");
 
   // 콘솔에는 익명 라벨만 쓴다. 비공개 문서의 제목이 터미널 출력·로그·붙여넣기를
   // 타고 저장소 밖으로 나가는 경로를 원천 차단한다 (2026-08-08 실제 발생).
-  const row = { name, label: `표본${i + 1}`, java, kordoc };
-  if (java.markdown && kordoc.markdown) {
-    row.loss = lossReport(java.markdown, kordoc.markdown);
+  const row = { name, label: `표본${i + 1}`, java, rhwp };
+  if (java.markdown && rhwp.markdown) {
+    row.loss = lossReport(java.markdown, rhwp.markdown);
   }
   // 산출물 md는 이미 파일로 저장했으므로 요약에서는 뺀다.
   delete row.java.markdown;
-  delete row.kordoc.markdown;
+  delete row.rhwp.markdown;
   rows.push(row);
 }
 
@@ -242,7 +241,7 @@ const anonymize = ({ name: _omit, loss, ...rest }) => ({
     ? {
         loss: {
           ...loss,
-          missedByKordoc: { ...loss.missedByKordoc, residualSample: undefined },
+          missedByRhwp: { ...loss.missedByRhwp, residualSample: undefined },
           missedByJava: { ...loss.missedByJava, residualSample: undefined },
         },
       }
@@ -255,33 +254,33 @@ await writeFile(
 
 // ─── 요약 출력 ───────────────────────────────────────────
 console.log(
-  "\n=== HWP5 A/B 요약 (a: Java→HWPX→자체 파서 / b: kordoc 직파싱) ===",
+  "\n=== HWP5 A/B 요약 (a: Java→HWPX→자체 파서 / b: rhwp→HWPX→자체 파서) ===",
 );
 for (const r of rows) {
   console.log(`\n📄 ${r.label}`);
   printEngine("Java  ", r.java);
-  printEngine("kordoc", r.kordoc);
+  printEngine("rhwp  ", r.rhwp);
   if (r.loss) {
-    const { missedByKordoc: mk, missedByJava: mj } = r.loss;
+    const { missedByRhwp: mk, missedByJava: mj } = r.loss;
     console.log(
-      `  [잔여토큰] kordoc이 못 담은 것 ${mk.residual} / Java가 못 담은 것 ${mj.residual}` +
+      `  [잔여토큰] rhwp가 못 담은 것 ${mk.residual} / Java가 못 담은 것 ${mj.residual}` +
         ` (띄어쓰기 표기차 ${mk.spacingOnly}·${mj.spacingOnly}는 제외)`,
     );
     console.log(
-      `             숫자: kordoc ${r.loss.numbersMissedByKordoc} / Java ${r.loss.numbersMissedByJava}` +
+      `             숫자: rhwp ${r.loss.numbersMissedByRhwp} / Java ${r.loss.numbersMissedByJava}` +
         ` — 잔여는 유실 확정이 아니다(셀 순서 차이). 성격은 summary.json 의 residualSample 확인`,
     );
   }
-  if (r.java.tokens && r.kordoc.tokens) {
-    const diff = r.kordoc.tokens - r.java.tokens;
+  if (r.java.tokens && r.rhwp.tokens) {
+    const diff = r.rhwp.tokens - r.java.tokens;
     const pct = ((diff / r.java.tokens) * 100).toFixed(1);
     console.log(
-      `  [토큰] kordoc ${diff >= 0 ? "+" : ""}${diff} (${pct}%) — 목표: Java 이하`,
+      `  [토큰] rhwp ${diff >= 0 ? "+" : ""}${diff} (${pct}%) — 목표: Java 이하`,
     );
   }
 }
 console.log(
-  `\n산출물: ${outDir}/<이름>.{java,kordoc}.md + summary.json (제목 포함) / summary.anon.json (수치만)`,
+  `\n산출물: ${outDir}/<이름>.{java,rhwp}.md + summary.json (제목 포함) / summary.anon.json (수치만)`,
 );
 
 function printEngine(label, e) {

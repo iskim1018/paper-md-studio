@@ -91,18 +91,23 @@ function main() {
 
   // 런타임 미니 node_modules 복사.
   //
-  // 번들에 인라인 불가능한 패키지(pdf-inspector NAPI 로더, kordoc 이 동적
-  // require 하는 cfb 계열)는 bundle-runtime-deps.mjs 가 dist-bundle 옆에
+  // 번들에 인라인하지 않는 패키지(pdf-inspector NAPI 로더, .hwp 변환 엔진
+  // @rhwp/core 의 글루·WASM)는 bundle-runtime-deps.mjs 가 dist-bundle 옆에
   // 구성해 둔다 — 여기서는 그 디렉토리를 통째로 배포 리소스에 복사한다.
+  // WASM 이 빠지면 .hwp 변환만 런타임에 실패하므로 빌드 단계에서 막는다.
   const runtimeDepsSrc = join(dirname(cliBundleSrc), "node_modules");
+  const bundleHint =
+    "먼저 'pnpm build:cli-bundle'을 실행하세요 (bundle-runtime-deps.mjs 가 구성).";
   assertExists(
     join(runtimeDepsSrc, "@firecrawl", "pdf-inspector", "index.js"),
-    "먼저 'pnpm build:cli-bundle'을 실행하세요 (bundle-runtime-deps.mjs 가 구성).",
+    bundleHint,
   );
+  assertExists(join(runtimeDepsSrc, "@rhwp", "core", "rhwp_bg.wasm"), bundleHint);
+  assertExists(join(runtimeDepsSrc, "@rhwp", "core", "rhwp.js"), bundleHint);
   const runtimeDepsDest = join(dirname(cliBundleDest), "node_modules");
   rmSync(runtimeDepsDest, { recursive: true, force: true });
   cpSync(runtimeDepsSrc, runtimeDepsDest, { recursive: true });
-  console.log(`✓ 런타임 미니 node_modules 복사 (pdf-inspector, cfb 계열)`);
+  console.log(`✓ 런타임 미니 node_modules 복사 (pdf-inspector, @rhwp/core)`);
 
   // 요약
   console.log(`\n=== app/src-tauri/resources 구성 ===`);

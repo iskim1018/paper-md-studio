@@ -59,8 +59,8 @@ paper-md-studio - 문서를 Markdown으로 변환
   -v, --version             버전 표시
 
 지원 형식:
-  .hwp    한글 문서 (HWP 5.0, 내부적으로 HWPX로 선변환 — Java 11+ 필요)
-          구버전 HWP 3.x·XML 기반 HWPML은 자동 판별해 Java 없이 변환
+  .hwp    한글 문서 (HWP 5.0·구버전 HWP 3.x·XML 기반 HWPML을 자동 판별,
+          내장 rhwp 엔진으로 HWPX로 선변환 후 변환 — 별도 설치 불필요)
   .hwpx   한글 문서 (HWPX)
   .doc    Word 문서 (레거시, 내부적으로 DOCX로 선변환 — LibreOffice 필요)
   .docx   Word 문서
