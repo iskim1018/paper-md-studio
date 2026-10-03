@@ -55,6 +55,71 @@ describe("hwpEquationToLatex — 분수", () => {
   ]);
 });
 
+/**
+ * 괄호 안·계승·프라임 뒤의 분자 — 출력이 유효한 LaTeX 라 렌더 오류도 경고도
+ * 없이 뜻만 틀어지던 자리다 (`(1+ 1 \frac{}{n})`, `f'\frac{(x)}{g'}(x)`).
+ */
+describe("hwpEquationToLatex — 분수 (괄호 안·계승·프라임)", () => {
+  runVectors([
+    [
+      "e 의 정의 — 소괄호 안의 분수",
+      "lim _{n->INF} (1+ 1 over n)^n = e",
+      "\\lim_{n \\rightarrow \\infty} (1+ \\frac{1}{n})^{n} = e",
+    ],
+    ["띄어 쓴 소괄호 안", "( 1 over 2 )^x", "(\\frac{1}{2})^{x}"],
+    ["붙여 쓴 소괄호 안", "(1 over 2)", "(\\frac{1}{2})"],
+    ["함수 인자 괄호 안", "sin (pi over 6)", "\\sin (\\frac{\\pi}{6})"],
+    [
+      "중괄호 분자·분모가 소괄호 안",
+      "( {1} over {2} )^x",
+      "(\\frac{1}{2})^{x}",
+    ],
+    [
+      "소괄호 안 앞 내용은 남긴다",
+      "(1+ {1} over {n})^n",
+      "(1+ \\frac{1}{n})^{n}",
+    ],
+    ["대괄호 안", "[a over b]", "[\\frac{a}{b}]"],
+    ["앞 항과 띄운 괄호", "x (a over b)", "x (\\frac{a}{b})"],
+    ["앞 항에 붙은 괄호", "2(1 over n)", "2(\\frac{1}{n})"],
+    ["쉼표 뒤만 분자", "(a, b over c)", "(a, \\frac{b}{c})"],
+    ["괄호 안 괄호", "( ( a over b ) over c )", "(\\frac{(\\frac{a}{b})}{c})"],
+    ["root 지수 안의 분수", "root {a over b} of x", "\\sqrt[\\frac{a}{b}]{x}"],
+    ["계승 분자", "n! over 2", "\\frac{n!}{2}"],
+    ["계승 분자·분모", "(n+1)! over n!", "\\frac{(n+1)!}{n!}"],
+    ["이중 계승", "n!! over 2", "\\frac{n!!}{2}"],
+    ["첨자 뒤 계승", "x^2! over 2", "\\frac{x^{2}!}{2}"],
+    ["도함수의 몫", "f'(x) over g'(x)", "\\frac{f'(x)}{g'(x)}"],
+    ["도함수 분자", "g'(x) over g(x)", "\\frac{g'(x)}{g(x)}"],
+    ["이계도함수", "f''(x) over 2", "\\frac{f''(x)}{2}"],
+    ["근호 인자의 도함수", "sqrt f'(x)", "\\sqrt{f'(x)}"],
+    ["atop 도 소괄호 안", "(a atop b)", "({a \\atop b})"],
+    ["계승 분모", "1 over n!", "\\frac{1}{n!}"],
+    ["장식 뒤 계승은 분자째", "bar{n}! over 2", "\\frac{\\overline{n}!}{2}"],
+    // 짝 없는 괄호는 항을 넘지 않는다 — 바뀌지 않아야 하는 기존 동작
+    ["닫히지 않은 소괄호", "(a over b", "\\frac{(a}{b}"],
+    ["반열린 구간", "[0, 1 over 2)", "[0, \\frac{1}{2})"],
+  ]);
+});
+
+/**
+ * 계승은 분수의 분자·분모에서만 앞 항에 붙인다. 명령 인자로 넣으면 장식·근호·
+ * 행렬이 `!` 까지 덮는다 (`\overline{{n}!}`). 프라임 뒤 결합도 밑이 붙여 쓰는
+ * 원자일 때만 — 그룹은 원래 이웃과 붙지 않는다.
+ */
+describe("hwpEquationToLatex — 계승·프라임이 명령 인자로 번지지 않는다", () => {
+  runVectors([
+    ["장식 뒤 계승", "bar{n}!", "\\overline{n}!"],
+    ["근호 뒤 계승", "sqrt n!", "\\sqrt{n}!"],
+    [
+      "행렬 뒤 계승",
+      "bmatrix{1&2#3&4}!",
+      "\\begin{bmatrix} 1&2 \\\\ 3&4 \\end{bmatrix} !",
+    ],
+    ["그룹 밑의 프라임 뒤는 잇지 않는다", "{f}'(x)", "{f}'(x)"],
+  ]);
+});
+
 describe("hwpEquationToLatex — 근호", () => {
   runVectors([
     ["sqrt", "sqrt {x+1}", "\\sqrt{x+1}"],
