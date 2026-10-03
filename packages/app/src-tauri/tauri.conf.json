@@ -53,9 +53,7 @@
     ],
     "resources": {
       "resources/node": "resources/node",
-      "resources/cli": "resources/cli",
-      "resources/hwp-to-hwpx.jar": "resources/hwp-to-hwpx.jar",
-      "resources/jre.tar.gz": "resources/jre.tar.gz"
+      "resources/cli": "resources/cli"
     },
     "macOS": {
       "minimumSystemVersion": "12.0"

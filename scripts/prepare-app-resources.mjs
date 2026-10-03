@@ -1,16 +1,17 @@
 #!/usr/bin/env node
 /**
  * 배포 빌드 전 app/src-tauri/resources/ 디렉토리에 필요한 모든 파일을
- * 최종 배치한다. JRE, Node, jar는 각자 별도 스크립트에서 이미 생성된
- * 상태여야 하며, 여기서는 CLI 번들을 복사한다.
+ * 최종 배치한다. Node 런타임은 별도 스크립트에서 이미 내려받은 상태여야
+ * 하며, 여기서는 CLI 번들을 복사한다.
  *
  * 실행 순서:
  *   1. pnpm build (core/cli/app 기본 빌드)
- *   2. pnpm build:hwp-tool (Maven으로 jar 생성)
- *   3. pnpm build:jre (jlink)
- *   4. pnpm build:node (Node 런타임 다운로드)
- *   5. pnpm build:cli-bundle (tsup로 단일 파일 CLI 생성)
- *   6. [이 스크립트] CLI 번들을 resources/cli로 복사
+ *   2. pnpm build:node (Node 런타임 다운로드)
+ *   3. pnpm build:cli-bundle (tsup로 단일 파일 CLI 생성)
+ *   4. [이 스크립트] CLI 번들을 resources/cli로 복사
+ *
+ * 복사가 끝난 리소스는 scripts/smoke-cli-bundle.mjs 가 번들 Node 로 실제
+ * 변환까지 돌려 확인한다 (릴리스 워크플로).
  */
 import {
   copyFileSync,
@@ -60,14 +61,6 @@ function main() {
     cliBundleSrc,
     "먼저 'pnpm build:cli-bundle'을 실행하세요.",
   );
-  assertExists(
-    join(resourcesDir, "jre.tar.gz"),
-    "먼저 'pnpm build:jre'를 실행하세요.",
-  );
-  assertExists(
-    join(resourcesDir, "hwp-to-hwpx.jar"),
-    "먼저 'pnpm build:hwp-tool' + 'pnpm build:jre'를 실행하세요 (jar는 build:jre가 복사함).",
-  );
   const nodeBinary =
     process.platform === "win32"
       ? join(resourcesDir, "node", "node.exe")
@@ -111,8 +104,6 @@ function main() {
 
   // 요약
   console.log(`\n=== app/src-tauri/resources 구성 ===`);
-  console.log(`  jre.tar.gz             (번들 JRE, 첫 실행 시 추출)`);
-  console.log(`  hwp-to-hwpx.jar        (HWP → HWPX 변환 툴)`);
   console.log(`  node/${process.platform === "win32" ? "node.exe" : "bin/node"}          (번들 Node 런타임)`);
   console.log(`  cli/index.js           (번들 CLI)`);
   console.log(`\n이제 'pnpm --filter @paper-md-studio/app tauri build' 가능`);

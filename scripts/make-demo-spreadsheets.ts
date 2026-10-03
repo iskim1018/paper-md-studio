@@ -237,7 +237,7 @@ const 견적서: ReadonlyArray<SheetSpec> = [
     rows: [
       ["포맷", "파서", "표 계약", "비고"],
       ["HWPX", "자체", "GFM", "PUA 정규화·중첩표"],
-      ["HWP 5.0", "kordoc", "GFM", "Java 폴백 있음"],
+      ["HWP 5.0", "rhwp → 자체(HWPX)", "GFM", "HWP 3.0·HWPML 포함"],
       ["DOCX", "mammoth+자체", "GFM", "병합 화살표"],
       ["PDF", "pdf-inspector", "GFM", "표 감지 개선"],
       ["XLSX / XLS", "자체", "GFM", "표시형식·숨김·이미지"],

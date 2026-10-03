@@ -16,12 +16,12 @@
  * ID 인지까지 봐야 한다.
  *
  * 번들된 Node(OpenJS 서명)는 이미 Developer ID 서명이라 건드리지 않는다.
- * JRE 는 tar.gz 안에 있어 공증 검사 대상이 아니다 (그래서 지금껏 통과했다).
  *
- * `tauri.conf.json` 의 `beforeBundleCommand` 로 호출된다 — 이 시점이면
- * tauri-action 이 인증서를 키체인에 올리고 `APPLE_SIGNING_IDENTITY` 를
- * 내보낸 뒤다. 서명한 파일이 .app 안으로 복사되어도 Mach-O 안에 들어 있는
- * 서명은 그대로 살아남는다.
+ * 릴리스 워크플로(release.yml)의 별도 스텝에서 호출된다 — 그 스텝이 임시
+ * 키체인에 인증서를 올리고 `APPLE_SIGNING_IDENTITY` 를 넘긴다.
+ * `beforeBundleCommand` 훅은 Tauri CLI 가 키체인을 채우기 전에 돌아 쓸 수
+ * 없다. 서명한 파일이 .app 안으로 복사되어도 Mach-O 안에 들어 있는 서명은
+ * 그대로 살아남는다.
  *
  * macOS 가 아니거나 서명 신원이 없으면(로컬 개발 빌드) 조용히 지나간다.
  */

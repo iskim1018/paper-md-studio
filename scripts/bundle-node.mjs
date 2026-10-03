@@ -31,7 +31,7 @@ const nodeDir = join(
   "node",
 );
 
-// Node LTS 고정 버전 (JDK 17과 비슷하게 LTS 선호)
+// Node LTS 고정 버전
 const NODE_VERSION = "v20.18.0";
 
 function resolveTarget() {
