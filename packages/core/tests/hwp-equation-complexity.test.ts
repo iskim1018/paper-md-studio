@@ -11,10 +11,12 @@ import { parseHwpx } from "./helpers/hwpx-fixture.js";
  * 재현 패턴이다 — 결과는 변환이든 null(호출측이 원문 코드로 폴백)이든 좋지만,
  * 시간은 입력 길이에 거의 비례해야 한다.
  *
- * 예산 200ms 는 실측(수 ms)에 수십 배 여유를 둔 값이다. 고치기 전에는 같은
+ * 예산 1초는 실측(수십 ms)에 크게 여유를 둔 값이다. 고치기 전에는 같은
  * 입력이 13초~417초 걸렸으므로 부하로 흔들릴 일 없이 회귀만 잡는다.
  */
-const TIME_BUDGET_MS = 200;
+// CI 러너(2 vCPU)·전체 병렬 실행에서도 흔들리지 않게 1초로 둔다. 고치기 전 코드는
+// 같은 입력에 1.9초~수백 초가 걸려 이 예산으로도 회귀는 확실히 잡힌다
+const TIME_BUDGET_MS = 1000;
 
 function timed(script: string): {
   readonly result: string | null;
@@ -71,7 +73,7 @@ describe("hwpEquationToLatex — 적대적 입력의 작업량", () => {
     ["root 겹치기", "root ".repeat(1900)],
     ["여는 중괄호만", "{".repeat(10_000)],
     ["연속 atop", "a atop ".repeat(1400)],
-  ])("%s 도 200ms 안에 끝난다", (_title, script) => {
+  ])("%s 도 1초 안에 끝난다", (_title, script) => {
     // Act
     const { result, elapsed } = timed(script);
 

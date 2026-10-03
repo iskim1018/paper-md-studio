@@ -265,7 +265,7 @@ importers:
         specifier: ^1.12.0
         version: 1.12.0
       turndown:
-        specifier: ^7.2.4
+        specifier: 7.2.4
         version: 7.2.4(patch_hash=3467fa4ef24e71d011400d8b0095f40a09c4a797e5086c10634e1fe366cddb96)
       turndown-plugin-gfm:
         specifier: ^1.0.2

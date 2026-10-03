@@ -55,6 +55,15 @@ describe("image-utils", () => {
     });
   });
 
+  describe("imageToHtml — alt 한 줄", () => {
+    it("alt 의 줄바꿈·탭을 공백으로 바꿔 표 셀 한 줄을 깨지 않는다", () => {
+      // HWPX 는 ZIP 항목 이름을 alt 로 쓴다 — 이름에 줄바꿈이 있으면 GFM 표 행이 갈라졌다
+      const html = imageToHtml("doc_images", "img_001.png", "a\nb\r\nc\td");
+
+      expect(html).toBe('<img src="./doc_images/img_001.png" alt="a b c d">');
+    });
+  });
+
   describe("imageToHtml — 속성 escape (#15)", () => {
     it("alt의 따옴표·꺾쇠·앰퍼샌드를 escape해 속성을 끊지 못하게 한다", () => {
       const html = imageToHtml(

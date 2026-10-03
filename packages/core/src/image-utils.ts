@@ -63,7 +63,9 @@ export function imageToHtml(
   alt: string,
 ): string {
   const src = escapeAttribute(`./${imagesDirName}/${imageName}`);
-  return `<img src="${src}" alt="${escapeAttribute(alt)}">`;
+  // 줄바꿈이 alt 에 남으면 표 셀 한 줄이 둘로 갈라진다 (GFM 1행 1줄 계약)
+  const oneLineAlt = alt.replace(/[\r\n\t\f\v]+/g, " ");
+  return `<img src="${src}" alt="${escapeAttribute(oneLineAlt)}">`;
 }
 
 /** ImageAsset 생성 헬퍼 */
