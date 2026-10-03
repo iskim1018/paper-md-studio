@@ -1,4 +1,11 @@
-import { attr, childNode, childNodes, isXmlNode, type XmlNode } from "./xml.js";
+import {
+  attr,
+  childNode,
+  childNodes,
+  isXmlNode,
+  textOf,
+  type XmlNode,
+} from "./xml.js";
 
 /** 글자 모양 id → 강조 여부 */
 export interface CharStyles {
@@ -7,10 +14,32 @@ export interface CharStyles {
   readonly strikeIds: ReadonlySet<string>;
 }
 
+/** numbering > paraHead 한 수준 (level은 1-based) */
+export interface ParaHeadDef {
+  readonly numFormat: string;
+  /** "^1." 같은 형식 문자열. 빈 문자열이면 번호를 붙이지 않는다 */
+  readonly format: string;
+  readonly start: number;
+}
+
+/** numbering 정의 — 수준(1..10) → paraHead */
+export type NumberingDef = ReadonlyMap<number, ParaHeadDef>;
+
+/** 문단 모양(paraPr)의 문단 머리 연결 — level은 0-based */
+export interface ParaHeadingRef {
+  readonly type: "NUMBER" | "BULLET" | "OUTLINE";
+  readonly idRef: string;
+  readonly level: number;
+}
+
 export interface HwpxHeader {
   /** 스타일 id → 이름 */
   readonly styleNames: ReadonlyMap<string, string>;
   readonly charStyles: CharStyles;
+  readonly numberings: ReadonlyMap<string, NumberingDef>;
+  /** 글머리표 id → 원본 기호 문자 (PUA 정규화 전) */
+  readonly bullets: ReadonlyMap<string, string>;
+  readonly paraHeadings: ReadonlyMap<string, ParaHeadingRef>;
 }
 
 /**
@@ -33,6 +62,9 @@ const STRIKE_LINE_SHAPES = new Set([
   "SLIM_THICK_SLIM_LINE",
 ]);
 
+const HEADING_TYPES = new Set(["NUMBER", "BULLET", "OUTLINE"]);
+const MAX_HEAD_LEVEL = 10;
+
 export function emptyHeader(): HwpxHeader {
   return {
     styleNames: new Map(),
@@ -41,6 +73,9 @@ export function emptyHeader(): HwpxHeader {
       italicIds: new Set(),
       strikeIds: new Set(),
     },
+    numberings: new Map(),
+    bullets: new Map(),
+    paraHeadings: new Map(),
   };
 }
 
@@ -81,7 +116,66 @@ function parseCharStyles(refList: XmlNode): CharStyles {
   return { boldIds, italicIds, strikeIds };
 }
 
-/** header.xml 파싱 결과에서 스타일·글자 모양 정의를 읽는다 */
+function toInt(value: string, fallback: number): number {
+  const n = Number.parseInt(value, 10);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function parseNumbering(numbering: XmlNode): NumberingDef {
+  const heads = new Map<number, ParaHeadDef>();
+  for (const head of childNodes(numbering, "paraHead")) {
+    const level = toInt(attr(head, "level"), 0);
+    if (level < 1 || level > MAX_HEAD_LEVEL) continue;
+    heads.set(level, {
+      numFormat: attr(head, "numFormat") || "DIGIT",
+      format: textOf(head).trim(),
+      start: toInt(attr(head, "start"), 1),
+    });
+  }
+  return heads;
+}
+
+function parseNumberings(refList: XmlNode): Map<string, NumberingDef> {
+  const map = new Map<string, NumberingDef>();
+  const container = childNode(refList, "numberings");
+  for (const numbering of container ? childNodes(container, "numbering") : []) {
+    const id = attr(numbering, "id");
+    if (id) map.set(id, parseNumbering(numbering));
+  }
+  return map;
+}
+
+function parseBullets(refList: XmlNode): Map<string, string> {
+  const map = new Map<string, string>();
+  const container = childNode(refList, "bullets");
+  for (const bullet of container ? childNodes(container, "bullet") : []) {
+    const id = attr(bullet, "id");
+    if (!id) continue;
+    // 그림 글머리표는 그릴 수 없으므로 일반 점으로 대신한다
+    map.set(id, attr(bullet, "useImage") === "1" ? "•" : attr(bullet, "char"));
+  }
+  return map;
+}
+
+function parseParaHeadings(refList: XmlNode): Map<string, ParaHeadingRef> {
+  const map = new Map<string, ParaHeadingRef>();
+  const container = childNode(refList, "paraProperties");
+  for (const paraPr of container ? childNodes(container, "paraPr") : []) {
+    const id = attr(paraPr, "id");
+    const heading = childNode(paraPr, "heading");
+    if (!id || !heading) continue;
+    const type = attr(heading, "type");
+    if (!HEADING_TYPES.has(type)) continue;
+    map.set(id, {
+      type: type as ParaHeadingRef["type"],
+      idRef: attr(heading, "idRef"),
+      level: Math.min(Math.max(toInt(attr(heading, "level"), 0), 0), 9),
+    });
+  }
+  return map;
+}
+
+/** header.xml 파싱 결과에서 스타일·글자 모양·문단 머리 정의를 읽는다 */
 export function readHeader(headerDoc: XmlNode): HwpxHeader {
   const head = headerDoc.head;
   const refList = isXmlNode(head) ? childNode(head, "refList") : undefined;
@@ -89,5 +183,8 @@ export function readHeader(headerDoc: XmlNode): HwpxHeader {
   return {
     styleNames: parseStyleNames(refList),
     charStyles: parseCharStyles(refList),
+    numberings: parseNumberings(refList),
+    bullets: parseBullets(refList),
+    paraHeadings: parseParaHeadings(refList),
   };
 }

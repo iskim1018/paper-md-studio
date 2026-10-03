@@ -5,7 +5,8 @@ import {
   type WalkMode,
 } from "./context.js";
 import { tableCaption } from "./controls.js";
-import { renderTableHtml } from "./table.js";
+import { type ParagraphMarker, resolveParagraphMarker } from "./numbering.js";
+import { renderTableHtml, withMarker } from "./table.js";
 import { type Segment, walkParagraph } from "./walker.js";
 import { attr, childNodes, isXmlNode, type XmlNode } from "./xml.js";
 
@@ -64,15 +65,20 @@ interface ParagraphKind {
 function writeInline(
   writer: BodyWriter,
   kind: ParagraphKind,
+  marker: ParagraphMarker | null,
   html: string,
 ): void {
   if (kind.heading) {
     const tag = `h${kind.heading}`;
-    writer.block(`<${tag}>${html}</${tag}>\n`);
+    writer.block(
+      `<${tag}>${withMarker(marker?.text ?? null, html)}</${tag}>\n`,
+    );
   } else if (kind.list) {
-    writer.listItem(html);
+    // 목록 항목은 이미 "- "가 붙으므로 글머리표를 겹쳐 붙이지 않는다
+    const number = marker?.kind === "number" ? marker.text : null;
+    writer.listItem(withMarker(number, html));
   } else {
-    writer.block(`<p>${html}</p>\n`);
+    writer.block(`<p>${withMarker(marker?.text ?? null, html)}</p>\n`);
   }
 }
 
@@ -130,6 +136,13 @@ function writeParagraph(
     heading: headingLevel(styleName),
     list: LIST_PATTERN.test(styleName),
   };
+  // 번호는 내용이 없는 문단에서도 하나 소비된다 — 그래서 먼저 해석한다
+  let marker = resolveParagraphMarker(
+    attr(paragraph, "paraPrIDRef"),
+    ctx.header,
+    ctx.numbering,
+    ctx.state.outlineNumberingId,
+  );
   const segments = walkParagraph(paragraph, ctx, {
     ...mode,
     inHeading: kind.heading !== null,
@@ -140,7 +153,8 @@ function writeParagraph(
   }
   for (const segment of segments) {
     if (segment.kind === "inline") {
-      writeInline(writer, kind, segment.html);
+      writeInline(writer, kind, marker, segment.html);
+      marker = null;
     } else {
       writeSegment(segment, ctx, writer, mode);
     }
@@ -158,12 +172,23 @@ function writeParagraphs(
   }
 }
 
+/** 구역 첫 문단의 `<hp:secPr outlineShapeIDRef>` — 개요 문단의 번호 체계 */
+function outlineNumberingId(paragraphs: ReadonlyArray<XmlNode>): string {
+  const first = paragraphs[0];
+  if (!first) return "";
+  for (const run of childNodes(first, "run")) {
+    const secPr = run.secPr;
+    if (isXmlNode(secPr)) return attr(secPr, "outlineShapeIDRef");
+  }
+  return "";
+}
+
 /** 섹션 XML 파싱 결과를 본문 HTML로 그린다 */
 export function renderSection(sectionDoc: XmlNode, ctx: HwpxContext): string {
   const sec = sectionDoc.sec;
   if (!isXmlNode(sec)) return "";
   const paragraphs = childNodes(sec, "p");
-  ctx.state.startSection();
+  ctx.state.startSection(outlineNumberingId(paragraphs));
   const writer = new BodyWriter();
   writeParagraphs(paragraphs, ctx, writer, BODY_MODE);
   return writer.toHtml();

@@ -1,3 +1,4 @@
+import { rawMarkdownHtml } from "../../html-to-md.js";
 import { MERGE_LEFT, MERGE_UP } from "../html-tables-to-gfm.js";
 import {
   type HwpxContext,
@@ -5,6 +6,7 @@ import {
   type WalkMode,
 } from "./context.js";
 import { tableCaption } from "./controls.js";
+import { resolveParagraphMarker } from "./numbering.js";
 import { walkParagraph } from "./walker.js";
 import { attr, childNode, childNodes, type XmlNode } from "./xml.js";
 
@@ -31,6 +33,22 @@ interface CellPart {
   readonly value: string;
 }
 
+/** 문단 머리(번호·기호)를 앞에 붙인다 — escape되지 않도록 전용 요소로 감싼다 */
+export function withMarker(marker: string | null, html: string): string {
+  return marker ? `${rawMarkdownHtml(marker)} ${html}` : html;
+}
+
+function paragraphMarker(paragraph: XmlNode, ctx: HwpxContext): string | null {
+  return (
+    resolveParagraphMarker(
+      attr(paragraph, "paraPrIDRef"),
+      ctx.header,
+      ctx.numbering,
+      ctx.state.outlineNumberingId,
+    )?.text ?? null
+  );
+}
+
 /**
  * 셀 안 문단 하나를 셀 조각들로 나눈다. 글자는 문서 순서대로 text 조각이 되고,
  * 중첩 표는 평탄화된 nested-table 조각, 글상자 문단은 같은 규칙으로 재귀한다.
@@ -41,10 +59,12 @@ function paragraphParts(
   mode: WalkMode,
   depth: number,
 ): Array<CellPart> {
+  let marker = paragraphMarker(paragraph, ctx);
   const parts: Array<CellPart> = [];
   for (const segment of walkParagraph(paragraph, ctx, mode)) {
     if (segment.kind === "inline" || segment.kind === "image") {
-      parts.push({ kind: "text", value: segment.html });
+      parts.push({ kind: "text", value: withMarker(marker, segment.html) });
+      marker = null;
     } else if (segment.kind === "table") {
       parts.push(...nestedTableParts(segment.node, ctx, mode, depth));
     } else if (mode.depth < MAX_OBJECT_DEPTH) {

@@ -6,6 +6,7 @@ import { PIPE_TOKEN, restorePipes } from "./html-tables-to-gfm.js";
 import { DocumentState, type HwpxContext } from "./hwpx/context.js";
 import { emptyHeader, type HwpxHeader, readHeader } from "./hwpx/header.js";
 import { ImageCollector } from "./hwpx/images.js";
+import { NumberingTracker } from "./hwpx/numbering.js";
 import { renderSection } from "./hwpx/section.js";
 import { renderInlineParagraphs } from "./hwpx/table.js";
 import {
@@ -25,7 +26,7 @@ import {
  * - `inline-tokens.ts`·`inline-builder.ts`: `<hp:t>` 안쪽(탭·줄바꿈·변경 추적)
  * - `walker.ts`: 문단 하나를 문서 순서대로 훑기 (표·그림·수식·글상자·각주·링크)
  * - `table.ts`·`section.ts`: 표 셀 평탄화와 본문 블록 렌더링
- * - `header.ts`: 스타일·글자 모양
+ * - `header.ts`·`numbering.ts`: 스타일·글자 모양·문단 머리(글머리표·번호)
  * - `images.ts`·`equation.ts`·`controls.ts`: 그림·수식·조판 부호
  */
 
@@ -149,6 +150,7 @@ function createContext(
   const ctx: HwpxContext = {
     header: readHeaderFile(files),
     images: new ImageCollector(imagesDirName, files),
+    numbering: new NumberingTracker(),
     state: new DocumentState(),
     renderNote: (paragraphs, mode) =>
       renderInlineParagraphs(paragraphs, ctx, mode),

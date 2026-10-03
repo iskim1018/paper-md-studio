@@ -1,6 +1,7 @@
 import type { HwpxHeader } from "./header.js";
 import type { ImageCollector } from "./images.js";
 import type { InlinePlacement } from "./inline-builder.js";
+import type { NumberingTracker } from "./numbering.js";
 import type { XmlNode } from "./xml.js";
 
 /**
@@ -34,6 +35,7 @@ export const BODY_MODE: WalkMode = {
 export class DocumentState {
   deletedRanges = 0;
   equationFallbacks = 0;
+  outlineNumberingId = "1";
   private deleteDepth = 0;
 
   get isDeleting(): boolean {
@@ -49,9 +51,10 @@ export class DocumentState {
     this.deleteDepth = Math.max(0, this.deleteDepth - 1);
   }
 
-  /** 새 구역 시작 — 열린 삭제 구간을 닫는다 */
-  startSection(): void {
+  /** 새 구역 시작 — 삭제 구간을 닫고 개요 번호 체계를 바꾼다 */
+  startSection(outlineNumberingId: string): void {
     this.deleteDepth = 0;
+    this.outlineNumberingId = outlineNumberingId || "1";
   }
 }
 
@@ -59,6 +62,7 @@ export class DocumentState {
 export interface HwpxContext {
   readonly header: HwpxHeader;
   readonly images: ImageCollector;
+  readonly numbering: NumberingTracker;
   readonly state: DocumentState;
   /**
    * 각주·미주 본문을 한 줄 인라인 HTML로 그린다. 표 셀과 같은 규칙(문단을
