@@ -3,6 +3,7 @@ import { strFromU8 } from "fflate";
 import type { ParseOptions, ParseResult, Parser } from "../types.js";
 import { PIPE_TOKEN, restorePipes } from "./html-tables-to-gfm.js";
 import { DocumentState, type HwpxContext } from "./hwpx/context.js";
+import { EMBEDDED_OBJECTS } from "./hwpx/controls.js";
 import { emptyHeader, type HwpxHeader, readHeader } from "./hwpx/header.js";
 import { ImageCollector } from "./hwpx/images.js";
 import { MAX_MERGED_CELLS, MAX_TABLE_COLS } from "./hwpx/limits.js";
@@ -136,6 +137,19 @@ function hasVisibleText(html: string): boolean {
   return /\S/.test(html.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " "));
 }
 
+/** 내용을 옮기지 못한 내장 개체 — 종류별 개수를 한 문장으로 ("OLE 개체 2개·차트 1개는 …") */
+function skippedObjectsWarning(
+  counts: ReadonlyMap<string, number>,
+): string | null {
+  const parts = [...EMBEDDED_OBJECTS]
+    .map(([kind, label]) => ({ label, count: counts.get(kind) ?? 0 }))
+    .filter(({ count }) => count > 0)
+    .map(({ label, count }) => `${label} ${count.toLocaleString("ko-KR")}개`);
+  return parts.length > 0
+    ? `${parts.join("·")}는 내용을 변환할 수 없어 제외했습니다.`
+    : null;
+}
+
 function collectWarnings(ctx: HwpxContext, html: string): Array<string> {
   const warnings: Array<string> = [];
   if (!hasVisibleText(html)) warnings.push(NO_TEXT_WARNING);
@@ -150,6 +164,8 @@ function collectWarnings(ctx: HwpxContext, html: string): Array<string> {
       `WMF/EMF 그림 ${ctx.images.skippedMetafiles}개는 변환할 수 없어 제외했습니다.`,
     );
   }
+  const skippedObjects = skippedObjectsWarning(ctx.state.skippedObjectCounts);
+  if (skippedObjects) warnings.push(skippedObjects);
   if (equationFallbacks > 0) {
     warnings.push(
       `수식 ${equationFallbacks}개는 LaTeX로 바꾸지 못해 원본 수식 스크립트를 코드로 남겼습니다.`,

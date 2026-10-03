@@ -1,3 +1,4 @@
+import type { InlineToken } from "./inline-tokens.js";
 import { formatHeadNumber } from "./numbering.js";
 import { attr, childNode, childNodes, textOf, type XmlNode } from "./xml.js";
 
@@ -19,6 +20,31 @@ export const DRAWING_OBJECTS: ReadonlySet<string> = new Set([
   "connectLine",
   "line",
 ]);
+
+/**
+ * 내용을 Markdown 으로 옮길 수 없는 내장 개체와 경고에 쓸 이름. OLE 는 다른
+ * 프로그램의 문서(한글 문서에 붙인 차트도 대부분 OLE 다), chart 는 OOXML 차트
+ * 파트, video 는 동영상이다. 캡션만 내고 개수를 경고한다 — 종전엔 캡션까지
+ * 조용히 사라졌다.
+ */
+export const EMBEDDED_OBJECTS: ReadonlyMap<string, string> = new Map([
+  ["ole", "OLE 개체"],
+  ["chart", "차트"],
+  ["video", "동영상"],
+]);
+
+/**
+ * 글맵시(`<hp:textart text="…">`) 글자를 토큰으로. XML 속성은 줄바꿈을
+ * 공백으로 정규화하므로 한글은 여러 줄 글맵시의 줄바꿈을 ␍␊(U+240D U+240A)로
+ * 적는다 — 그 자리를 줄바꿈 토큰으로 되살린다.
+ */
+export function textArtTokens(textArt: XmlNode): Array<InlineToken> {
+  const lines = attr(textArt, "text").split(/\u240D\u240A|[\u240D\u240A]/);
+  return lines.flatMap((value, index): Array<InlineToken> => {
+    const text: InlineToken = { kind: "text", value };
+    return index === 0 ? [text] : [{ kind: "lineBreak" }, text];
+  });
+}
 
 /**
  * 본문에 쓰는 자동 번호 종류 — 캡션의 표·그림·수식 번호. 쪽 번호는 Markdown 에

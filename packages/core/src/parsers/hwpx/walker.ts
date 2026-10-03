@@ -8,8 +8,10 @@ import {
   captionOf,
   DRAWING_OBJECTS,
   drawTextParagraphs,
+  EMBEDDED_OBJECTS,
   hyperlinkUrl,
   subListParagraphs,
+  textArtTokens,
 } from "./controls.js";
 import { renderEquation } from "./equation.js";
 import type { CharStyles } from "./header.js";
@@ -159,9 +161,42 @@ class ParagraphWalker {
       case "autoNum":
         this.autoNum(node);
         return;
+      case "textart":
+        this.textArt(node);
+        return;
       default:
-        if (DRAWING_OBJECTS.has(name)) this.drawing(node);
+        this.shape(name, node);
     }
+  }
+
+  /**
+   * 그 밖의 개체. 그리기 개체는 글상자를, 내장 개체(OLE·차트·동영상)는 내용을
+   * 옮길 수 없어 캡션만 내고 개수를 센다. 양식 개체 등 나머지도 캡션이 있으면
+   * 낸다 — OWPML 에서 캡션은 모든 개체가 가질 수 있다.
+   */
+  private shape(name: string, node: XmlNode): void {
+    if (DRAWING_OBJECTS.has(name)) {
+      this.drawing(node);
+      return;
+    }
+    const embedded = EMBEDDED_OBJECTS.has(name);
+    if (!embedded && !childNode(node, "caption")) return;
+    if (this.dropIfDeleted()) return;
+    this.withCaption(node, () => {
+      if (embedded) this.ctx.state.skipObject(name);
+    });
+  }
+
+  /** 글맵시 — 글자를 따로 한 흐름으로 낸다 (떠 있는 개체라 앞뒤 글과 섞지 않는다) */
+  private textArt(node: XmlNode): void {
+    if (this.dropIfDeleted()) return;
+    this.withCaption(node, () => {
+      this.flush();
+      for (const token of textArtTokens(node)) {
+        this.builder.token(token, PLAIN_STYLE);
+      }
+      this.flush();
+    });
   }
 
   /**

@@ -170,4 +170,85 @@ describe.each(VARIANTS)("HWPX 캡션·자동 번호 (%s)", (_label, wrap) => {
       expect(out).toMatch(/^\| !\[[^\]]*\]\([^)]*\) 셀 그림 캡션 \|$/m);
     });
   });
+  describe("내용을 옮길 수 없는 개체·글맵시·그 밖의 개체의 캡션", () => {
+    const OLE = (cap: string) =>
+      `<ole objectType="EMBEDDED" binaryItemIDRef="ole1">${cap}<extent x="1" y="1"/></ole>`;
+
+    it("OLE 개체의 캡션을 내고, 내용을 못 옮긴 것을 경고한다", async () => {
+      // Act — 한글 문서에 붙인 차트는 대부분 OLE 개체다 ("그림 N." 캡션)
+      const result = await parse(
+        paragraph(
+          `<run>${OLE(caption("BOTTOM", `<t>그림 </t>${autoNum("1", "PICTURE")}<t>. 매출 추이</t>`))}</run>`,
+        ),
+      );
+
+      // Assert
+      expect(result.markdown).toBe("그림 1. 매출 추이");
+      expect(result.warnings).toEqual([
+        "OLE 개체 1개는 내용을 변환할 수 없어 제외했습니다.",
+      ]);
+    });
+
+    it("차트·동영상도 캡션을 내고 종류별 개수를 한 경고로 알린다", async () => {
+      const result = await parse(
+        `<sec>
+          <p styleIDRef="0"><run><chart chartIDRef="Chart/chart1.xml">${caption("TOP", "<t>차트 캡션</t>")}</chart></run></p>
+          <p styleIDRef="0"><run><video type="LOCAL">${caption("BOTTOM", "<t>동영상 캡션</t>")}</video></run></p>
+          <p styleIDRef="0"><run>${OLE("")}${OLE("")}</run></p>
+        </sec>`,
+      );
+
+      expect(result.markdown).toBe("차트 캡션\n\n동영상 캡션");
+      expect(result.warnings).toEqual([
+        "OLE 개체 2개·차트 1개·동영상 1개는 내용을 변환할 수 없어 제외했습니다.",
+      ]);
+    });
+
+    it("글맵시는 글자(text 속성)와 캡션을 함께 낸다 — 줄바꿈 ␍␊ 는 줄바꿈으로", async () => {
+      const result = await parse(
+        paragraph(
+          `<run><textart text="첫 줄␍␊둘째 줄 *별*">${caption("BOTTOM", "<t>글맵시 캡션</t>")}<textartPr fontName="굴림"/></textart></run>`,
+        ),
+      );
+
+      expect(result.markdown).toBe("첫 줄  \n둘째 줄 \\*별\\*\n\n글맵시 캡션");
+      expect(result.warnings).toBeUndefined();
+    });
+
+    it("그 밖의 개체(양식 개체 등)도 캡션이 있으면 낸다", async () => {
+      const out = await md(
+        paragraph(
+          `<run><t>앞</t><checkBtn caption="확인">${caption("BOTTOM", "<t>확인란 캡션</t>")}</checkBtn><t>뒤</t></run>`,
+        ),
+      );
+
+      expect(out).toBe("앞\n\n확인란 캡션\n\n뒤");
+    });
+
+    it("표 셀 안 OLE 캡션은 셀 글자로 들어가고 경고도 센다", async () => {
+      const result = await parse(
+        tableSection([
+          `<p><run>${OLE(caption("BOTTOM", "<t>셀 차트 캡션</t>"))}</run></p>`,
+        ]),
+      );
+
+      expect(result.markdown).toBe("| 셀 차트 캡션 |\n| --- |");
+      expect(result.warnings).toEqual([
+        "OLE 개체 1개는 내용을 변환할 수 없어 제외했습니다.",
+      ]);
+    });
+
+    it("변경 추적으로 지운 OLE 개체는 캡션을 내지 않고 손실로 세지도 않는다", async () => {
+      const result = await parse(
+        paragraph(
+          `<run><t>가<deleteBegin Id="1"/></t>${OLE(caption("BOTTOM", "<t>지운 캡션</t>"))}<t><deleteEnd Id="1"/>나</t></run>`,
+        ),
+      );
+
+      expect(result.markdown).toBe("가나");
+      expect(result.warnings).toEqual([
+        "변경 내용 추적으로 삭제 표시된 텍스트 1곳을 제외했습니다.",
+      ]);
+    });
+  });
 });

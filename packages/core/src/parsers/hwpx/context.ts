@@ -70,6 +70,17 @@ export class DocumentState {
   readonly orderedList = new OrderedListTracker();
   private deleteDepth = 0;
   private readonly autoNumbers = new Map<string, number>();
+  private readonly skippedObjects = new Map<string, number>();
+
+  /** 내용을 옮기지 못하고 뺀 내장 개체 수 (종류 → 개수) */
+  get skippedObjectCounts(): ReadonlyMap<string, number> {
+    return this.skippedObjects;
+  }
+
+  /** 내용을 옮기지 못한 내장 개체(OLE·차트·동영상)를 하나 센다 */
+  skipObject(kind: string): void {
+    this.skippedObjects.set(kind, (this.skippedObjects.get(kind) ?? 0) + 1);
+  }
 
   get isDeleting(): boolean {
     return this.deleteDepth > 0;
