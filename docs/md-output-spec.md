@@ -48,14 +48,18 @@ paper-md-studio가 생성하는 Markdown은 **GFM(GitHub Flavored Markdown)** �
 ## 포맷별 변환 경로
 
 ```
+HWP   ──→  rhwp(WASM)로 HWPX 변환  ──→  아래 HWPX 경로
 HWPX  ──→  XML 직접 파싱  ──→  HTML  ──→  Turndown  ──→  GFM Markdown
 DOCX  ──→  mammoth        ──→  HTML  ──→  Turndown  ──→  GFM Markdown
-PDF   ──→  텍스트 런 전처리 ──→ pdf2md ──→ 후처리 ──→ Markdown
+PDF   ──→  텍스트 런 전처리 ──→ pdf2md ──→ 후처리 ──→ Markdown   (대체 엔진)
 ```
 
-- **HWPX**: ZIP 해제 → header.xml에서 스타일/볼드 파싱 → section XML에서 본문 추출 → HTML 생성 → Turndown
+- **HWP**(5.0·3.x·HWPML): 사전 검사(암호·DRM·압축 폭탄) 뒤 rhwp 가 HWPX 로 바꾸고, 그 결과를 HWPX 와 같은 파서로 변환 (2026-10-03~)
+- **HWPX**: ZIP 해제 → header.xml에서 스타일/볼드·글머리표/번호 정의 파싱 → section XML에서 본문 추출 → HTML 생성 → Turndown
 - **DOCX**: mammoth가 HTML로 변환 → Turndown
-- **PDF**: pdf2md가 직접 Markdown 생성 (Turndown 미사용). 앞뒤로 자체 보정 단계를 둔다
+- **PDF**: 기본 엔진은 `@firecrawl/pdf-inspector`(2026-08-17~, 표 감지 포함)이고 위 그림과 아래 보정
+  단계는 대체 엔진(`PAPER_MD_STUDIO_PDF_ENGINE=legacy` 또는 inspector 로드 실패 시) 이야기다.
+  대체 엔진은 pdf2md가 직접 Markdown 생성 (Turndown 미사용). 앞뒤로 자체 보정 단계를 둔다
 
 ### PDF 보정 단계
 
@@ -96,10 +100,11 @@ pdf2md를 그대로 쓰면 한글 문서에서 크게 어긋나는 부분이 있
 
 ## 알려진 제한사항
 
-- PDF의 **표는 복원되지 않고 한 문단으로 평탄화**됨. PDF에는 표 구조가 없고 테두리
+- PDF 대체 엔진(pdf2md)에서는 **표가 복원되지 않고 한 문단으로 평탄화**됨. PDF에는 표 구조가 없고 테두리
   선(stroke path)과 좌표만 남아 있어, 복원하려면 선을 모아 격자를 세우고 텍스트를
   칸에 배정하는 별도 단계가 필요함
 - PDF의 **이미지는 추출되지 않음** (pdf2md 미지원)
 - PDF 변환은 레이아웃 기반이라 복잡한 단 구조에서 정확도가 떨어질 수 있음
 - HWPX 스타일 매핑은 한글 기본 스타일명 기준 (커스텀 스타일은 일반 단락으로 처리)
-- 수식(MathML, LaTeX)은 현재 미지원
+- 수식은 HWP·HWPX 의 한컴 수식만 LaTeX 인라인 수식(`$…$`)으로 변환한다 (2026-10-03~, 변환 실패 시
+  원본 스크립트를 인라인 코드로 남기고 경고). 다른 포맷(DOCX 의 OMML 등)의 수식은 미지원

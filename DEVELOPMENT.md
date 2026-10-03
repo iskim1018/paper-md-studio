@@ -136,7 +136,7 @@ pnpm --filter @paper-md-studio/app tauri build
 
 스모크 검사는 `resources/cli` 를 저장소 **바깥** 임시 폴더로 복사해 실행합니다 —
 저장소 안에서는 상위 `node_modules` 가 번들에서 빠진 파일을 가려 주기 때문입니다.
-릴리스 워크플로도 macOS·Windows 에서 같은 검사를 tauri-action 직전에 돌립니다
+릴리스 워크플로도 macOS·Windows 에서 같은 검사를 tauri-action 앞에서 돌립니다
 (`docs/RELEASE.md`).
 
 번들 Node 버전을 올릴 때는 `scripts/bundle-node.mjs` 의 `NODE_VERSION` 과

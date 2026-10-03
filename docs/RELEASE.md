@@ -102,12 +102,16 @@ pdf-inspector.darwin-arm64.node
 빌드가 통과해도 번들은 **실행할 때에만** 깨지는 지점이 있다 — 미니
 `node_modules`(rhwp WASM·pdf-inspector NAPI) 누락, 번들에 인라인되지 않은 동적
 `require`, CI 의 Node 와 다른 번들 Node 버전에서만 나는 오류. 실제로 번들 Node 가
-v20.18 이던 동안 PDF 대체 엔진(pdfjs 6, Node 22.13+ 요구)이 사이드카에서 결과 없이
-exit 0 으로 끝났는데, 빌드·단위 테스트로는 드러나지 않았다.
+v20.18 이던 동안 PDF 대체 엔진(pdf2md — 의존성 unpdf 1.4 에 내장된 PDF.js 5.4)이
+사이드카에서 결과 없이 exit 0 으로 끝났는데(같은 번들을 Node 22 로 돌리면 정상),
+빌드·단위 테스트로는 드러나지 않았다.
 
 릴리스 워크플로의 **Smoke test bundled CLI** 스텝(`pnpm smoke:cli-bundle`,
 `scripts/smoke-cli-bundle.mjs`)이 macOS·Windows 둘 다에서, 리소스 준비·서명을
-마친 뒤 tauri-action 직전에 돈다. 실패하면 릴리스가 만들어지지 않는다.
+마친 뒤 tauri-action 앞에서 돈다. 실패하면 그 플랫폼 잡은 tauri-action 까지 가지
+않아 산출물을 올리지 않는다. 다만 매트릭스가 `fail-fast: false` 라 다른 플랫폼
+잡은 계속 돌아 draft 릴리스에 그 플랫폼 산출물만 올라갈 수 있다 — draft 를 해제하기
+전에 두 잡이 모두 성공했는지 확인한다.
 
 - `resources/cli` 를 저장소 **바깥** 임시 폴더로 복사하고 작업 폴더도 바깥에
   둔 채, `resources/node` 의 번들 Node 로 실행한다 — 저장소 안에서는 상위

@@ -280,8 +280,9 @@ async function main(): Promise<void> {
  * main() 이 끝나기 전에 이벤트 루프가 비면(어떤 promise 가 영영 settle 되지
  * 않으면) Node 는 조용히 exit 0 으로 끝난다 — 호출측(앱 사이드카)은 성공으로
  * 알고 빈 출력을 파싱하다 "CLI 출력 파싱 실패"만 남긴다. 2026-10-03 번들
- * Node 20 에서 pdfjs 6(Node 22.13+ 요구)가 정확히 이렇게 멈췄다. 원인과 무관하게
- * "결과 없는 성공"을 실패로 바꾼다.
+ * Node 20 에서 PDF 대체 엔진(pdf2md → unpdf 에 내장된 PDF.js 5.4)이 정확히
+ * 이렇게 멈췄다(Node 22 에서는 정상). 원인과 무관하게 "결과 없는 성공"을
+ * 실패로 바꾼다.
  */
 let finished = false;
 process.once("beforeExit", () => {

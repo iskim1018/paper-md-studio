@@ -39,7 +39,11 @@ v0.5.2부터는 **최초 설치 이후 자동 업데이트**를 지원합니다.
 
 ### macOS 설치 안내
 
-Apple Developer 인증서로 서명되지 않았으므로 Gatekeeper 경고가 표시됩니다. 아래 중 하나로 실행합니다.
+v0.5.4부터 앱이 Apple Developer ID 로 서명·공증(notarization)되어 있어 Gatekeeper
+경고 없이 바로 실행됩니다.
+
+v0.5.3 이하를 받은 경우에만 "확인되지 않은 개발자" 경고가 뜹니다. 그때는 아래 중
+하나로 실행합니다.
 
 **방법 1 — 터미널에서 격리 속성 제거**
 ```bash
@@ -54,7 +58,7 @@ xattr -cr "/Applications/Paper MD Studio.app"
 ## 특징
 
 ### 변환
-- **5 포맷**: HWP · HWPX · DOCX · DOC · PDF → Markdown
+- **지원 포맷**: HWP · HWPX · DOCX · DOC · PDF · XLSX · XLS · HTML → Markdown
 - **이미지 자동 추출** — 표 셀 내부 이미지까지 포함 (HWPX)
 - **한글 파일명 안전** — macOS NFD 자동 정규화
 - **캐시 (서버)** — SHA-256 content-addressed, 동일 파일 재변환 제거
@@ -293,6 +297,7 @@ curl -X POST http://localhost:3000/v1/convert \
 | Word (레거시) | `.doc` | LibreOffice 필요 (macOS fallback: textutil) |
 | PDF | `.pdf` | 텍스트 추출 (이미지 미지원) |
 | Excel | `.xlsx` `.xls` | 자체 파서 — 시트별 표, 표시형식·병합·숨김·이미지 |
+| HTML | `.html` `.htm` · URL | `@mozilla/readability` + `linkedom` 본문 추출 (SPA 렌더링은 CLI `--render` — URL 전용, Chrome 필요) |
 
 ## 기술 스택
 

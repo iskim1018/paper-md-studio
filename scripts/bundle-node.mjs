@@ -34,9 +34,9 @@ const nodeDir = join(
 );
 
 // Node LTS 고정 버전 — 저장소 engines(>=22.13.0)와 같은 계열이어야 한다.
-// 20.18 을 번들하던 동안 pdfjs 6(Node 22.13+ 요구)을 쓰는 PDF 대체 엔진이
-// 사이드카에서 결과 없이 멈췄다(2026-10-03). 올릴 때는 아래 체크섬도 함께
-// 바꾼다: https://nodejs.org/dist/<버전>/SHASUMS256.txt
+// 20.18 을 번들하던 동안 PDF 대체 엔진(pdf2md → unpdf 에 내장된 PDF.js 5.4)이
+// 사이드카에서 결과 없이 멈췄다(2026-10-03, Node 22 에서는 정상). 올릴 때는
+// 아래 체크섬도 함께 바꾼다: https://nodejs.org/dist/<버전>/SHASUMS256.txt
 const NODE_VERSION = "v22.23.3";
 
 /**

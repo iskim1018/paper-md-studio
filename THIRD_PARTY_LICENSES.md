@@ -8,8 +8,9 @@ Paper MD Studio는 다음 오픈소스 라이브러리 및 런타임을 사용�
 
 ### pdfjs-dist (Mozilla PDF.js)
 
-- 용도: PDF 파일 뷰어 렌더링
-- 저장소: https://github.com/nicolo-ribaudo/pdfjs-dist
+- 용도: PDF 파일 뷰어 렌더링 (앱, pdfjs-dist 6.x). CLI 의 PDF 대체 엔진(pdf2md)은
+  별도로 unpdf(MIT)에 내장된 PDF.js 5.4.296 을 쓰며, 이것이 CLI 번들에 인라인된다
+- 저장소: https://github.com/mozilla/pdf.js
 - 라이선스: Apache-2.0
 
 ### DOMPurify
@@ -17,6 +18,13 @@ Paper MD Studio는 다음 오픈소스 라이브러리 및 런타임을 사용�
 - 용도: HTML 새니타이징 (XSS 방지)
 - 저장소: https://github.com/cure53/DOMPurify
 - 라이선스: Apache-2.0 OR MPL-2.0
+
+### @mozilla/readability
+
+- 용도: HTML → Markdown 변환의 본문 추출
+- 배포 형태: CLI 단일 파일 번들(`index.js`)에 인라인된다
+- 저장소: https://github.com/mozilla/readability
+- 라이선스: Apache-2.0 — Copyright (c) 2010 Arc90 Inc
 
 ### cfb (SheetJS js-cfb)
 
@@ -104,10 +112,13 @@ Paper MD Studio는 다음 오픈소스 라이브러리 및 런타임을 사용�
 - WASM 에는 Rust 크레이트가 컴파일돼 들어 있다. 목록은 상류
   https://github.com/edwardkim/rhwp/blob/v0.8.6/THIRD_PARTY_LICENSES.md 참고.
   대부분 MIT·Apache-2.0 계열(일부 Zlib·Unlicense·0BSD·ISC·CC0·
-  Unicode-DFS-2016)이다. 상류 목록이 직접 의존성으로 적은 것 중 바이너리
-  재배포 시 고지가 필요한 BSD-3-Clause 는 `encoding_rs` 0.8.35(WHATWG Encoding
-  Standard 데이터)와 `ed25519-dalek` 2.2.0 이라 고지 전문을 아래
-  [부록 B](#부록-b--bsd-3-clause-고지-rhwp-wasm-포함분)에 싣는다
+  Unicode-DFS-2016)이다. 바이너리 재배포 시 고지가 필요한 BSD-3-Clause 는
+  `encoding_rs` 0.8.35(WHATWG Encoding Standard 데이터)와 서명용
+  `ed25519-dalek`·그 의존성 `curve25519-dalek`·`subtle` 이라 고지 전문을 아래
+  [부록 B](#부록-b--bsd-3-clause-고지-rhwp-wasm-포함분)에 싣는다. 버전은 v0.8.6
+  태그의 `Cargo.lock` 기준이다(상류 목록은 `ed25519-dalek` 을 2.2.0 으로 적었지만
+  lockfile 은 3.0.0). npm 패키지 WASM 이 내보내는 API 에는 서명 기능이 없어 이
+  크레이트들이 링크 단계에서 빠졌을 수 있으나, 확인하지 못해 고지를 유지한다
 
 ### @firecrawl/pdf-inspector
 
@@ -146,8 +157,10 @@ Paper MD Studio는 다음 오픈소스 라이브러리 및 런타임을 사용�
 
 ### @opendocsg/pdf2md
 
-- 용도: PDF 텍스트를 Markdown으로 변환
-- 저장소: https://github.com/nicolo-ribaudo/pdf2md
+- 용도: PDF 텍스트를 Markdown으로 변환 (PDF 대체 엔진). 의존성 unpdf(MIT,
+  Copyright (c) 2023-PRESENT Johann Schopplich)가 PDF.js 를 내장하며 함께 CLI
+  번들에 인라인된다
+- 저장소: https://github.com/opendocsg/pdf2md
 - 라이선스: MIT
 
 ### zustand
@@ -183,6 +196,13 @@ Paper MD Studio는 다음 오픈소스 라이브러리 및 런타임을 사용�
 ---
 
 ## ISC License
+
+### linkedom
+
+- 용도: HTML → Markdown 변환의 경량 DOM (스크립트 미실행)
+- 배포 형태: CLI 단일 파일 번들(`index.js`)에 인라인된다
+- 저장소: https://github.com/WebReflection/linkedom
+- 라이선스: ISC — Copyright (c) 2021, Andrea Giammarchi, @WebReflection
 
 ### lucide-react
 
@@ -466,11 +486,18 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
 
-### ed25519-dalek 2.2.0
+### ed25519-dalek 3.0.0 · curve25519-dalek 5.0.0 · subtle 2.6.1
+
+세 크레이트의 `LICENSE` 는 아래 저작권 표기만 다르고 본문은 같은 BSD-3-Clause
+전문이다.
+
+- ed25519-dalek — Copyright (c) 2017-2019 isis agora lovecruft. All rights reserved.
+- curve25519-dalek — Copyright (c) 2016-2021 isis agora lovecruft. All rights reserved.
+  / Copyright (c) 2016-2021 Henry de Valence. All rights reserved.
+- subtle — Copyright (c) 2016-2017 Isis Agora Lovecruft, Henry de Valence. All rights
+  reserved. / Copyright (c) 2016-2024 Isis Agora Lovecruft. All rights reserved.
 
 ```text
-Copyright (c) 2017-2019 isis agora lovecruft. All rights reserved.
-
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are
 met:
