@@ -146,7 +146,7 @@ describe("HWPX 수식 렌더링", () => {
     );
 
     // Assert
-    const tree = parseMarkdown(result.markdown);
+    const tree = parseMarkdown(result.markdown ?? "");
     expect(nodesOfType(tree, "inlineMath").map(textOf)).toEqual([
       "a\\text{\\textdollar}b",
       "c\\text{\\textdollar}",

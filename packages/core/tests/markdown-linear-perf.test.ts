@@ -81,7 +81,9 @@ describe("HTML → Markdown 변환 시간은 입력 크기에 선형이다", () 
       const result = await parser.parseBytes(large, options);
 
       // Assert — 문단이 하나도 빠지지 않았고, 증가율이 선형 범위다
-      expect(result.markdown.split("\n\n")).toHaveLength(LARGE_PARAGRAPHS);
+      expect((result.markdown ?? "").split("\n\n")).toHaveLength(
+        LARGE_PARAGRAPHS,
+      );
       expect(largeMs / smallMs).toBeLessThan(MAX_GROWTH);
     },
     TIMEOUT_MS,
