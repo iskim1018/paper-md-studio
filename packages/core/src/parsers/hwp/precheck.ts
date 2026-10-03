@@ -164,7 +164,7 @@ export function precheckHwp5(data: Uint8Array): Array<string> {
   const streams = readStreams(data);
   const flags = readHeaderFlags(streams);
   assertNotProtected(flags);
-  assertInflateWithinLimits(inflateCandidates(streams, flags));
+  assertInflateWithinLimits(inflateCandidates(streams, flags), data.length);
   return (flags & FLAG.trackChanges) !== 0 ? [TRACK_CHANGES_WARNING] : [];
 }
 
@@ -197,9 +197,10 @@ export function precheckHwp3(data: Uint8Array): Array<string> {
   const bodyOffset =
     HWP3.fixedHeaderBytes + readU16(data, HWP3.infoBlockLengthOffset);
   if (bodyOffset < data.length) {
-    assertInflateWithinLimits([
-      { data: data.subarray(bodyOffset), isRecord: true },
-    ]);
+    assertInflateWithinLimits(
+      [{ data: data.subarray(bodyOffset), isRecord: true }],
+      data.length,
+    );
   }
   return [];
 }
