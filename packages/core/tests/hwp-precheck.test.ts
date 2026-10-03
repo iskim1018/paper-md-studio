@@ -251,6 +251,15 @@ describe("decryptDistributionStream", () => {
     );
   });
 
+  it("페이로드가 잘렸거나 암호화 본문이 없으면 null", () => {
+    const full = encryptViewText(new Uint8Array(32));
+    const payloadOnly = full.subarray(0, 4 + 256);
+    const truncatedPayload = full.subarray(0, 100);
+
+    expect(decryptDistributionStream(payloadOnly)).toBeNull();
+    expect(decryptDistributionStream(truncatedPayload)).toBeNull();
+  });
+
   it("첫 레코드가 DISTRIBUTE_DOC_DATA 가 아니면 null", () => {
     expect(decryptDistributionStream(new Uint8Array(300))).toBeNull();
     expect(decryptDistributionStream(new Uint8Array(2))).toBeNull();
