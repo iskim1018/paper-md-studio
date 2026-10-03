@@ -212,3 +212,22 @@ override 는 **의존성이 기대하지 않은 버전을 강제로 끼워넣는
 넣어둔 바닥값이 새 권고보다 낮아짐). 근본 해결은 상위 패키지
 (`@modelcontextprotocol/sdk`, `jsdom`, `@milkdown/kit`, `tsup`) 정기 업그레이드이며,
 override 는 그 사이를 메우는 임시 수단으로 이해하는 편이 맞다.
+
+## 7. 후속 — kordoc 제거 (2026-10-03)
+
+kordoc 을 걷어내면서(`.hwp` 는 rhwp 로 전환) 이 문서의 몇 항목이 정리됐다.
+위 본문은 당시 기록으로 그대로 둔다.
+
+- **kordoc 전용 override 3개 삭제** — `adm-zip`·`sharp`·`markdown-it`. 셋 다
+  kordoc(과 그 선택 의존성 `@huggingface/transformers`·`onnxruntime-node`)만
+  끌어들이던 것으로, `pnpm why -r` 로 남은 사용처가 없음을 확인했다. 나머지
+  override(`@xmldom/xmldom` 은 mammoth, `fast-uri`·`hono`·`ip-address` 등은 MCP
+  SDK·서버)는 다른 경로가 있어 유지한다.
+- **§0 검증 표의 ⚠️ 항목 해소** — kordoc 경유로 남아 있던 `pdfjs-dist` 4.10.38
+  이 lockfile 에서 빠졌다. 이제 `pdfjs-dist` 는 6.2.108 하나뿐이다.
+- **`scripts/make-scan-pdf.mjs`** — sharp·`@hyzyla/pdfium` 이 kordoc 의 선택
+  의존성으로만 들어와 있어 숨김 호이스트 로더가 깨졌다. 저장소 의존성으로
+  들이지 않고(sharp 는 감사 경보 이력이 있는 네이티브 바이너리라 모든 설치·CI
+  에 넣을 이유가 없다) `SCAN_PDF_DEPS` 로 저장소 밖에 따로 설치한 경로에서
+  읽도록 바꿨다. 사용법은 스크립트 머리말.
+- 제거 후 `pnpm audit` 0건.

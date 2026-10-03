@@ -117,7 +117,7 @@ node -e "console.log(require('path').resolve('packages/mcp/dist/bin.js'))"
 #   /Users/you/projects/docs-to-md/packages/mcp/dist/bin.js
 ```
 
-> Java 11+ 는 `.hwp` 변환 시에만 필요합니다 (`java -version` 으로 확인). `.docx` / `.pdf` / `.hwpx` 만 테스트한다면 없어도 됩니다.
+> 필요한 런타임은 Node.js 22.13+ 뿐입니다. `.hwp` 도 core 에 들어 있는 rhwp(WASM) 엔진으로 변환하므로 Java 가 필요 없습니다 (0.7.0 부터). `.doc` 만 LibreOffice 가 필요합니다.
 
 #### 2) Claude Desktop 연동
 
@@ -251,7 +251,7 @@ pnpm typecheck
 ### CLI
 
 ```bash
-paper-md-studio 문서.hwp            # HWP → HWPX → MD (Java 11+ 필요)
+paper-md-studio 문서.hwp            # HWP → HWPX → MD (내장 rhwp, 별도 설치 불필요)
 paper-md-studio document.hwpx
 paper-md-studio report.docx -o ./output
 paper-md-studio paper.pdf --images-dir assets
@@ -262,7 +262,6 @@ paper-md-studio --help
 
 ```bash
 # 사전 요구사항: Rust 툴체인, Xcode Command Line Tools
-#               (HWP 변환 시) Java 11+
 pnpm --filter @paper-md-studio/app sidecar:install  # 최초 1회
 pnpm --filter @paper-md-studio/app tauri dev
 ```
@@ -287,31 +286,23 @@ curl -X POST http://localhost:3000/v1/convert \
 
 | 형식 | 확장자 | 비고 |
 |------|--------|------|
-| 한글 (HWP 5.0 바이너리) | `.hwp` | Java 11+ 필요 (hwp2hwpx 경유) |
-| 한글 (HWP 3.x · HWPML) | `.hwp` | 매직바이트 자동 판별, Java 불필요 (kordoc) |
-| 한글 (HWPX) | `.hwpx` | 표 셀 내부 이미지까지 추출 |
+| 한글 (HWP 5.0 · 배포용 문서) | `.hwp` | 내장 rhwp(WASM)로 HWPX 선변환 후 자체 HWPX 파서 — 별도 설치 불필요 |
+| 한글 (HWP 3.x · HWPML) | `.hwp` | 매직바이트 자동 판별, 위와 같은 경로 |
+| 한글 (HWPX) | `.hwpx` | 자체 파서 — 표 셀 내부 이미지, 글머리표·번호, 글상자·각주, 수식(LaTeX) |
 | Word | `.docx` | mammoth + turndown |
 | Word (레거시) | `.doc` | LibreOffice 필요 (macOS fallback: textutil) |
 | PDF | `.pdf` | 텍스트 추출 (이미지 미지원) |
-| Excel | `.xlsx` `.xls` | 시트별 표 변환 (kordoc) |
-
-## HWP 변환 툴체인 재빌드 (개발자용)
-
-`packages/core/resources/hwp-to-hwpx.jar` 는 저장소에 포함돼 있습니다. 직접 재빌드하려면:
-```bash
-pnpm build:hwp-tool   # Maven + JitPack (초기 수 분)
-```
-환경변수 `PAPER_MD_STUDIO_HWP_JAR` 로 커스텀 jar 경로 지정 가능.
+| Excel | `.xlsx` `.xls` | 자체 파서 — 시트별 표, 표시형식·병합·숨김·이미지 |
 
 ## 기술 스택
 
-- **TypeScript** (strict) · **Node.js 20+** · **pnpm** 모노레포
+- **TypeScript** (strict) · **Node.js 22.13+** · **pnpm** 모노레포
 - **Biome** 린트 · **Vitest** 유닛/통합 · **Playwright** E2E
 - **Tauri 2.x** + **React 19** (데스크톱 앱)
 - **Milkdown** (WYSIWYG) + **CodeMirror 6** (소스) + **react-resizable-panels** (분할)
 - **Fastify 5** + **Zod** + **@fastify/swagger** (REST API 서버)
-- **Java 11+** / Maven / `neolord0/hwp2hwpx` (HWP 선변환)
-- **kordoc** (XLSX·XLS·HWP3·HWPML 변환 — 통합 로드맵: [`docs/kordoc-integration.md`](docs/kordoc-integration.md))
+- **rhwp** (`@rhwp/core`, Rust→WASM) — `.hwp`(HWP 5.0·3.x·HWPML) → HWPX 선변환 + 앱의 HWP/HWPX 뷰어
+- **@firecrawl/pdf-inspector** (Rust/NAPI) — PDF 기본 엔진
 
 ## 로드맵
 
@@ -331,7 +322,8 @@ MIT License — [`LICENSE`](LICENSE) 참고.
 ### 감사의 글
 
 이 프로젝트의 한글 문서 처리는 훌륭한 오픈소스들 위에 서 있습니다. 특히
-[kordoc](https://github.com/chrisryugj/kordoc) (한국 행정문서 파서),
-[rhwp](https://github.com/edwardkim/rhwp) (HWPX 렌더링),
-[hwp2hwpx](https://github.com/neolord0/hwp2hwpx) (HWP→HWPX 변환)를
+[rhwp](https://github.com/edwardkim/rhwp) (HWP→HWPX 변환과 HWP/HWPX 렌더링),
+[kordoc](https://github.com/chrisryugj/kordoc) (한국 행정문서 파서 — 수식 변환기의 출처),
+[hml-equation-parser](https://github.com/OpenBapul/hml-equation-parser) (한컴 수식 → LaTeX 원본 알고리즘),
+그리고 예전 버전의 HWP 변환을 맡았던 [hwp2hwpx](https://github.com/neolord0/hwp2hwpx)를
 공개해주신 개발자분들께 감사드립니다.

@@ -35,7 +35,7 @@ MCP 프로토콜은 JSON-RPC 기반으로 **파일 업로드 primitive 가 없�
 
 ### embedded 모드 (기본)
 
-혼자 Claude Desktop / Antigravity 에서 쓸 때. 변환 결과가 로컬 스토리지 (`PAPER_MD_MCP_STORAGE`) 에 캐시됨. JVM 은 `.hwp` 변환 시에만 필요.
+혼자 Claude Desktop / Antigravity 에서 쓸 때. 변환 결과가 로컬 스토리지 (`PAPER_MD_MCP_STORAGE`) 에 캐시됨. `.hwp` 도 core 내장 rhwp(WASM)로 변환하므로 JVM 이 필요 없다 (0.7.0 부터).
 
 ### remote 모드
 
@@ -85,8 +85,7 @@ pnpm --filter @paper-md-studio/md-utils --filter @paper-md-studio/core --filter 
 
 ### 2. 의존 런타임
 
-- **Node.js 22+** — MCP 서버 자체
-- **Java 11+** — `.hwp` 변환 시에만 필요 (시스템 PATH 에서 `java` 탐지)
+- **Node.js 22.13+** — MCP 서버 자체
 - **LibreOffice** — `.doc` 변환 시에만 필요 (macOS 는 `textutil` fallback 사용 가능)
 
 ## Claude Desktop 등록
@@ -222,7 +221,8 @@ Line range (0-indexed):
 
 | 상황 | 메시지 |
 |------|--------|
-| Java 미설치 + `.hwp` 변환 | `java 실행 파일을 찾을 수 없습니다...` (core 전달) |
+| 암호·DRM·손상 `.hwp` | `암호로 보호된 문서입니다. 한글에서 암호를 해제해 저장한 뒤 다시 시도해주세요.` 등 (core `HwpConversionError` 전달) |
+| 압축 폭탄 의심 `.hwp` | `압축을 풀면 비정상적으로 커지는 데이터가 있어 변환을 중단했습니다...` (변환 엔진에 넘기기 전에 거부) |
 | LibreOffice 미설치 + `.doc` | `LibreOffice/soffice 를 찾을 수 없습니다...` (core 전달) |
 | `path`/`url`/`base64` 누락 | `path / url / base64 중 하나는 반드시 지정해야 합니다.` |
 | 크기 한도 초과 | `파일이 최대 업로드 한도(50.00MB)를 초과했습니다: 73.12MB` |
@@ -248,3 +248,7 @@ rm -rf ~/.paper-md-studio/mcp-storage
 ```
 
 또는 `PAPER_MD_MCP_STORAGE` 를 바꾸면 새로운 캐시 공간이 생깁니다.
+
+업그레이드 후 예전 결과가 나올까 봐 지울 필요는 없습니다 — 캐시 키에 core 의
+변환기 개정(`CONVERTER_REVISION`)이 섞여 있어, 변환 결과를 바꾸는 수정이 들어간
+버전에서는 같은 파일도 새로 변환됩니다. 지우는 것은 용량을 비울 때만 필요합니다.
