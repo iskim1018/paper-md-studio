@@ -8,6 +8,8 @@
  * 모든 오류는 이 모듈을 거쳐 `HwpConversionError`(코드 + 한국어 메시지)가 된다.
  */
 
+import { HWPML_VERSION_REJECTION } from "@paper-md-studio/md-utils";
+
 export type HwpErrorCode =
   | "EMPTY"
   | "UNSUPPORTED"
@@ -84,7 +86,7 @@ export const RHWP_PATTERNS = {
   drmProtected: "오류코드: DRM_PROTECTED",
   passwordRequired: "비밀번호가 필요한 암호 문서",
   passwordMismatch: "비밀번호가 일치하지 않",
-  hwpmlVersion: /지원하지 않는 HWPML 버전입니다: ?(.*)$/,
+  hwpmlVersion: HWPML_VERSION_REJECTION,
 } as const;
 
 /** 사용자에게 보여주면 안 되는 내부 정보(엔진 이름·API 이름) */

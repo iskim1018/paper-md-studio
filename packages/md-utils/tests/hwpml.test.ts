@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   decodeHwpml,
+  HWPML_FALLBACK_VERSION,
+  HWPML_VERSION_REJECTION,
+  isHwpmlRoot,
   readHwpmlVersion,
   rewriteHwpmlVersion,
   sniffXmlEncoding,
-} from "../src/parsers/hwp/hwpml.js";
+} from "../src/index";
 
 const DOC = `<?xml version="1.0"?>\n<HWPML Version="2.8" Style="embed"><HEAD/><BODY>본문</BODY></HWPML>`;
 
@@ -105,5 +108,29 @@ describe("rewriteHwpmlVersion", () => {
 describe("decodeHwpml", () => {
   it("UTF-16BE 도 런타임 ICU 없이 디코드한다", () => {
     expect(decodeHwpml(withBom([0xfe, 0xff], utf16be(DOC)))).toBe(DOC);
+  });
+});
+
+describe("isHwpmlRoot", () => {
+  it("선언·주석·DOCTYPE 뒤 첫 요소가 HWPML 이면 true", () => {
+    expect(isHwpmlRoot(DOC)).toBe(true);
+    expect(isHwpmlRoot(`<!DOCTYPE x [<!ENTITY a "b">]><!-- c --><HWPML>`)).toBe(
+      true,
+    );
+    expect(isHwpmlRoot(`<html><HWPML/></html>`)).toBe(false);
+  });
+});
+
+describe("HWPML 버전 대체 (core 변환·앱 미리보기 공용)", () => {
+  it("rhwp 가 받는 버전(2.91)으로 대체한다", () => {
+    expect(HWPML_FALLBACK_VERSION).toBe("2.91");
+  });
+
+  it("rhwp 의 버전 거부 문구에서 원래 버전을 꺼낸다", () => {
+    const raw =
+      "유효하지 않은 파일: HML 오류: 지원하지 않는 HWPML 버전입니다: 2.8";
+
+    expect(HWPML_VERSION_REJECTION.exec(raw)?.[1]).toBe("2.8");
+    expect(HWPML_VERSION_REJECTION.test("CFB 오류: 스트림 없음")).toBe(false);
   });
 });

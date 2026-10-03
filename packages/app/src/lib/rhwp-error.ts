@@ -8,6 +8,8 @@
  * 같은 기준으로 흔한 경우를 다듬는다.
  */
 
+import { HWPML_VERSION_REJECTION } from "@paper-md-studio/md-utils";
+
 const INVALID_FILE_PREFIX = "유효하지 않은 파일: ";
 
 const KNOWN_CAUSES: ReadonlyArray<{
@@ -43,6 +45,12 @@ export function describeRhwpError(err: unknown): string {
 
   const known = KNOWN_CAUSES.find((cause) => cause.match.test(raw));
   if (known) return known.message;
+
+  // 버전을 바꿔 다시 열어도 안 된 HWPML (HEAD 없음 등) — 변환 경로와 같은 안내
+  const version = HWPML_VERSION_REJECTION.exec(raw);
+  if (version) {
+    return `지원하지 않는 HWPML 버전입니다(${version[1] || "없음"}). 한글에서 .hwp 또는 .hwpx로 다시 저장해주세요.`;
+  }
 
   // 개발자용 괄호 안내("(parse_… 로 …)")와 앞머리를 걷어낸다
   return raw

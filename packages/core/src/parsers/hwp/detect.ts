@@ -7,7 +7,11 @@
  * 한글 문서가 아닌 파일이 엉뚱한 경로로 새지 않는다.
  */
 
-import { decodeXml, isHwpmlRoot, sniffXmlEncoding } from "./hwpml.js";
+import {
+  decodeXml,
+  isHwpmlRoot,
+  sniffXmlEncoding,
+} from "@paper-md-studio/md-utils";
 
 export type HwpFormat =
   | "empty"

@@ -11,13 +11,18 @@
  *   부르지 않는다(글루에 0회 등장, 호출 계측 0회).
  */
 
+import {
+  decodeHwpml,
+  HWPML_FALLBACK_VERSION,
+  readHwpmlVersion,
+  rewriteHwpmlVersion,
+} from "@paper-md-studio/md-utils";
 import { contentLossToWarnings } from "./content-loss.js";
 import {
   HwpConversionError,
   isWasmRuntimeError,
   toHwpConversionError,
 } from "./errors.js";
-import { decodeHwpml, readHwpmlVersion, rewriteHwpmlVersion } from "./hwpml.js";
 import {
   discardRhwp,
   isDiscarded,
@@ -86,8 +91,8 @@ export async function convertWithRhwp(data: Uint8Array): Promise<RhwpResult> {
   return exportHwpx(rhwp, data);
 }
 
-/** rhwp 가 받아들이는 HWPML 버전으로 바꿔 넣을 값 */
-export const FALLBACK_HWPML_VERSION = "2.91";
+/** rhwp 가 받아들이는 HWPML 버전으로 바꿔 넣을 값 (앱 미리보기와 공유) */
+export const FALLBACK_HWPML_VERSION = HWPML_FALLBACK_VERSION;
 
 function versionFallbackWarning(original: string | undefined): string {
   const tail = `${FALLBACK_HWPML_VERSION}로 간주해 변환했습니다. 일부 내용이 원본과 다를 수 있습니다.`;

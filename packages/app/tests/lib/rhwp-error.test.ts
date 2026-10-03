@@ -29,6 +29,16 @@ describe("describeRhwpError", () => {
     ).toBe("한글 문서가 아니거나 지원하지 않는 형식입니다.");
   });
 
+  it("다시 열어도 안 되는 HWPML 버전 오류는 변환 경로와 같은 안내로", () => {
+    expect(
+      describeRhwpError(
+        "유효하지 않은 파일: HML 오류: 지원하지 않는 HWPML 버전입니다: 2.8",
+      ),
+    ).toBe(
+      "지원하지 않는 HWPML 버전입니다(2.8). 한글에서 .hwp 또는 .hwpx로 다시 저장해주세요.",
+    );
+  });
+
   it("그 밖의 문자열은 앞머리만 떼고 보여준다", () => {
     expect(
       describeRhwpError(

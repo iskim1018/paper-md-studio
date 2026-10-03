@@ -1,6 +1,23 @@
 /**
- * Markdown 후처리 유틸 — 에디터에서 사용자가 명시적으로 호출한다.
+ * 앱과 변환 엔진이 함께 쓰는 순수 함수 — `node:` API 를 쓰지 않는다.
+ *
+ * - Markdown 후처리 유틸 — 에디터에서 사용자가 명시적으로 호출한다.
+ * - HWPML 텍스트 헬퍼 (`hwpml.ts`) — 변환·미리보기의 버전 대체 규칙 공유.
  */
+
+export {
+  decodeHwpml,
+  decodeXml,
+  encodeXml,
+  HWPML_FALLBACK_VERSION,
+  HWPML_VERSION_REJECTION,
+  isHwpmlRoot,
+  readHwpmlVersion,
+  rewriteHwpmlVersion,
+  sniffXmlEncoding,
+  type XmlEncoding,
+  type XmlEncodingInfo,
+} from "./hwpml.js";
 
 /**
  * GFM 파이프 테이블에서 내용이 빈 row를 제거한다.
