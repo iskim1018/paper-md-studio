@@ -131,14 +131,16 @@ function classifyRhwpMessage(message: string): HwpConversionError {
       `문서 버전: ${version[1] || "없음"}`,
     );
   }
-  const detail = sanitizeDetail(message);
   const body = message.startsWith(RHWP_INVALID_FILE_PREFIX)
     ? message.slice(RHWP_INVALID_FILE_PREFIX.length)
     : message;
-  if (CORRUPTED_PREFIXES.some((prefix) => body.startsWith(prefix))) {
-    return new HwpConversionError("CORRUPTED", detail);
+  // 손상은 영역 이름만 싣는다 — 뒤따르는 세부는 Rust std::io·cfb·flate2 의 영어
+  // 문구("failed to fill whole buffer" 등)라 사용자에게 쓸모가 없다.
+  const area = CORRUPTED_PREFIXES.find((prefix) => body.startsWith(prefix));
+  if (area !== undefined) {
+    return new HwpConversionError("CORRUPTED", area);
   }
-  return new HwpConversionError("CONVERSION_FAILED", detail);
+  return new HwpConversionError("CONVERSION_FAILED", sanitizeDetail(message));
 }
 
 /**

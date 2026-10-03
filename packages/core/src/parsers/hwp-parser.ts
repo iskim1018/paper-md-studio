@@ -58,9 +58,19 @@ async function parseViaRhwp(
   return withWarnings(result, [...precheckWarnings, ...warnings]);
 }
 
+/** 오류 문구의 첫 ": " 앞(우리 파서의 한국어 안내 부분). 한국어가 아니면 undefined */
+function koreanLead(err: unknown): string | undefined {
+  const message = err instanceof Error ? err.message : String(err);
+  const lead = message.split(": ")[0]?.trim();
+  return lead && HANGUL.test(lead) ? lead : undefined;
+}
+
 /**
  * HWPX(ZIP)를 .hwp 로 저장한 파일 — .hwpx 와 똑같이 HwpxParser 로 읽는다.
  * DOCX·XLSX 도 ZIP 이므로 HWPX 본문 폴더(Contents/)가 있는지 먼저 본다.
+ * 여기서 HwpxParser 가 실패하면 입력이 손상된 것이므로 CORRUPTED(REST 422)다 —
+ * rhwp 가 만든 HWPX 를 읽다 실패한 경우(우리 쪽 문제)와 구분한다. 세부에는
+ * 파서의 한국어 안내만 싣고 뒤따르는 zip·XML 라이브러리 영어 문구는 뺀다.
  */
 async function parseZipAsHwpx(
   data: Uint8Array,
@@ -83,7 +93,14 @@ async function parseZipAsHwpx(
       "HWPX 가 아닌 ZIP 문서(DOCX·XLSX 등)입니다. 확장자를 확인해주세요",
     );
   }
-  return await runHwpxParser(data, options);
+  try {
+    return await new HwpxParser().parseBytes(data, options);
+  } catch (err) {
+    throw new HwpConversionError(
+      "CORRUPTED",
+      koreanLead(err) ?? "HWPX 내용을 해석할 수 없습니다",
+    );
+  }
 }
 
 /** 보안 컨테이너 머리말 판별에 넘길 앞부분 크기 */
