@@ -25,6 +25,21 @@ function timed(script: string): {
   return { result, elapsed: performance.now() - started };
 }
 
+/**
+ * 예열 한 번 뒤 `runs` 번 중 가장 빠른 시간. 예산이 실측(약 15ms)에 여유가
+ * 몇 배뿐인 검사용이다 — 전체 테스트를 병렬로 돌리면 첫 실행(JIT 전)이나 한
+ * 번의 부하로 100ms 를 넘기도 해서(실측 117ms), 정상 상태의 시간을 본다.
+ */
+function fastestOf(
+  script: string,
+  runs: number,
+): { readonly result: string | null; readonly elapsed: number } {
+  hwpEquationToLatex(script);
+  const trials = Array.from({ length: runs }, () => timed(script));
+  const elapsed = Math.min(...trials.map((trial) => trial.elapsed));
+  return { result: trials[0]?.result ?? null, elapsed };
+}
+
 function equation(script: string): string {
   return `<equation id="1" version="Equation Version 60"><script>${script}</script></equation>`;
 }
@@ -109,6 +124,32 @@ describe("hwpEquationToLatex — 적대적 입력의 작업량", () => {
     expect(result.warnings).toEqual([
       "수식 3개는 LaTeX로 바꾸지 못해 원본 수식 스크립트를 코드로 남겼습니다.",
     ]);
+  });
+
+  /**
+   * 분모 안에 over 가 하나 더 있는 분수를 잇는다. 바깥 over 마다 분자를 찾으려
+   * 스크립트 맨 앞까지 다시 훑어 작업량이 반복 수의 제곱으로 늘었고, 10,000자
+   * 가까이에서 작업량 한도에 걸려 수식 전체가 원문 코드로 빠졌다 (null).
+   */
+  it.each([
+    ["중괄호 분모", "a over {b + c over d} + ", "\\frac{a}{b + \\frac{c}{d}}"],
+    [
+      "소괄호 분모",
+      "a over (b + c over d) + ",
+      "\\frac{a}{(b + \\frac{c}{d})}",
+    ],
+  ])("분모 안 분수를 품은 분수 416개(%s)도 100ms 안에 끝까지 변환한다", (_title, unit, fraction) => {
+    // Arrange
+    const script = unit.repeat(416);
+
+    // Act
+    const { result, elapsed } = fastestOf(script, 3);
+
+    // Assert
+    expect(script.length).toBeLessThanOrEqual(10_000);
+    const expected = Array.from({ length: 416 }, () => fraction).join(" + ");
+    expect(result).toBe(`${expected} +`);
+    expect(elapsed).toBeLessThan(100);
   });
 
   it("분수가 많은 긴 스크립트(약 10,000자)도 변환한다", () => {

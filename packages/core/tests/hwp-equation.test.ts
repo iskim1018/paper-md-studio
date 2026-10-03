@@ -103,6 +103,80 @@ describe("hwpEquationToLatex — 분수 (괄호 안·계승·프라임)", () => 
 });
 
 /**
+ * 앞 분수의 분모 안에 든 over — 분모는 새 그룹이라 그 안에서 다시 분자를 찾아야
+ * 한다. 직전 over 의 수준을 그대로 이어 쓰면 `LEFT(` 의 구분자 `(` 가 분자로
+ * 끌려가 `\left.\frac{(b}{c} \right)` 가 됐다 — 유효한 LaTeX 라 렌더 오류도
+ * 경고도 없이 괄호만 엉뚱한 곳에 갔다. `LEFT( b` 처럼 띄우면 증상이 숨는다.
+ */
+describe("hwpEquationToLatex — 분모 안의 분수", () => {
+  runVectors([
+    [
+      "분모의 LEFT( 안 분수",
+      "a over LEFT(b over c RIGHT)",
+      "\\frac{a}{\\left(\\frac{b}{c} \\right)}",
+    ],
+    [
+      "연분수 꼴 — 분모 그룹 안의 LEFT(",
+      "1 over {1+ LEFT(1 over x RIGHT)}",
+      "\\frac{1}{1+ \\left(\\frac{1}{x} \\right)}",
+    ],
+    [
+      "분모의 LEFT[ 안 분수",
+      "a over LEFT[b over c RIGHT]",
+      "\\frac{a}{\\left[\\frac{b}{c} \\right]}",
+    ],
+    [
+      "atop 의 아래 칸",
+      "a atop LEFT(b atop c RIGHT)",
+      "{a \\atop{\\left({b \\atop c} \\right)}}",
+    ],
+    [
+      "근호 안",
+      "sqrt{a over LEFT(b over c RIGHT)}",
+      "\\sqrt{\\frac{a}{\\left(\\frac{b}{c} \\right)}}",
+    ],
+    [
+      "붙여 쓴 여러 원자 분자",
+      "a over LEFT(2b over c RIGHT)",
+      "\\frac{a}{\\left(\\frac{2b}{c} \\right)}",
+    ],
+    [
+      "분모 안 LEFT[ 뒤의 분수",
+      "x over {y + LEFT[1 over 2 RIGHT] + z over w}",
+      "\\frac{x}{y + \\left[\\frac{1}{2} \\right] + \\frac{z}{w}}",
+    ],
+    // 분모를 빠져나온 뒤의 over 는 바깥 수준의 직전 탐색을 이어 쓴다
+    [
+      "분모 안 분수 뒤 바깥 over",
+      "a over {b + c over d} + e over f",
+      "\\frac{a}{b + \\frac{c}{d}} + \\frac{e}{f}",
+    ],
+    [
+      "괄호 분모 안 분수 뒤 바깥 over",
+      "a over (b + c over d) + e over f",
+      "\\frac{a}{(b + \\frac{c}{d})} + \\frac{e}{f}",
+    ],
+    [
+      "소괄호 안에서 분모를 빠져나온 over",
+      "(a over {b + c over d} + e over f)",
+      "(\\frac{a}{b + \\frac{c}{d}} + \\frac{e}{f})",
+    ],
+    [
+      "분모 안 LEFT( 분수 뒤 바깥 over",
+      "a over LEFT(b over c RIGHT) + d over e",
+      "\\frac{a}{\\left(\\frac{b}{c} \\right)} + \\frac{d}{e}",
+    ],
+    // 바깥 수준의 탐색이 품은 괄호 중 안쪽 그룹보다 먼저 끝난 것은 그대로,
+    // 안쪽 그룹을 품은 것만 밀린다
+    [
+      "괄호 안에서 그룹 속 분수를 지나 다시 바깥 over",
+      "( (a over b) + {c over d} + e over f) + g over h",
+      "((\\frac{a}{b}) +{\\frac{c}{d}} + \\frac{e}{f}) + \\frac{g}{h}",
+    ],
+  ]);
+});
+
+/**
  * 계승은 분수의 분자·분모에서만 앞 항에 붙인다. 명령 인자로 넣으면 장식·근호·
  * 행렬이 `!` 까지 덮는다 (`\overline{{n}!}`). 프라임 뒤 결합도 밑이 붙여 쓰는
  * 원자일 때만 — 그룹은 원래 이웃과 붙지 않는다.

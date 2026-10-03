@@ -12,9 +12,10 @@
  * - over 를 품은 맨 괄호 `(…)`·`[…]` 는 그 안으로 들어가 다시 나눈다 —
  *   `(1+ 1 over n)` 의 분자는 `1` 이다. 예전에는 괄호 항이 over 를 넘어 분자가
  *   비었고(`(1+ 1 \frac{}{n})`), 출력이 유효한 LaTeX 라 경고도 없었다.
- * - 직전 over 의 탐색을 이어 쓴다. 재작성은 분자 시작 앞을 바꾸지 않으므로,
- *   같은 수준의 다음 over 는 처음부터 다시 나눌 필요가 없다 — over 마다 수준
- *   전체를 다시 훑으면 over 가 많은 스크립트에서 O(n²) 이 된다.
+ * - 같은 수준의 직전 over 탐색을 이어 쓴다. 재작성은 분자 시작 앞을 바꾸지
+ *   않으므로, 같은 수준의 다음 over 는 처음부터 다시 나눌 필요가 없다 — over
+ *   마다 수준 전체를 다시 훑으면 over 가 많은 스크립트에서 O(n²) 이 된다.
+ *   수준(감싸는 그룹)과 수준별 직전 탐색은 levels.ts 가 들고 있다.
  */
 import { spendSteps } from "./budget.js";
 import {
@@ -25,7 +26,7 @@ import {
   startsItem,
 } from "./items.js";
 import { isSizer } from "./left-right.js";
-import { type EqToken, isClose, isOpen, isValue } from "./tokens.js";
+import type { EqToken } from "./tokens.js";
 
 type Tokens = ReadonlyArray<EqToken>;
 
@@ -37,63 +38,12 @@ interface Straddle {
   readonly end: number;
 }
 
-/** 분자 탐색 결과. 다음 over 가 이어 쓸 수 있게 탐색 경로를 함께 남긴다 */
+/** 분자 탐색 결과. 같은 수준의 다음 over 가 이어 쓸 수 있게 탐색 경로를 남긴다 */
 export interface NumeratorWalk {
-  /** over 를 감싸는 그룹 안쪽의 시작 */
-  readonly level: number;
   /** 들어간 단위들 (바깥부터) */
   readonly straddles: ReadonlyArray<Straddle>;
   /** 분자 시작 — 단위 경계다 */
   readonly start: number;
-}
-
-/** 재작성을 마친 직전 탐색 — 위치는 새 배열 기준이다 */
-export interface WalkResume extends NumeratorWalk {
-  /** 새로 만든 분수의 끝(배타) — `[start, fractionEnd)` 는 짝이 맞는 구조뿐이다 */
-  readonly fractionEnd: number;
-}
-
-/** 거꾸로 훑은 결과 — 감싸는 그룹 안쪽의 시작(못 찾으면 null)과 남은 깊이 */
-interface BackScan {
-  readonly inside: number | null;
-  readonly depth: number;
-}
-
-/** `[floor, from)` 을 거꾸로 훑어 짝 없는 여는 토큰(`{`·`\left`)을 찾는다 */
-function scanBack(
-  tokens: Tokens,
-  from: number,
-  floor: number,
-  startDepth: number,
-): BackScan {
-  let depth = startDepth;
-  for (let i = from - 1; i >= floor; i -= 1) {
-    spendSteps(1);
-    const token = tokens[i];
-    if (isClose(token) || isValue(token, "\\right")) depth += 1;
-    else if (isOpen(token) || isValue(token, "\\left")) {
-      if (depth === 0) return { inside: isSizer(token) ? i + 2 : i + 1, depth };
-      depth -= 1;
-    }
-  }
-  return { inside: null, depth };
-}
-
-/**
- * `index` 를 감싸는 그룹(또는 `\left…\right`) 안쪽의 시작. 직전 분수의 끝까지
- * 짝이 맞으면 그 분수와 같은 수준이므로 더 훑지 않는다 (분수 안은 짝이 맞는
- * 구조뿐이다).
- */
-function enclosingStart(
-  tokens: Tokens,
-  index: number,
-  previous: WalkResume | null,
-): number {
-  const floor = Math.min(previous?.fractionEnd ?? 0, index);
-  const near = scanBack(tokens, index, floor, 0);
-  if (near.inside !== null) return near.inside;
-  if (previous !== null && near.depth === 0) return previous.level;
-  return scanBack(tokens, floor, 0, near.depth).inside ?? 0;
 }
 
 /**
@@ -108,8 +58,12 @@ function unitEnd(tokens: Tokens, index: number): number {
 
 /**
  * over 를 넘어가는 단위 안으로 들어갈 자리. 붙은 원자 중 over 를 품은 것으로
- * 가고, 그 원자가 단위의 첫 원자면 한 칸 안으로 (괄호 `(`·`[` 의 안쪽,
+ * 가고, 그 원자가 단위의 첫 원자면 그 안으로 (괄호 `(`·`[` 의 안쪽,
  * `\sqrt [ … ]` 의 지수 괄호). 늘 `start` 보다 뒤라 탐색이 끝난다.
+ *
+ * `\left` 는 구분자 뒤로 들어간다 — 구분자를 분자로 떼어 가면 짝이 깨져
+ * `\left.\frac{(b}{c} \right)` 가 된다. `\left…\right` 는 수준이라 levels.ts 가
+ * 맞게 잡으면 여기 오지 않지만, 어긋나도 구분자는 지킨다.
  */
 function stepInside(tokens: Tokens, start: number, keyword: number): number {
   let atom = start;
@@ -117,7 +71,8 @@ function stepInside(tokens: Tokens, start: number, keyword: number): number {
     atom = end;
     end = atomEnd(tokens, atom);
   }
-  return atom > start ? atom : start + 1;
+  if (atom > start) return atom;
+  return isSizer(tokens[start]) ? start + 2 : start + 1;
 }
 
 interface WalkPoint {
@@ -126,7 +81,7 @@ interface WalkPoint {
 }
 
 /** 직전 탐색에서 이어 갈 자리 — 아직 over 를 품은 단위까지만 남긴다 */
-function resumeFrom(previous: WalkResume, keyword: number): WalkPoint {
+function resumeFrom(previous: NumeratorWalk, keyword: number): WalkPoint {
   const passed = previous.straddles.findIndex((unit) => unit.end <= keyword);
   const left = previous.straddles[passed];
   if (left === undefined) {
@@ -145,7 +100,7 @@ function walkUnits(
   tokens: Tokens,
   keyword: number,
   point: WalkPoint,
-): Pick<NumeratorWalk, "start" | "straddles"> {
+): NumeratorWalk {
   const straddles = [...point.straddles];
   let i = point.from;
   while (i < keyword) {
@@ -166,37 +121,39 @@ function walkUnits(
 }
 
 /**
- * over(`keyword`) 바로 앞 항의 시작. `previous` 는 같은 패스에서 직전 over 의
- * 탐색이다 — 재작성으로 밀린 위치는 shiftWalk 로 맞춰 넘긴다.
+ * over(`keyword`) 바로 앞 항의 시작. `inside` 는 over 를 감싸는 그룹 안쪽의
+ * 시작, `previous` 는 같은 그룹에서 직전 over 의 탐색이다 (levels.ts) — 재작성
+ * 으로 밀린 위치는 shiftWalk 로 맞춰 넘긴다.
  */
 export function findNumerator(
   tokens: Tokens,
   keyword: number,
-  previous: WalkResume | null,
+  inside: number,
+  previous: NumeratorWalk | null,
 ): NumeratorWalk {
-  const level = enclosingStart(tokens, keyword, previous);
   const point =
-    previous !== null && previous.level === level
-      ? resumeFrom(previous, keyword)
-      : { from: level, straddles: [] };
-  return { level, ...walkUnits(tokens, keyword, point) };
+    previous === null
+      ? { from: inside, straddles: [] }
+      : resumeFrom(previous, keyword);
+  return walkUnits(tokens, keyword, point);
 }
 
 /**
- * 재작성이 `[start, end)` 를 길이 `fractionLength` 의 분수로 바꿨다. 분수 뒤는
- * 밀렸으므로 들어간 단위들의 끝(늘 분수 뒤)도 함께 민다.
+ * 재작성이 `from` 부터 길이를 `delta` 만큼 바꿨다. 그 뒤에서 끝나는 단위의
+ * 끝을 민다 — 이 수준의 over 를 품은 단위는 분수 뒤에서 끝나고, 앞서 끝난
+ * 단위는 그대로다. 바뀔 것이 없으면 같은 객체를 돌려준다.
  */
-export function afterRewrite(
+export function shiftWalk(
   walk: NumeratorWalk,
+  from: number,
   delta: number,
-  fractionLength: number,
-): WalkResume {
+): NumeratorWalk {
+  const moves = (unit: Straddle): boolean => unit.end > from;
+  if (delta === 0 || !walk.straddles.some(moves)) return walk;
   return {
-    ...walk,
-    straddles: walk.straddles.map((unit) => ({
-      start: unit.start,
-      end: unit.end + delta,
-    })),
-    fractionEnd: walk.start + fractionLength,
+    start: walk.start,
+    straddles: walk.straddles.map((unit) =>
+      moves(unit) ? { start: unit.start, end: unit.end + delta } : unit,
+    ),
   };
 }
