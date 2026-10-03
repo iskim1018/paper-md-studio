@@ -25,6 +25,21 @@ function timed(script: string): {
   return { result, elapsed: performance.now() - started };
 }
 
+/**
+ * 예열 한 번 뒤 `runs` 번 중 가장 빠른 시간. 예산이 실측(약 15ms)에 여유가
+ * 몇 배뿐인 검사용이다 — 전체 테스트를 병렬로 돌리면 첫 실행(JIT 전)이나 한
+ * 번의 부하로 100ms 를 넘기도 해서(실측 117ms), 정상 상태의 시간을 본다.
+ */
+function fastestOf(
+  script: string,
+  runs: number,
+): { readonly result: string | null; readonly elapsed: number } {
+  hwpEquationToLatex(script);
+  const trials = Array.from({ length: runs }, () => timed(script));
+  const elapsed = Math.min(...trials.map((trial) => trial.elapsed));
+  return { result: trials[0]?.result ?? null, elapsed };
+}
+
 function equation(script: string): string {
   return `<equation id="1" version="Equation Version 60"><script>${script}</script></equation>`;
 }
@@ -128,7 +143,7 @@ describe("hwpEquationToLatex — 적대적 입력의 작업량", () => {
     const script = unit.repeat(416);
 
     // Act
-    const { result, elapsed } = timed(script);
+    const { result, elapsed } = fastestOf(script, 3);
 
     // Assert
     expect(script.length).toBeLessThanOrEqual(10_000);
