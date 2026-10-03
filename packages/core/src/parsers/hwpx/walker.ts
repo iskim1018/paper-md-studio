@@ -267,8 +267,12 @@ class ParagraphWalker {
     this.withCaption(node, () => {
       const html = this.ctx.images.place(binaryRef(node));
       if (!html) return;
-      if (this.mode.imagesInline) this.builder.raw(html);
-      else this.block({ kind: "image", html });
+      // 셀 안이면 alt(문서가 정한 BinData 이름)·src 의 "|"가 열을 나누지 않게
+      if (this.mode.imagesInline) {
+        this.builder.raw(protectCellPipes(html, this.mode.inCell));
+      } else {
+        this.block({ kind: "image", html });
+      }
     });
   }
 

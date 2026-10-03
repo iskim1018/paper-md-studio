@@ -191,6 +191,52 @@ describe.each(VARIANTS)("HWPX 문서 순서·누락 내용 (%s)", (_label, wrap)
     });
   });
 
+  describe("그림 대체 글(alt)의 '$'·'|'", () => {
+    /** BinData 이름이 alt 가 된다 — 확장자를 뺀 참조로 부른다 */
+    const picture = (name: string) =>
+      `<pic><img binaryItemIDRef="${name.replace(/\.png$/, "")}"/></pic>`;
+
+    it("alt 의 '$'를 '\\$'로 escape 해 뒤 수식과 짝을 짓지 않게 한다 (#23)", async () => {
+      // Arrange — turndown 의 그림 규칙은 서비스 escape(본문 '$' 처리)를 거치지
+      // 않는다. 셀 안에서는 그림과 수식이 한 줄이라 alt 의 '$'가 수식과 짝을 짓는다
+      const name = "US$1.png";
+
+      // Act
+      const result = await parse(
+        tableSection([
+          `<p><run>${picture(name)}<t> 값 </t><equation><script>x</script></equation></run></p>`,
+        ]),
+        { [`BinData/${name}`]: PNG },
+      );
+
+      // Assert
+      const out = result.markdown ?? "";
+      expect(out).toContain("![US\\$1.png](./doc_images/img_001.png)");
+      const tree = parseMarkdown(out);
+      expect(nodesOfType(tree, "image")).toHaveLength(1);
+      expect(nodesOfType(tree, "inlineMath").map((n) => n.value)).toEqual([
+        "x",
+      ]);
+    });
+
+    it("표 셀 안 alt 의 '|'는 열 구분자가 되지 않는다", async () => {
+      const name = "a|b.png";
+
+      const result = await parse(
+        tableSection([
+          `<p><run><t>x</t>${picture(name)}</run></p>`,
+          "<p><run><t>y</t></run></p>",
+        ]),
+        { [`BinData/${name}`]: PNG },
+      );
+
+      expect(result.markdown).toBe(
+        "| x![a\\|b.png](./doc_images/img_001.png) | y |\n| --- | --- |",
+      );
+      expect(result.html).toContain('alt="a|b.png"');
+    });
+  });
+
   describe("표 캡션", () => {
     it("위쪽(TOP) 캡션은 표 앞에, 아래쪽(BOTTOM) 캡션은 표 뒤에 낸다", async () => {
       const caption = (side: string, text: string) =>

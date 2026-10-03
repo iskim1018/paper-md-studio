@@ -77,7 +77,37 @@ function escapeLeadingBlock(markdown: string): string {
     .replace(BULLET_OR_HEADING_START, "\\$1");
 }
 
+/** turndown 7.2.4 `cleanAttribute` — 속성값 안 줄바꿈 묶음을 줄바꿈 하나로 */
+function cleanAttribute(value: string | null): string {
+  return value ? value.replace(/(\n+\s*)+/g, "\n") : "";
+}
+
+/** turndown 7.2.4 `escapeLinkDestination` — 괄호·꺾쇠를 escape, 공백이 있으면 <…> */
+function linkDestination(destination: string): string {
+  const escaped = destination.replace(/([<>()])/g, "\\$1");
+  return escaped.includes(" ") ? `<${escaped}>` : escaped;
+}
+
+/**
+ * 그림 규칙. turndown 기본 규칙은 alt 를 모듈 안 escapeMarkdown 으로만
+ * escape 해 이 서비스의 "$" escape 를 건너뛴다 — 문서가 정한 BinData 이름
+ * (`US$1.png`)의 "$"가 같은 줄 수식의 "$"와 짝을 지었다 (#23). alt 만 서비스
+ * escape 를 쓰고 나머지는 기본 규칙과 같은 출력이다 (HWPX 그림에는 title 이
+ * 없다).
+ */
+function imageReplacement(target: TurndownService, node: unknown): string {
+  const el = node as ElementLike;
+  const src = el.getAttribute("src") ?? "";
+  if (!src) return "";
+  const alt = target.escape(cleanAttribute(el.getAttribute("alt")));
+  return `![${alt}](${linkDestination(src)})`;
+}
+
 function addRules(target: TurndownService): void {
+  target.addRule("hwpxImage", {
+    filter: "img",
+    replacement: (_content, node) => imageReplacement(target, node),
+  });
   target.addRule("hwpxRawMarkdown", {
     filter: (node) => hasMarker(node, RAW_ATTR),
     replacement: (_content, node) =>
